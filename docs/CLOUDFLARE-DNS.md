@@ -33,6 +33,8 @@ Panel: https://api.shifshqip.com/
 Privacy: https://api.shifshqip.com/privacy.php  
 APK: https://api.shifshqip.com/shif-shqip.apk
 
+**Paneli nuk hapet me IP** (`http://57.128.254.213:8082` → 403). Vetëm subdomain.
+
 ## VPS (tashmë bërë)
 
 - Nginx: `/etc/nginx/sites-available/api.shifshqip.com`
