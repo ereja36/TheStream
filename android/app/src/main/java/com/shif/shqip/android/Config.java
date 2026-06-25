@@ -24,7 +24,8 @@ public class Config {
     public static final int DEFAULT_PLAYER_SCREEN_ORIENTATION = Constant.PLAYER_MODE_PORTRAIT;
 
     //show option to play streaming using external player
-    public static final boolean ENABLE_PLAY_STREAMING_USING_EXTERNAL_PLAYER = true;
+    // Kanalet duhet te luhen vetem brenda app-it tone
+    public static final boolean ENABLE_PLAY_STREAMING_USING_EXTERNAL_PLAYER = false;
 
     //display category name in the channel list
     public static final boolean ENABLE_CHANNEL_LIST_CATEGORY_NAME = true;
