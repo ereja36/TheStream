@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 26
-        versionName = "6.7.5"
+        versionCode = 27
+        versionName = "6.7.6"
         multiDexEnabled = true
     }
     compileOptions {
@@ -41,6 +41,11 @@ android {
         }
     }
     buildTypes {
+        debug {
+            if (rootProject.file('keystore/shif-shqip-release.jks').exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
         release {
             minifyEnabled false
             if (rootProject.file('keystore/shif-shqip-release.jks').exists()) {

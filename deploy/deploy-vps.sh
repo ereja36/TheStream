@@ -40,15 +40,20 @@ if [[ -f "${ROOT_DIR}/android/app/build/outputs/apk/release/app-release.apk" ]];
     "${VPS_USER}@${VPS_HOST}:${REMOTE_APK_DIR}/shif-shqip-release.apk"
   ssh "${VPS_USER}@${VPS_HOST}" bash -s <<EOF
 set -e
-cp -f ${REMOTE_APK_DIR}/shif-shqip-release.apk ${REMOTE_APK_DIR}/shif-shqip-debug.apk
-chown www-data:www-data ${REMOTE_APK_DIR}/shif-shqip-release.apk ${REMOTE_APK_DIR}/shif-shqip-debug.apk
-chmod 644 ${REMOTE_APK_DIR}/shif-shqip-release.apk ${REMOTE_APK_DIR}/shif-shqip-debug.apk
+cp -f ${REMOTE_APK_DIR}/shif-shqip-release.apk ${REMOTE_APK_DIR}/shif-shqip.apk
+chown www-data:www-data ${REMOTE_APK_DIR}/shif-shqip-release.apk ${REMOTE_APK_DIR}/shif-shqip.apk
+chmod 644 ${REMOTE_APK_DIR}/shif-shqip-release.apk ${REMOTE_APK_DIR}/shif-shqip.apk
 EOF
 elif [[ -f "${ROOT_DIR}/android/app/build/outputs/apk/debug/app-debug.apk" ]]; then
-  echo "==> Deploy debug APK"
+  echo "==> Deploy debug APK (release-signed when keystore present)"
   scp "${ROOT_DIR}/android/app/build/outputs/apk/debug/app-debug.apk" \
-    "${VPS_USER}@${VPS_HOST}:${REMOTE_APK_DIR}/shif-shqip-debug.apk"
-  ssh "${VPS_USER}@${VPS_HOST}" "chown www-data:www-data ${REMOTE_APK_DIR}/shif-shqip-debug.apk && chmod 644 ${REMOTE_APK_DIR}/shif-shqip-debug.apk"
+    "${VPS_USER}@${VPS_HOST}:${REMOTE_APK_DIR}/shif-shqip-release.apk"
+  ssh "${VPS_USER}@${VPS_HOST}" bash -s <<EOF
+set -e
+cp -f ${REMOTE_APK_DIR}/shif-shqip-release.apk ${REMOTE_APK_DIR}/shif-shqip.apk
+chown www-data:www-data ${REMOTE_APK_DIR}/shif-shqip-release.apk ${REMOTE_APK_DIR}/shif-shqip.apk
+chmod 644 ${REMOTE_APK_DIR}/shif-shqip-release.apk ${REMOTE_APK_DIR}/shif-shqip.apk
+EOF
 fi
 
 echo "==> Verify API"
