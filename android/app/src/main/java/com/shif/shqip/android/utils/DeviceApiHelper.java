@@ -80,6 +80,18 @@ public final class DeviceApiHelper {
         public int status = 1;
     }
 
+    public static String getDisplayDeviceId(Context context) {
+        String deviceId = getLocalDeviceId(context);
+        if (TextUtils.isEmpty(deviceId)) {
+            return "UNKNOWN";
+        }
+        String normalized = deviceId.replace("-", "").toUpperCase(Locale.US);
+        if (normalized.length() >= 8) {
+            return normalized.substring(0, 8);
+        }
+        return normalized;
+    }
+
     public static String getLocalDeviceId(Context context) {
         String androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
         if (TextUtils.isEmpty(androidId)) {
@@ -619,7 +631,7 @@ public final class DeviceApiHelper {
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(15000);
             connection.setRequestMethod(method);
-            connection.setRequestProperty("User-Agent", "ShifShqip/6.7.8 (Android)");
+            connection.setRequestProperty("User-Agent", "ShifShqip/6.8.0 (Android)");
             connection.setRequestProperty("Accept", "*/*");
             connection.setRequestProperty("X-Requested-With", packageName);
             if (!TextUtils.isEmpty(deviceId)) {

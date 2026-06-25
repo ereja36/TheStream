@@ -13,10 +13,18 @@ import android.os.Looper;
 import android.text.Html;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.Gravity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.graphics.drawable.ColorDrawable;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.Window;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import com.google.android.material.button.MaterialButton;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -41,6 +49,7 @@ import com.bumptech.glide.Glide;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.solodroidx.ads.appopen.AppOpenAd;
 
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -194,7 +203,11 @@ public class ActivitySplash extends AppCompatActivity {
                 DeviceApiHelper.PopupConfig popupConfig = DeviceApiHelper.fetchStartupPopup(sharedPref, deviceId);
                 runOnUiThread(() -> {
                     if (popupConfig.enabled) {
-                        showStartupPopup(popupConfig, this::showAppOpenAdIfAvailable);
+                        if (isSupportPopup(popupConfig)) {
+                            showSupportPopup(popupConfig, this::showAppOpenAdIfAvailable);
+                        } else {
+                            showStartupPopup(popupConfig, this::showAppOpenAdIfAvailable);
+                        }
                     } else {
                         showAppOpenAdIfAvailable();
                     }
@@ -240,9 +253,79 @@ public class ActivitySplash extends AppCompatActivity {
                 .show();
     }
 
+    private boolean isSupportPopup(DeviceApiHelper.PopupConfig popupConfig) {
+        if (popupConfig == null || TextUtils.isEmpty(popupConfig.popupType)) {
+            return false;
+        }
+        String type = popupConfig.popupType.toLowerCase(Locale.US);
+        return "support".equals(type) || "donation".equals(type) || "donate".equals(type);
+    }
+
+    private void showSupportPopup(DeviceApiHelper.PopupConfig popupConfig, Runnable onComplete) {
+        View content = LayoutInflater.from(this).inflate(R.layout.dialog_support_popup, null, false);
+        TextView titleView = content.findViewById(R.id.txt_support_title);
+        TextView messageView = content.findViewById(R.id.txt_support_message);
+        TextView deviceIdView = content.findViewById(R.id.txt_support_device_id);
+        MaterialButton copyButton = content.findViewById(R.id.btn_copy_device_id);
+        MaterialButton donateButton = content.findViewById(R.id.btn_support_donate);
+        TextView laterButton = content.findViewById(R.id.btn_support_later);
+
+        String displayDeviceId = DeviceApiHelper.getDisplayDeviceId(this);
+        titleView.setText(TextUtils.isEmpty(popupConfig.title)
+                ? getString(R.string.support_default_title)
+                : popupConfig.title);
+        messageView.setText(TextUtils.isEmpty(popupConfig.message)
+                ? getString(R.string.support_default_message)
+                : popupConfig.message);
+        deviceIdView.setText(displayDeviceId);
+
+        final boolean[] completed = {false};
+        Runnable completeOnce = () -> {
+            if (!completed[0]) {
+                completed[0] = true;
+                onComplete.run();
+            }
+        };
+
+        androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setView(content)
+                .setCancelable(popupConfig.allowManualClose)
+                .create();
+
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(android.graphics.Color.TRANSPARENT));
+        }
+
+        copyButton.setOnClickListener(v -> {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(ClipData.newPlainText("device_id", displayDeviceId));
+                Toast.makeText(this, R.string.support_copied, Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        String donateUrl = !TextUtils.isEmpty(popupConfig.targetUrl) ? popupConfig.targetUrl : popupConfig.mediaUrl;
+        if (TextUtils.isEmpty(donateUrl)) {
+            donateButton.setVisibility(View.GONE);
+        } else {
+            donateButton.setOnClickListener(v -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(donateUrl)));
+                } catch (ActivityNotFoundException ignored) {
+                    // no handler available
+                }
+            });
+        }
+
+        laterButton.setOnClickListener(v -> dialog.dismiss());
+        dialog.setOnDismissListener(d -> completeOnce.run());
+        dialog.show();
+    }
+
     private void showStartupPopup(DeviceApiHelper.PopupConfig popupConfig, Runnable onComplete) {
-        LinearLayout container = new LinearLayout(this);
-        container.setOrientation(LinearLayout.VERTICAL);
+        android.widget.LinearLayout container = new android.widget.LinearLayout(this);
+        container.setOrientation(android.widget.LinearLayout.VERTICAL);
         int padding = (int) getResources().getDimension(R.dimen.settings_space);
         container.setPadding(padding, padding, padding, padding);
 
@@ -250,9 +333,9 @@ public class ActivitySplash extends AppCompatActivity {
             ImageView imageView = new ImageView(this);
             imageView.setAdjustViewBounds(true);
             imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            LinearLayout.LayoutParams imageParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
+            android.widget.LinearLayout.LayoutParams imageParams = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             );
             imageParams.bottomMargin = (int) getResources().getDimension(R.dimen.spacing_middle);
             imageView.setLayoutParams(imageParams);
@@ -263,7 +346,7 @@ public class ActivitySplash extends AppCompatActivity {
         if (!TextUtils.isEmpty(popupConfig.message)) {
             TextView messageView = new TextView(this);
             messageView.setText(popupConfig.message);
-            messageView.setGravity(Gravity.START);
+            messageView.setGravity(android.view.Gravity.START);
             container.addView(messageView);
         }
 

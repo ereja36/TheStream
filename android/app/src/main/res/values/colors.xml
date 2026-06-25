@@ -41,4 +41,13 @@
     <color name="color_dialog_navigation_bar_light">#77797B</color>
     <color name="color_dialog_background_dark">#2C2930</color>
 
+    <color name="color_settings_tile">#F3F4F6</color>
+    <color name="color_settings_icon">#AFB42B</color>
+    <color name="color_settings_title">#1F2937</color>
+    <color name="color_settings_subtitle">#6B7280</color>
+
+    <color name="color_support_popup_bg">#121212</color>
+    <color name="color_support_device_card">#2C2C2E</color>
+    <color name="color_support_accent">#9CCC65</color>
+
 </resources>

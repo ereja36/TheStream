@@ -86,15 +86,15 @@
     <string name="player_portrait">Portrait</string>
     <string name="player_landscape">Landscape</string>
     <string name="title_setting_privacy">Privacy Policy</string>
-    <string name="sub_title_setting_privacy">App Terms &amp; Policies</string>
-    <string name="title_setting_share">Share to friends</string>
-    <string name="sub_title_setting_share">Share your experience using this app</string>
-    <string name="title_setting_rate">Rate Us</string>
-    <string name="sub_title_setting_rate">Leave a review on the Google Play</string>
+    <string name="sub_title_setting_privacy">Privacy, terms and policies</string>
+    <string name="title_setting_share">Share the App</string>
+    <string name="sub_title_setting_share">Tell a friend about this app</string>
+    <string name="title_setting_rate">Rate This App</string>
+    <string name="sub_title_setting_rate">Leave a review on Google Play</string>
     <string name="title_setting_more">More Apps</string>
     <string name="sub_title_setting_more">More apps from developer</string>
     <string name="title_setting_about">About</string>
-    <string name="sub_title_setting_about">App Info, Build Version, Copyright</string>
+    <string name="sub_title_setting_about">Version and app info</string>
     <string name="sub_about_app_version">Version</string>
 
     <!--redirect if app suspended-->
@@ -142,8 +142,17 @@
     <string name="playlist_add_xtream">Xtream Codes</string>
     <string name="playlist_add_website">Website / Portal URL</string>
     <string name="playlist_play_url">Luaj URL</string>
-    <string name="playlist_manage_title">Menaxho Playlistat</string>
-    <string name="playlist_manage_subtitle">Shto dhe menaxho playlista M3U, Xtream dhe portal</string>
+    <string name="playlist_manage_title">Manage Playlists</string>
+    <string name="playlist_manage_subtitle">Add and manage M3U and Xtream playlists</string>
+
+    <string name="support_device_id_label">Your Device ID</string>
+    <string name="support_device_id_hint">Include this ID in your donation message so we know it is from you. Every donation, no matter how small, is greatly appreciated!</string>
+    <string name="support_copy">Copy</string>
+    <string name="support_donate">Donate</string>
+    <string name="support_maybe_later">Maybe Later</string>
+    <string name="support_copied">Device ID copied</string>
+    <string name="support_default_title">Support Shif Shqip</string>
+    <string name="support_default_message">Make a donation to help us keep the app operational.\nEvery penny counts.</string>
     <string name="playlist_url_hint">https://example.com/playlist.m3u</string>
     <string name="playlist_name_hint">My Playlist</string>
     <string name="playlist_stream_url_hint">https://example.com/live/stream.m3u8</string>

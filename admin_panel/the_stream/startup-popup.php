@@ -12,7 +12,7 @@ $defaults = array(
     'id' => 1,
     'title' => '',
     'message' => '',
-    'popup_type' => 'text',
+    'popup_type' => 'support',
     'media_url' => '',
     'target_url' => '',
     'duration_seconds' => 0,
@@ -102,6 +102,7 @@ if ($tableExists) {
                                     <div class="form-group form-float">
                                         <div class="font-12"><b>Popup Type</b></div>
                                         <select name="popup_type" class="form-control">
+                                            <option value="support" <?php if ($popup['popup_type'] == 'support') echo "selected"; ?>>Support / Donation</option>
                                             <option value="text" <?php if ($popup['popup_type'] == 'text') echo "selected"; ?>>Text</option>
                                             <option value="image" <?php if ($popup['popup_type'] == 'image') echo "selected"; ?>>Image</option>
                                             <option value="video" <?php if ($popup['popup_type'] == 'video') echo "selected"; ?>>Video URL</option>
