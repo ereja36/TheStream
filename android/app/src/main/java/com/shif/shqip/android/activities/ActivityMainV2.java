@@ -36,7 +36,19 @@ import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.EpgHelper;
+import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.Tools;
+
+import com.google.android.exoplayer2.ExoPlayer;
+import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.ProgressiveMediaSource;
+import com.google.android.exoplayer2.source.hls.HlsMediaSource;
+import com.google.android.exoplayer2.ui.StyledPlayerView;
+import com.google.android.exoplayer2.upstream.DefaultDataSource;
+import com.google.android.exoplayer2.util.Util;
+
+import android.net.Uri;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +69,9 @@ public class ActivityMainV2 extends AppCompatActivity {
     private FrameLayout overlayContainer;
     private NestedScrollView scrollHome;
     private final ExecutorService epgExecutor = Executors.newSingleThreadExecutor();
+    private ExoPlayer heroPlayer;
+    private StyledPlayerView heroPreview;
+    private Channel heroPreviewChannel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,6 +85,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         emptyMessage = findViewById(R.id.empty_message);
         overlayContainer = findViewById(R.id.overlay_container);
         scrollHome = findViewById(R.id.scroll_home);
+        heroPreview = findViewById(R.id.hero_preview);
 
         setupTopActions();
         setupBottomNav();
@@ -79,15 +95,24 @@ public class ActivityMainV2 extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        releaseHeroPreview();
         super.onDestroy();
         epgExecutor.shutdownNow();
     }
 
     @Override
+    protected void onPause() {
+        pauseHeroPreview();
+        super.onPause();
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
-        DesignUiHelper.refreshRemoteConfig(this, sharedPref, () ->
-                DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref));
+        DesignUiHelper.refreshRemoteConfig(this, sharedPref, () -> {
+            DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
+            resumeHeroPreview();
+        });
     }
 
     private void setupTopActions() {
@@ -192,6 +217,73 @@ public class ActivityMainV2 extends AppCompatActivity {
         watchButton.setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         findViewById(R.id.hero_container).setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         loadHeroEpg(channel, heroEpg);
+        startHeroPreview(channel);
+    }
+
+    private void startHeroPreview(Channel channel) {
+        if (heroPreview == null || channel == null || TextUtils.isEmpty(channel.channel_url)) {
+            return;
+        }
+        String streamUrl = channel.channel_url.trim().toLowerCase();
+        if (!streamUrl.startsWith("http") && !streamUrl.startsWith("rtsp") && !streamUrl.startsWith("rtmp")) {
+            return;
+        }
+        if (heroPreviewChannel != null && channel.channel_url.equals(heroPreviewChannel.channel_url)) {
+            resumeHeroPreview();
+            return;
+        }
+        releaseHeroPreview();
+        heroPreviewChannel = channel;
+        heroPlayer = new ExoPlayer.Builder(this).build();
+        heroPlayer.setVolume(0f);
+        heroPreview.setPlayer(heroPlayer);
+        heroPreview.setUseController(false);
+
+        DefaultDataSource.Factory factory = PlaylistGuardHelper.createDataSourceFactory(
+                this, sharedPref, channel.channel_url, channel.user_agent);
+        Uri uri = Uri.parse(channel.channel_url);
+        MediaSource mediaSource;
+        int type = Util.inferContentType(uri);
+        if (type == com.google.android.exoplayer2.C.TYPE_HLS) {
+            mediaSource = new HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri));
+        } else {
+            mediaSource = new ProgressiveMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri));
+        }
+        heroPlayer.setMediaSource(mediaSource);
+        heroPlayer.prepare();
+        heroPlayer.setPlayWhenReady(true);
+        heroPreview.setVisibility(View.VISIBLE);
+        findViewById(R.id.hero_image).setVisibility(View.GONE);
+    }
+
+    private void pauseHeroPreview() {
+        if (heroPlayer != null) {
+            heroPlayer.setPlayWhenReady(false);
+        }
+    }
+
+    private void resumeHeroPreview() {
+        if (heroPlayer != null) {
+            heroPlayer.setPlayWhenReady(true);
+        }
+    }
+
+    private void releaseHeroPreview() {
+        if (heroPreview != null) {
+            heroPreview.setPlayer(null);
+        }
+        if (heroPlayer != null) {
+            heroPlayer.release();
+            heroPlayer = null;
+        }
+        heroPreviewChannel = null;
+        ImageView heroImage = findViewById(R.id.hero_image);
+        if (heroImage != null) {
+            heroImage.setVisibility(View.VISIBLE);
+        }
+        if (heroPreview != null) {
+            heroPreview.setVisibility(View.GONE);
+        }
     }
 
     private void loadHeroEpg(Channel channel, TextView heroEpg) {

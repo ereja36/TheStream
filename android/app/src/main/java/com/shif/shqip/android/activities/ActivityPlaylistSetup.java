@@ -29,8 +29,10 @@ import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.models.PlaylistGuardRule;
 import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.DeviceApiHelper;
+import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -254,6 +256,10 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
                     return;
                 }
                 String content = DeviceApiHelper.fetchUrlContent(playlistUrl, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
+                PlaylistGuardRule matchedRule = PlaylistGuardHelper.findMatchingRule(playlistUrl, sharedPref.getPlaylistGuardRules());
+                if (matchedRule != null) {
+                    PlaylistGuardHelper.rememberRuleForPlaylist(sharedPref, playlistUrl, matchedRule);
+                }
                 List<Channel> channels = parsePlaylistChannels(content, playlistName);
                 if (channels.isEmpty() && isPortalPage(content)) {
                     channels = fetchChannelsFromPortal(playlistUrl, content, deviceId, playlistName);

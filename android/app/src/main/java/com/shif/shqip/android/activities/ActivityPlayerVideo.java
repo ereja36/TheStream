@@ -38,6 +38,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Resp;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
+import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.TrackSelectionDialog;
 import com.google.android.exoplayer2.C;
@@ -152,13 +153,13 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         txtEpgNext = findViewById(R.id.txt_epg_next);
 
         if (user_agent.equals("default")) {
-            HttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setUserAgent(getUserAgent());
-            dataSourceFactory = new DefaultDataSource.Factory(getApplicationContext(), httpDataSourceFactory);
-            Log.d(TAG, "user agent : " + getUserAgent());
+            dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(this, sharedPref, video_url, user_agent);
+            Log.d(TAG, "user agent : " + PlaylistGuardHelper.resolveUserAgent(
+                    PlaylistGuardHelper.resolveRule(sharedPref, video_url), user_agent));
         } else {
-            HttpDataSource.Factory httpDataSourceFactory = new DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true).setUserAgent(user_agent);
-            dataSourceFactory = new DefaultDataSource.Factory(getApplicationContext(), httpDataSourceFactory);
-            Log.d(TAG, "user agent : " + user_agent);
+            dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(this, sharedPref, video_url, user_agent);
+            Log.d(TAG, "user agent : " + PlaylistGuardHelper.resolveUserAgent(
+                    PlaylistGuardHelper.resolveRule(sharedPref, video_url), user_agent));
         }
 
         LoadControl loadControl = new DefaultLoadControl();

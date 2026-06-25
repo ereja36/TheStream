@@ -29,6 +29,13 @@
                     android:scaleType="centerCrop"
                     android:src="@mipmap/ic_launcher" />
 
+                <com.google.android.exoplayer2.ui.StyledPlayerView
+                    android:id="@+id/hero_preview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:keepScreenOn="false"
+                    android:visibility="gone" />
+
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"

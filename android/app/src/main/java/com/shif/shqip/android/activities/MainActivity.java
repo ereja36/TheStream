@@ -51,6 +51,7 @@ import com.shif.shqip.android.fragments.FragmentRecent;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.AppBarLayoutBehavior;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.RtlViewPager;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.ViewPagerHelper;
@@ -259,7 +260,11 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
 
     @Override
     public boolean onOptionsItemSelected(MenuItem menuItem) {
-        if (menuItem.getItemId() == R.id.menu_search) {
+        if (menuItem.getItemId() == R.id.menu_playlist) {
+            View anchor = toolbar != null ? toolbar : findViewById(android.R.id.content);
+            DesignUiHelper.showAddMenu(this, anchor);
+            return true;
+        } else if (menuItem.getItemId() == R.id.menu_search) {
             Intent intent = new Intent(getApplicationContext(), ActivitySearch.class);
             startActivity(intent);
             destroyBannerAd();

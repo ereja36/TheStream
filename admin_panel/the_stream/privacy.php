@@ -9,7 +9,7 @@
     <meta name="msapplication-tap-highlight" content="no">
     <meta name="description" content="">
     <meta name="keywords" content="">
-    <title>Privacy Policy</title>
+    <title>Politika e Privatësisë — Shif Shqip</title>
     <!-- Favicon-->
     <link rel="icon" href="assets/images/favicon.png" type="image/x-icon">
 

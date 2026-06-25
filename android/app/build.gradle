@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 24
-        versionName = "6.6.0"
+        versionCode = 25
+        versionName = "6.7.0"
         multiDexEnabled = true
     }
     compileOptions {
@@ -28,6 +28,25 @@ android {
     }
     lint {
         disable 'GradleDependency', 'GradleDynamicVersion', 'OldTargetApi'
+    }
+    signingConfigs {
+        release {
+            def keystorePath = rootProject.file('keystore/shif-shqip-release.jks')
+            if (keystorePath.exists()) {
+                storeFile keystorePath
+                storePassword System.getenv('SHIF_KEYSTORE_PASSWORD') ?: 'ShifShqip2026!'
+                keyAlias 'shifshqip'
+                keyPassword System.getenv('SHIF_KEY_PASSWORD') ?: 'ShifShqip2026!'
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (rootProject.file('keystore/shif-shqip-release.jks').exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
     }
 }
 

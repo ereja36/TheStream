@@ -30,6 +30,8 @@ public class SharedPref {
     private static final String KEY_DESIGN_ID = "design_id";
     private static final String KEY_PLAYLIST_GUARD = "playlist_guard_rules";
     private static final String KEY_APP_LOGO_URL = "app_logo_url";
+    private static final String KEY_ACTIVE_GUARD_RULE = "active_guard_rule";
+    private static final String KEY_ACTIVE_GUARD_SOURCE = "active_guard_source";
 
     Context context;
     SharedPreferences sharedPreferences;
@@ -83,6 +85,32 @@ public class SharedPref {
         }.getType();
         List<PlaylistGuardRule> rules = gson.fromJson(json, type);
         return rules == null ? new ArrayList<>() : rules;
+    }
+
+    public void saveActiveGuardRule(PlaylistGuardRule rule, String sourceUrl) {
+        Gson gson = new Gson();
+        editor.putString(KEY_ACTIVE_GUARD_RULE, gson.toJson(rule));
+        editor.putString(KEY_ACTIVE_GUARD_SOURCE, sourceUrl == null ? "" : sourceUrl.trim());
+        editor.apply();
+    }
+
+    public PlaylistGuardRule getActiveGuardRule() {
+        Gson gson = new Gson();
+        String json = sharedPreferences.getString(KEY_ACTIVE_GUARD_RULE, null);
+        if (TextUtils.isEmpty(json)) {
+            return null;
+        }
+        return gson.fromJson(json, PlaylistGuardRule.class);
+    }
+
+    public String getActiveGuardSourceUrl() {
+        return sharedPreferences.getString(KEY_ACTIVE_GUARD_SOURCE, "");
+    }
+
+    public void clearActiveGuardRule() {
+        editor.remove(KEY_ACTIVE_GUARD_RULE);
+        editor.remove(KEY_ACTIVE_GUARD_SOURCE);
+        editor.apply();
     }
 
     public Boolean getIsDarkTheme() {

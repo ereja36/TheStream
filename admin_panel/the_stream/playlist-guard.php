@@ -149,7 +149,7 @@ if ($tableExists) {
                         </form>
 
                         <div class="alert alert-info corner-radius" style="margin-top:16px;">
-                            <b>Si funksionon:</b> Listat personale të përdoruesve hapen normalisht. Vetëm URL që përputhen me pattern marrin header-at custom nga app-i.
+                            <b>Si funksionon:</b> Kur playlista përputhet me pattern, header-at aplikohen edhe për <b>të gjitha kanalet</b> (stream playback) në app. Listat personale pa rregull hapen normalisht.
                         </div>
                     </div>
                 </div>

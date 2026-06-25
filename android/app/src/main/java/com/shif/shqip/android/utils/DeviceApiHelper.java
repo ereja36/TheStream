@@ -600,14 +600,21 @@ public final class DeviceApiHelper {
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(15000);
             connection.setRequestMethod(method);
-            connection.setRequestProperty("User-Agent", "ShifShqip/6.5 (Android)");
+            connection.setRequestProperty("User-Agent", "ShifShqip/6.7 (Android)");
             connection.setRequestProperty("Accept", "*/*");
             connection.setRequestProperty("X-Requested-With", packageName);
             if (!TextUtils.isEmpty(deviceId)) {
                 connection.setRequestProperty("X-Device-ID", deviceId);
             }
 
-            applyPlaylistGuardHeaders(connection, urlString, sharedPref);
+            PlaylistGuardRule guardRule = PlaylistGuardHelper.resolveRule(sharedPref, urlString);
+            if (guardRule == null && sharedPref != null) {
+                guardRule = PlaylistGuardHelper.findMatchingRule(urlString, sharedPref.getPlaylistGuardRules());
+            }
+            if (guardRule != null) {
+                PlaylistGuardHelper.applyRuleHeaders(connection, guardRule);
+                PlaylistGuardHelper.rememberRuleIfMatched(sharedPref, urlString);
+            }
 
             if ("POST".equalsIgnoreCase(method) && requestBody != null) {
                 connection.setDoOutput(true);
@@ -627,59 +634,6 @@ public final class DeviceApiHelper {
                 connection.disconnect();
             }
         }
-    }
-
-    private static void applyPlaylistGuardHeaders(HttpURLConnection connection, String urlString, SharedPref sharedPref) {
-        if (sharedPref == null || TextUtils.isEmpty(urlString)) {
-            return;
-        }
-        PlaylistGuardRule rule = findMatchingGuardRule(urlString, sharedPref.getPlaylistGuardRules());
-        if (rule == null) {
-            return;
-        }
-        if (!TextUtils.isEmpty(rule.user_agent)) {
-            connection.setRequestProperty("User-Agent", rule.user_agent);
-        }
-        if (!TextUtils.isEmpty(rule.referer)) {
-            connection.setRequestProperty("Referer", rule.referer);
-        }
-        if (!TextUtils.isEmpty(rule.origin)) {
-            connection.setRequestProperty("Origin", rule.origin);
-        }
-        if (!TextUtils.isEmpty(rule.cookie)) {
-            connection.setRequestProperty("Cookie", rule.cookie);
-        }
-        if (!TextUtils.isEmpty(rule.extra_headers)) {
-            try {
-                JSONObject headers = new JSONObject(rule.extra_headers);
-                java.util.Iterator<String> keys = headers.keys();
-                while (keys.hasNext()) {
-                    String key = keys.next();
-                    String value = headers.optString(key, "");
-                    if (!TextUtils.isEmpty(key) && !TextUtils.isEmpty(value)) {
-                        connection.setRequestProperty(key, value);
-                    }
-                }
-            } catch (Exception ignored) {
-                // ignore malformed json
-            }
-        }
-    }
-
-    private static PlaylistGuardRule findMatchingGuardRule(String urlString, List<PlaylistGuardRule> rules) {
-        if (rules == null || rules.isEmpty()) {
-            return null;
-        }
-        String normalizedUrl = urlString.toLowerCase(Locale.US);
-        for (PlaylistGuardRule rule : rules) {
-            if (rule == null || TextUtils.isEmpty(rule.url_pattern)) {
-                continue;
-            }
-            if (normalizedUrl.contains(rule.url_pattern.trim().toLowerCase(Locale.US))) {
-                return rule;
-            }
-        }
-        return null;
     }
 
     private static String readAll(InputStream inputStream) throws IOException {
