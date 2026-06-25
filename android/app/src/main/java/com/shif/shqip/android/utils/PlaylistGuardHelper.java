@@ -26,9 +26,10 @@ import java.util.regex.Pattern;
 
 public final class PlaylistGuardHelper {
 
-    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.7.4 (Android)";
+    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.7.5 (Android)";
 
     private static final Pattern REDIRECT_URL_PATTERN = Pattern.compile("https?://[^\\s\"'<>]+", Pattern.CASE_INSENSITIVE);
+    private static final Pattern RELATIVE_REDIRECT_PATTERN = Pattern.compile("(/[^\\s\"'<>]+)", Pattern.CASE_INSENSITIVE);
 
     private PlaylistGuardHelper() {
     }
@@ -38,16 +39,21 @@ public final class PlaylistGuardHelper {
             return null;
         }
         String normalizedUrl = normalizeMatchKey(urlString);
+        PlaylistGuardRule bestRule = null;
+        int bestPatternLength = -1;
         for (PlaylistGuardRule rule : rules) {
             if (rule == null || TextUtils.isEmpty(rule.url_pattern)) {
                 continue;
             }
             String pattern = normalizeMatchKey(rule.url_pattern);
             if (!TextUtils.isEmpty(pattern) && normalizedUrl.contains(pattern)) {
-                return rule;
+                if (pattern.length() > bestPatternLength) {
+                    bestPatternLength = pattern.length();
+                    bestRule = rule;
+                }
             }
         }
-        return null;
+        return bestRule;
     }
 
     public static PlaylistGuardRule findRuleByPattern(List<PlaylistGuardRule> rules, String urlPattern) {
@@ -107,7 +113,11 @@ public final class PlaylistGuardHelper {
     }
 
     public static String resolvePlaybackUrl(SharedPref sharedPref, String urlString) throws IOException {
-        if (TextUtils.isEmpty(urlString) || !needsPlaybackResolution(urlString)) {
+        if (TextUtils.isEmpty(urlString)) {
+            return urlString;
+        }
+        PlaylistGuardRule rule = resolveRule(sharedPref, urlString);
+        if (!needsPlaybackResolution(urlString, rule)) {
             return urlString;
         }
 
@@ -119,27 +129,25 @@ public final class PlaylistGuardHelper {
             connection.setReadTimeout(15000);
             connection.setRequestMethod("GET");
             connection.setRequestProperty("Accept", "*/*");
-
-            PlaylistGuardRule rule = resolveRule(sharedPref, urlString);
             connection.setRequestProperty("User-Agent", resolveUserAgent(rule, "default"));
             applyRuleHeaders(connection, rule);
 
             int responseCode = connection.getResponseCode();
             String finalUrl = connection.getURL().toString();
             if (responseCode >= 200 && responseCode < 300) {
-                if (isDirectStreamUrl(finalUrl)) {
+                if (isFinalChannelUrl(finalUrl)) {
                     return finalUrl;
                 }
                 InputStream inputStream = connection.getInputStream();
                 if (inputStream != null) {
                     String body = readText(inputStream);
-                    String redirectUrl = extractRedirectUrl(body);
+                    String redirectUrl = extractRedirectUrl(body, urlString);
                     if (!TextUtils.isEmpty(redirectUrl)) {
                         return redirectUrl;
                     }
                 }
             }
-            if (isDirectStreamUrl(finalUrl) && !finalUrl.equalsIgnoreCase(urlString)) {
+            if (isFinalChannelUrl(finalUrl) && !finalUrl.equalsIgnoreCase(urlString)) {
                 return finalUrl;
             }
             return urlString;
@@ -283,16 +291,21 @@ public final class PlaylistGuardHelper {
             return null;
         }
         String normalizedUrl = normalizeMatchKey(requestUrl);
+        PlaylistGuardRule bestRule = null;
+        int bestPatternLength = -1;
         for (PlaylistGuardRule rule : rules) {
             if (rule == null || TextUtils.isEmpty(rule.stream_url_pattern)) {
                 continue;
             }
             String pattern = normalizeMatchKey(rule.stream_url_pattern);
             if (!TextUtils.isEmpty(pattern) && normalizedUrl.contains(pattern)) {
-                return rule;
+                if (pattern.length() > bestPatternLength) {
+                    bestPatternLength = pattern.length();
+                    bestRule = rule;
+                }
             }
         }
-        return null;
+        return bestRule;
     }
 
     private static PlaylistGuardRule findRuleByGuardScope(String requestUrl, List<PlaylistGuardRule> rules, String playlistUrl) {
@@ -312,15 +325,26 @@ public final class PlaylistGuardHelper {
                 }
             }
         }
+        PlaylistGuardRule bestRule = null;
+        int bestScore = -1;
         for (PlaylistGuardRule rule : rules) {
             if (rule == null || TextUtils.isEmpty(rule.url_pattern)) {
                 continue;
             }
-            if (requestScope.equals(extractGuardScopeKey(rule.url_pattern))) {
-                return rule;
+            if (!requestScope.equals(extractGuardScopeKey(rule.url_pattern))) {
+                continue;
+            }
+            int score = normalizeMatchKey(rule.url_pattern).length();
+            if (!TextUtils.isEmpty(rule.stream_url_pattern)
+                    && normalizeMatchKey(requestUrl).contains(normalizeMatchKey(rule.stream_url_pattern))) {
+                score += 1000;
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                bestRule = rule;
             }
         }
-        return null;
+        return bestRule;
     }
 
     private static String extractGuardScopeKey(String url) {
@@ -339,11 +363,25 @@ public final class PlaylistGuardHelper {
         return key.substring(0, secondSlash);
     }
 
-    private static boolean needsPlaybackResolution(String url) {
+    private static boolean needsPlaybackResolution(String url, PlaylistGuardRule rule) {
+        if (rule == null || TextUtils.isEmpty(url)) {
+            return false;
+        }
         String lower = url.toLowerCase(Locale.US);
-        return lower.endsWith(".json")
+        if (lower.endsWith(".json")
                 || lower.contains("app-measurement/collect")
-                || lower.contains("/collect/s/");
+                || lower.contains("/collect/s/")) {
+            return true;
+        }
+        return lower.contains(".m3u8") && !isFinalChannelUrl(lower);
+    }
+
+    private static boolean isFinalChannelUrl(String url) {
+        if (TextUtils.isEmpty(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase(Locale.US);
+        return lower.contains("/channel/") || lower.contains("/proxy/");
     }
 
     private static boolean isDirectStreamUrl(String url) {
@@ -359,15 +397,27 @@ public final class PlaylistGuardHelper {
                 || lower.contains("/hls/");
     }
 
-    private static String extractRedirectUrl(String body) {
+    private static String extractRedirectUrl(String body, String baseUrl) {
         if (TextUtils.isEmpty(body)) {
             return "";
         }
         Matcher matcher = REDIRECT_URL_PATTERN.matcher(body);
         while (matcher.find()) {
             String candidate = matcher.group();
-            if (isDirectStreamUrl(candidate)) {
+            if (isDirectStreamUrl(candidate) || isFinalChannelUrl(candidate)) {
                 return candidate;
+            }
+        }
+        Matcher relativeMatcher = RELATIVE_REDIRECT_PATTERN.matcher(body);
+        while (relativeMatcher.find()) {
+            String relative = relativeMatcher.group(1);
+            if (!isFinalChannelUrl(relative) && !relative.contains(".m3u8")) {
+                continue;
+            }
+            try {
+                return new URL(new URL(baseUrl), relative).toString();
+            } catch (Exception ignored) {
+                // try next candidate
             }
         }
         return "";
