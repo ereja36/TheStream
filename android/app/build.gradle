@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 20
-        versionName = "6.4.1"
+        versionCode = 21
+        versionName = "6.4.2"
         multiDexEnabled = true
     }
     compileOptions {
