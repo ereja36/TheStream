@@ -23,6 +23,7 @@ import com.shif.shqip.android.fragments.FragmentFavorite;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
+import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.Tools;
 
@@ -48,7 +49,7 @@ public class ActivityMainV3 extends AppCompatActivity {
         Tools.getTheme(this);
         sharedPref = new SharedPref(this);
         setContentView(R.layout.activity_main_v3);
-        Tools.setNavigation(this);
+        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_nav);
 
         overlayContainer = findViewById(R.id.overlay_container);
         scrollContent = findViewById(R.id.scroll_home);
@@ -67,6 +68,8 @@ public class ActivityMainV3 extends AppCompatActivity {
         gridRecycler.setLayoutManager(new GridLayoutManager(this, 3));
         gridRecycler.setAdapter(gridAdapter);
 
+        findViewById(R.id.btn_add_playlist).setOnClickListener(v ->
+                startActivity(new Intent(this, ActivityPlaylistSetup.class)));
         findViewById(R.id.btn_search).setOnClickListener(v ->
                 startActivity(new Intent(this, ActivitySearch.class)));
         findViewById(R.id.btn_settings).setOnClickListener(v ->
