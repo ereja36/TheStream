@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="?actionBarSize"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <TextView
+            style="@style/TextAppearance.AppCompat.Widget.ActionBar.Title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/txt_player_options" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/btn_action_play"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:orientation="horizontal"
+        android:paddingLeft="20dp"
+        android:paddingTop="16dp"
+        android:paddingRight="20dp"
+        android:paddingBottom="16dp">
+
+        <ImageView
+            android:id="@+id/img_action_play"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_menu_play"
+            app:tint="#212121" />
+
+        <TextView
+            android:id="@+id/txt_action_play"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginStart="20dp"
+            android:text="@string/menu_sheet_play"
+            android:textAppearance="@style/Base.TextAppearance.AppCompat.Body2"
+            android:textSize="15sp" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/btn_action_play_external"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?android:attr/selectableItemBackground"
+        android:orientation="horizontal"
+        android:paddingLeft="20dp"
+        android:paddingTop="16dp"
+        android:paddingRight="20dp"
+        android:paddingBottom="16dp">
+
+        <ImageView
+            android:id="@+id/img_action_play_external"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_menu_launch"
+            app:tint="#212121" />
+
+        <TextView
+            android:id="@+id/txt_action_play_external"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:layout_marginStart="20dp"
+            android:text="@string/menu_sheet_play_external"
+            android:textAppearance="@style/Base.TextAppearance.AppCompat.Body2"
+            android:textSize="15sp" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:layout_marginBottom="20dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingEnd="10dp">
+
+        <CheckBox
+            android:id="@+id/checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="@string/msg_do_not_show" />
+
+    </LinearLayout>
+
+</LinearLayout>
