@@ -39,6 +39,7 @@ import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.facebook.shimmer.ShimmerFrameLayout;
 
@@ -82,6 +83,10 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
 
         category = (Category) getIntent().getSerializableExtra(Constant.EXTRA_OBJC);
+        if (category == null) {
+            finish();
+            return;
+        }
 
         parent_view = findViewById(R.id.parent_view);
         lyt_shimmer = findViewById(R.id.shimmer_view_container);
@@ -91,6 +96,7 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         swipeRefreshLayout.setColorSchemeResources(R.color.color_light_primary);
 
         recyclerView = findViewById(R.id.recyclerView);
+        int padding = getResources().getDimensionPixelOffset(R.dimen.grid_space_channel);
 
         if (sharedPref.getChannelViewType() == CHANNEL_LIST_DEFAULT) {
             recyclerView.setLayoutManager(new StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL));
@@ -99,9 +105,10 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         } else if (sharedPref.getChannelViewType() == CHANNEL_GRID_3_COLUMN) {
             recyclerView.setLayoutManager(new StaggeredGridLayoutManager(3, StaggeredGridLayoutManager.VERTICAL));
         }
-
-        int padding = getResources().getDimensionPixelOffset(R.dimen.grid_space_channel);
-        if (sharedPref.getChannelViewType() == CHANNEL_LIST_DEFAULT) {
+        if (sharedPref.hasPlaylistChannels()) {
+            recyclerView.setLayoutManager(new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL));
+            recyclerView.setPadding(padding, padding, padding, padding);
+        } else if (sharedPref.getChannelViewType() == CHANNEL_LIST_DEFAULT) {
             recyclerView.setPadding(0, padding, 0, padding);
         } else {
             recyclerView.setPadding(padding, padding, padding, padding);
@@ -177,7 +184,10 @@ public class ActivityCategoryDetail extends AppCompatActivity {
 
     public void setupToolbar() {
         final Toolbar toolbar = findViewById(R.id.toolbar);
-        Tools.setupToolbar(this, toolbar, category.category_name, true);
+        String title = PlaylistNavigationHelper.isAllChannelsCategory(category)
+                ? getString(R.string.title_all_channels)
+                : category.category_name;
+        Tools.setupToolbar(this, toolbar, title, true);
     }
 
     @Override
@@ -266,7 +276,12 @@ public class ActivityCategoryDetail extends AppCompatActivity {
             adapterChannel.setLoading();
         }
         new Handler().postDelayed(() -> {
-            List<Channel> playlistByCategory = sharedPref.getPlaylistChannelsByCategory(category.category_name);
+            List<Channel> playlistByCategory;
+            if (PlaylistNavigationHelper.isAllChannelsCategory(category)) {
+                playlistByCategory = sharedPref.getPlaylistChannels();
+            } else {
+                playlistByCategory = sharedPref.getPlaylistChannelsByCategory(category.category_name);
+            }
             post_total = playlistByCategory.size();
             int start = Math.max(0, (page_no - 1) * Config.LOAD_MORE);
             int end = Math.min(post_total, start + Config.LOAD_MORE);

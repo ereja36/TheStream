@@ -2,9 +2,9 @@
 <resources>
 
     <!--app main color-->
-    <color name="color_light_primary">#AFB42B</color>
-    <color name="color_light_status_bar">#A5AA29</color>
-    <color name="color_light_accent">#CDDC39</color>
+    <color name="color_light_primary">#E31E24</color>
+    <color name="color_light_status_bar">#C41920</color>
+    <color name="color_light_accent">#FF5252</color>
     <color name="color_light_background">#FFFFFF</color>
     <color name="color_light_bottom_navigation">#EFF4F8</color>
     <color name="color_light_icon">#797979</color>
@@ -30,7 +30,7 @@
     <color name="overlay_dark_90">#E6000000</color>
 
     <!--others-->
-    <color name="color_stroke_native_ad">#AFB42B</color>
+    <color name="color_stroke_native_ad">#E31E24</color>
     <color name="color_shimmer">#BCBEC1</color>
     <color name="color_white">#FFFFFF</color>
     <color name="color_black">#000000</color>
@@ -42,12 +42,12 @@
     <color name="color_dialog_background_dark">#2C2930</color>
 
     <color name="color_settings_tile">#F3F4F6</color>
-    <color name="color_settings_icon">#AFB42B</color>
+    <color name="color_settings_icon">#E31E24</color>
     <color name="color_settings_title">#1F2937</color>
     <color name="color_settings_subtitle">#6B7280</color>
 
     <color name="color_support_popup_bg">#121212</color>
     <color name="color_support_device_card">#2C2C2E</color>
-    <color name="color_support_accent">#9CCC65</color>
+    <color name="color_support_accent">#E31E24</color>
 
 </resources>

@@ -13,6 +13,7 @@
     <!--bottom navigation menu name-->
     <string name="title_nav_recent">Recent</string>
     <string name="title_nav_category">Category</string>
+    <string name="title_all_channels">All Channels</string>
     <string name="title_nav_favorite">Favorite</string>
     <string name="title_nav_settings">Settings</string>
 

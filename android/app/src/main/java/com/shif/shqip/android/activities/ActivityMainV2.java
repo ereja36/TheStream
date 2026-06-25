@@ -39,6 +39,7 @@ import com.shif.shqip.android.utils.EpgHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
+import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import com.google.android.exoplayer2.ExoPlayer;
@@ -137,10 +138,18 @@ public class ActivityMainV2 extends AppCompatActivity {
         ImageButton navFavorites = findViewById(R.id.nav_favorites);
 
         navHome.setOnClickListener(v -> showHome());
-        navCategories.setOnClickListener(v -> showAllChannelsSheet());
+        navCategories.setOnClickListener(v -> showCategories());
         navFavorites.setOnClickListener(v -> showFavoritesOverlay());
 
-        findViewById(R.id.banner_all_channels).setOnClickListener(v -> showAllChannelsSheet());
+        findViewById(R.id.banner_all_channels).setOnClickListener(v -> showAllChannels());
+    }
+
+    private void showCategories() {
+        startActivity(new Intent(this, ActivityPlaylistCategories.class));
+    }
+
+    private void showAllChannels() {
+        startActivity(PlaylistNavigationHelper.createAllChannelsIntent(this));
     }
 
     private void showHome() {
@@ -155,10 +164,6 @@ public class ActivityMainV2 extends AppCompatActivity {
                 .beginTransaction()
                 .replace(R.id.overlay_container, new FragmentFavorite())
                 .commitAllowingStateLoss();
-    }
-
-    private void showAllChannelsSheet() {
-        startActivity(new Intent(this, ActivityPlaylistCategories.class));
     }
 
     private void loadChannels() {

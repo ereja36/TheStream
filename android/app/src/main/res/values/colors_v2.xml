@@ -4,12 +4,13 @@
     <color name="v2_surface">#1A1F26</color>
     <color name="v2_card">#D9D9D9</color>
     <color name="v2_card_text">#1A1A1A</color>
-    <color name="v2_accent">#8DB04B</color>
-    <color name="v2_live">#E53935</color>
+    <color name="v2_accent">#E31E24</color>
+    <color name="v2_live">#E31E24</color>
     <color name="v2_text_primary">#FFFFFF</color>
     <color name="v2_text_secondary">#A8B0BC</color>
     <color name="v2_nav_pill">#1E2430</color>
-    <color name="v2_category_tv">#7C4DFF</color>
-    <color name="v2_category_sport">#FF4081</color>
-    <color name="v2_category_default">#26A69A</color>
+    <color name="v2_category_tv">#E31E24</color>
+    <color name="v2_category_sport">#FF5252</color>
+    <color name="v2_category_default">#FF7043</color>
+    <color name="v2_glass_border">#33FFFFFF</color>
 </resources>
