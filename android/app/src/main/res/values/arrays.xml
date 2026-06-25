@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string-array name="dialog_video_list">
+        <item>@string/single_choice_default</item>
+        <item>@string/single_choice_grid2</item>
+        <item>@string/single_choice_grid3</item>
+    </string-array>
+
+    <string-array name="dialog_category_list">
+        <item>@string/single_choice_list</item>
+        <item>@string/single_choice_grid_2</item>
+        <item>@string/single_choice_grid_3</item>
+    </string-array>
+
+    <string-array name="dialog_player_mode">
+        <item>@string/player_portrait</item>
+        <item>@string/player_landscape</item>
+    </string-array>
+
+</resources>
