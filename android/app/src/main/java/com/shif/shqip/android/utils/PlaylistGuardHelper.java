@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 
 public final class PlaylistGuardHelper {
 
-    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.7.6 (Android)";
+    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.7.7 (Android)";
 
     private static final Pattern REDIRECT_URL_PATTERN = Pattern.compile("https?://[^\\s\"'<>]+", Pattern.CASE_INSENSITIVE);
     private static final Pattern RELATIVE_REDIRECT_PATTERN = Pattern.compile("(/[^\\s\"'<>]+)", Pattern.CASE_INSENSITIVE);
