@@ -28,6 +28,8 @@
         <p class="meta"><strong>Shif Shqip</strong> · Effective date: 2026-06-25 · Contact: <a href="mailto:shifshqip@gmail.com">shifshqip@gmail.com</a></p>
 
         <?php
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
         include('includes/config.php');
         $sql = "SELECT privacy_policy FROM tbl_settings ORDER BY id DESC LIMIT 1";
         $result = $connect->query($sql);
