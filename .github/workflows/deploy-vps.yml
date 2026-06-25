@@ -42,16 +42,18 @@ jobs:
 
       - name: Setup SSH
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY_FALLBACK: ${{ secrets.SSH_PRIVATE_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          if [ -z "$SSH_PRIVATE_KEY" ]; then
-            echo "Missing VPS_SSH_PRIVATE_KEY or SSH_PRIVATE_KEY secret"
+          KEY="${SSH_PRIVATE_KEY:-$SSH_PRIVATE_KEY_FALLBACK}"
+          if [ -z "$KEY" ]; then
+            echo "Missing VPS_SSH_PRIVATE_KEY (or SSH_PRIVATE_KEY) secret"
             exit 1
           fi
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          printf '%s\n' "$KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           HOST="${VPS_HOST:-57.128.254.213}"
           USER="${VPS_USER:-root}"
