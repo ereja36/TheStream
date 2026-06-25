@@ -57,6 +57,7 @@ EOF
 fi
 
 echo "==> Verify API"
-curl -fsS "https://api.shifshqip.com/api/api.php?get_playlist_guard&api_key=${REST_API_KEY:-}" | head -c 400
+REST_API_KEY="${REST_API_KEY:-shifshqip}"
+curl -fsS "https://api.shifshqip.com/api/api.php?get_playlist_guard&api_key=${REST_API_KEY}" | head -c 400
 echo ""
 echo "Deploy finished."

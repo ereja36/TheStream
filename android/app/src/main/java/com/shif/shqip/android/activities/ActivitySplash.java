@@ -95,7 +95,7 @@ public class ActivitySplash extends AppCompatActivity {
 
     @SuppressWarnings("ConstantValue")
     private void requestConfig() {
-        if (Config.SERVER_KEY.contains("XXXXX")) {
+        if ("XXXXX".equals(Config.SERVER_KEY) || "XXXXX".equals(Config.REST_API_KEY)) {
             new MaterialAlertDialogBuilder(this)
                     .setTitle("App not configured")
                     .setMessage("Please put your Server Key and Rest API Key from settings menu in your admin panel to AppConfig, you can see the documentation for more detailed instructions.")

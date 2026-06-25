@@ -5,10 +5,10 @@ ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="${ROOT_DIR}/app/src/main/java/com/shif/shqip/android/Config.java"
 CONFIG_BACKUP="${CONFIG_FILE}.build-backup"
 
-SERVER_KEY="${SERVER_KEY:-}"
-REST_API_KEY="${REST_API_KEY:-}"
+SERVER_KEY="${SERVER_KEY:-WVVoU01HTklUVFpNZVRsb1kwZHJkV015YUhCYWJrNXZZMWRzZDB4dFRuWmlWamxvWTBoQ2MyRlhUbWhrUjJ4MlltdHNhMWd5VG5aaVV6VjZZVWRzYlV4dVRtOWpWMngzVEcxR2RWcElTblpoVjFFOQ==}"
+REST_API_KEY="${REST_API_KEY:-shifshqip}"
 
-if [[ -z "$SERVER_KEY" || -z "$REST_API_KEY" ]]; then
+if [[ "$SERVER_KEY" == "XXXXX" || "$REST_API_KEY" == "XXXXX" ]]; then
   echo "Missing SERVER_KEY or REST_API_KEY environment variables." >&2
   echo "Example:" >&2
   echo "  export REST_API_KEY='...'" >&2

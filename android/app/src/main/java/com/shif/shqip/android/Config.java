@@ -4,9 +4,9 @@ import com.shif.shqip.android.utils.Constant;
 
 public class Config {
 
-    public static final String SERVER_KEY = "XXXXX";
+    public static final String SERVER_KEY = "WVVoU01HTklUVFpNZVRsb1kwZHJkV015YUhCYWJrNXZZMWRzZDB4dFRuWmlWamxvWTBoQ2MyRlhUbWhrUjJ4MlltdHNhMWd5VG5aaVV6VjZZVWRzYlV4dVRtOWpWMngzVEcxR2RWcElTblpoVjFFOQ==";
 
-    public static final String REST_API_KEY = "XXXXX";
+    public static final String REST_API_KEY = "shifshqip";
 
     //bottom navigation menu configuration
     public static final boolean SET_CATEGORY_AS_MAIN_MENU = false;
