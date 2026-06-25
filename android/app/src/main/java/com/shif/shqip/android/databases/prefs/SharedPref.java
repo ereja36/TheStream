@@ -203,7 +203,7 @@ public class SharedPref {
     }
 
     public String getMoreAppsUrl() {
-        return sharedPreferences.getString("more_apps_url", "https://play.google.com/store/apps/developer?id=Solodroid");
+        return sharedPreferences.getString("more_apps_url", "https://shifshqip.com");
     }
 
     public Integer getInAppReviewToken() {

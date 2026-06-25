@@ -1,8 +1,8 @@
 <?php
 
 	$app_name = "Shif Shqip";
-	$app_version = "6.4.1";
-	$copyright = "Copyright © 2025 Solodroid Developer";
+	$app_version = "6.7.1";
+	$copyright = "Copyright © 2026 Shif Shqip";
 	$menu_dashboard = "Dashboard";
 	$menu_category = "Manage Category";
 	$menu_channel = "Manage Channel";

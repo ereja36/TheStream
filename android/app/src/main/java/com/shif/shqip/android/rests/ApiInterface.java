@@ -19,7 +19,7 @@ import retrofit2.http.Query;
 public interface ApiInterface {
 
     String CACHE = "Cache-Control: max-age=0";
-    String AGENT = "Data-Agent: The Stream";
+    String AGENT = "Data-Agent: Shif Shqip";
 
     @Headers({CACHE, AGENT})
     @GET("api.php?get_posts")
