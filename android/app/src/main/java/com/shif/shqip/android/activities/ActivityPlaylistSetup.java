@@ -27,6 +27,7 @@ import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.DeviceApiHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -618,7 +619,7 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
         sharedPref.savePlaylistUrl(playlistSource);
         runOnUiThread(() -> {
             showToast(getString(R.string.playlist_saved));
-            Intent intent = new Intent(getApplicationContext(), MainActivity.class);
+            Intent intent = DesignRouter.getMainActivityIntent(getApplicationContext());
             startActivity(intent);
             finish();
         });

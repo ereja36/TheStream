@@ -97,6 +97,13 @@
                         </a>
                     </li>
 
+                    <li class="<?php if (strpos($page, 'app-design') !== false) {echo 'active';} else { echo 'noactive'; }?>">
+                        <a href="app-design.php">
+                            <i class="material-icons">palette</i>
+                            <span><?php echo $menu_app_design; ?></span>
+                        </a>
+                    </li>
+
                     <li class="<?php if (strpos($page, 'license') !== false) {echo 'active';} else { echo 'noactive'; }?>">
                         <a href="license.php">
                             <i class="material-icons">vpn_key</i>

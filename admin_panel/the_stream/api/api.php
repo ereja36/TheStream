@@ -496,7 +496,7 @@ require_once("Rest.inc.php");
 
 						$sql_settings = "SELECT * FROM tbl_settings WHERE id = 1";
 						$sql_ads = "SELECT * FROM tbl_ads WHERE id = 1";
-						$sqlApp = "SELECT package_name, status, redirect_url FROM tbl_app_config WHERE package_name = '$package_name' LIMIT 1 ";
+						$sqlApp = "SELECT package_name, status, redirect_url, design_id FROM tbl_app_config WHERE package_name = '$package_name' LIMIT 1 ";
 						$sqlLicense = "SELECT item_id, item_name, buyer, license_type, purchase_date FROM tbl_license LIMIT 1";
 
 						$settings = $this->get_one_result($sql_settings);
@@ -506,7 +506,7 @@ require_once("Rest.inc.php");
 						$app = $this->get_one_result($sqlApp);
 						$license = $this->get_one_result($sqlLicense);
 
-						$AppArray = array( 'package_name' => '', 'status' => '', 'redirect_url' => '');
+						$AppArray = array( 'package_name' => '', 'status' => '', 'redirect_url' => '', 'design_id' => 'v1');
 
 						if ($appCount > 0) {
 							$respon = array('status' => 'ok', 'app' => $app, 'settings' => $settings, 'ads' => $ads, 'license' => $license);

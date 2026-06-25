@@ -26,6 +26,7 @@ public class SharedPref {
 
     private static final String KEY_PLAYLIST_URL = "playlist_url";
     private static final String KEY_PLAYLIST_CHANNELS = "playlist_channels";
+    private static final String KEY_DESIGN_ID = "design_id";
 
     Context context;
     SharedPreferences sharedPreferences;
@@ -37,7 +38,31 @@ public class SharedPref {
         editor = sharedPreferences.edit();
     }
 
+    public void saveDesignId(String designId) {
+        String normalized = designId == null ? "v1" : designId.trim().toLowerCase();
+        if (!"v2".equals(normalized) && !"v3".equals(normalized)) {
+            normalized = "v1";
+        }
+        editor.putString(KEY_DESIGN_ID, normalized);
+        editor.apply();
+        if ("v2".equals(normalized) || "v3".equals(normalized)) {
+            setIsDarkTheme(true);
+        }
+    }
+
+    public String getDesignId() {
+        String designId = sharedPreferences.getString(KEY_DESIGN_ID, "v1");
+        if ("v2".equals(designId) || "v3".equals(designId)) {
+            return designId;
+        }
+        return "v1";
+    }
+
     public Boolean getIsDarkTheme() {
+        String designId = getDesignId();
+        if ("v2".equals(designId) || "v3".equals(designId)) {
+            return true;
+        }
         return sharedPreferences.getBoolean("theme", Config.SET_DARK_MODE_AS_DEFAULT_THEME);
     }
 

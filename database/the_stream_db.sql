@@ -90,7 +90,8 @@ CREATE TABLE `tbl_app_config` (
   `id` int(11) NOT NULL,
   `package_name` varchar(255) NOT NULL,
   `status` varchar(5) NOT NULL,
-  `redirect_url` varchar(500) NOT NULL
+  `redirect_url` varchar(500) NOT NULL,
+  `design_id` varchar(10) NOT NULL DEFAULT 'v1'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------

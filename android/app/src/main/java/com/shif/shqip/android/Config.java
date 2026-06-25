@@ -4,11 +4,8 @@ import com.shif.shqip.android.utils.Constant;
 
 public class Config {
 
-    // Server Key nga paneli: Settings → kopjo vlerën e enkriptuar
-    // Formati: URL_e_panelit_applicationId_com.shif.shqip.android (triple Base64)
     public static final String SERVER_KEY = "XXXXX";
 
-    // REST API Key nga paneli: Settings → API Key (ose api-key.php → GENERATE)
     public static final String REST_API_KEY = "XXXXX";
 
     //bottom navigation menu configuration

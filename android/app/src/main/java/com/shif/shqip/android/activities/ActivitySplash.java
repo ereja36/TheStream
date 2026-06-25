@@ -33,6 +33,7 @@ import com.shif.shqip.android.models.Settings;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.DeviceApiHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.bumptech.glide.Glide;
@@ -140,6 +141,9 @@ public class ActivitySplash extends AppCompatActivity {
                     Tools.saveAds(adsPref, ads);
                     sharedPref.saveCredentials(settings.youtube_api_key, settings.more_apps_url, settings.privacy_policy, app.redirect_url, settings.providers);
                     sharedPref.saveUser(license.item_id, license.item_name, license.buyer, license.license_type);
+                    if (app.design_id != null) {
+                        sharedPref.saveDesignId(app.design_id);
+                    }
                     if (app.status != null && app.status.equals("0")) {
                         Intent intent = new Intent(getApplicationContext(), ActivityRedirect.class);
                         intent.putExtra("redirect_url", app.redirect_url);
@@ -310,7 +314,7 @@ public class ActivitySplash extends AppCompatActivity {
     private void startMainActivity() {
         Intent intent;
         if (sharedPref.hasPlaylistChannels()) {
-            intent = new Intent(getApplicationContext(), MainActivity.class);
+            intent = DesignRouter.getMainActivityIntent(getApplicationContext());
         } else {
             intent = new Intent(getApplicationContext(), ActivityPlaylistSetup.class);
         }

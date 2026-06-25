@@ -128,8 +128,10 @@ public class FragmentFavorite extends Fragment {
             Intent intent = new Intent(activity, ActivityChannelDetail.class);
             intent.putExtra(Constant.EXTRA_OBJC, obj);
             startActivity(intent);
-            ((MainActivity) activity).showInterstitialAd();
-            ((MainActivity) activity).destroyBannerAd();
+            if (activity instanceof MainActivity) {
+                ((MainActivity) activity).showInterstitialAd();
+                ((MainActivity) activity).destroyBannerAd();
+            }
         });
 
         adapterFavorite.setOnItemOverflowClickListener((view, obj, position) -> {
