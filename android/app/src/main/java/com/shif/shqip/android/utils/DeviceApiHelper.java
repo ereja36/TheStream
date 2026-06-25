@@ -619,7 +619,7 @@ public final class DeviceApiHelper {
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(15000);
             connection.setRequestMethod(method);
-            connection.setRequestProperty("User-Agent", "ShifShqip/6.7.3 (Android)");
+            connection.setRequestProperty("User-Agent", "ShifShqip/6.7.4 (Android)");
             connection.setRequestProperty("Accept", "*/*");
             connection.setRequestProperty("X-Requested-With", packageName);
             if (!TextUtils.isEmpty(deviceId)) {

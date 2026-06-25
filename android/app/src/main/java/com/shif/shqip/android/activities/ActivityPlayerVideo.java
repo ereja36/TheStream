@@ -157,6 +157,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
         new Thread(() -> {
             PlaylistGuardSession.refreshBlocking(sharedPref);
+            video_url = PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, video_url);
             runOnUiThread(this::initializePlayer);
         }).start();
     }
@@ -343,7 +344,11 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @SuppressLint("SwitchIntDef")
     private MediaSource buildMediaSource(Uri uri) {
         MediaItem mMediaItem = MediaItem.fromUri(Uri.parse(String.valueOf(uri)));
-        int type = TextUtils.isEmpty(null) ? Util.inferContentType(uri) : Util.inferContentType("." + null);
+        int type = Util.inferContentType(uri);
+        String url = uri.toString().toLowerCase(Locale.US);
+        if (type == C.TYPE_OTHER && (url.contains(".m3u8") || url.contains(".m3u") || url.contains("/hls/"))) {
+            type = C.TYPE_HLS;
+        }
         switch (type) {
             case C.TYPE_DASH:
                 return new DashMediaSource.Factory(dataSourceFactory)
@@ -460,11 +465,20 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         if (exoPlayer == null) {
             return;
         }
-        Uri uri = Uri.parse(video_url);
-        MediaSource mediaSource = buildMediaSource(uri);
-        exoPlayer.setMediaSource(mediaSource);
-        exoPlayer.prepare();
-        exoPlayer.setPlayWhenReady(true);
+        progressBar.setVisibility(View.VISIBLE);
+        new Thread(() -> {
+            String resolvedUrl = PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, video_url);
+            runOnUiThread(() -> {
+                video_url = resolvedUrl;
+                dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(
+                        ActivityPlayerVideo.this, sharedPref, video_url, user_agent);
+                Uri uri = Uri.parse(video_url);
+                MediaSource mediaSource = buildMediaSource(uri);
+                exoPlayer.setMediaSource(mediaSource);
+                exoPlayer.prepare();
+                exoPlayer.setPlayWhenReady(true);
+            });
+        }).start();
     }
 
     private void updateView(String id) {

@@ -10,15 +10,25 @@ import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class PlaylistGuardHelper {
 
-    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.7.3 (Android)";
+    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.7.4 (Android)";
+
+    private static final Pattern REDIRECT_URL_PATTERN = Pattern.compile("https?://[^\\s\"'<>]+", Pattern.CASE_INSENSITIVE);
 
     private PlaylistGuardHelper() {
     }
@@ -72,6 +82,11 @@ public final class PlaylistGuardHelper {
             return streamRule;
         }
 
+        PlaylistGuardRule scopeRule = findRuleByGuardScope(requestUrl, rules, sharedPref.getPlaylistUrl());
+        if (scopeRule != null) {
+            return scopeRule;
+        }
+
         String playlistUrl = sharedPref.getPlaylistUrl();
         if (!TextUtils.isEmpty(playlistUrl)) {
             PlaylistGuardRule playlistRule = findMatchingRule(playlistUrl, rules);
@@ -89,6 +104,58 @@ public final class PlaylistGuardHelper {
         }
 
         return findMatchingRule(sharedPref.getActiveGuardSourceUrl(), rules);
+    }
+
+    public static String resolvePlaybackUrl(SharedPref sharedPref, String urlString) throws IOException {
+        if (TextUtils.isEmpty(urlString) || !needsPlaybackResolution(urlString)) {
+            return urlString;
+        }
+
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(urlString).openConnection();
+            connection.setInstanceFollowRedirects(true);
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(15000);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "*/*");
+
+            PlaylistGuardRule rule = resolveRule(sharedPref, urlString);
+            connection.setRequestProperty("User-Agent", resolveUserAgent(rule, "default"));
+            applyRuleHeaders(connection, rule);
+
+            int responseCode = connection.getResponseCode();
+            String finalUrl = connection.getURL().toString();
+            if (responseCode >= 200 && responseCode < 300) {
+                if (isDirectStreamUrl(finalUrl)) {
+                    return finalUrl;
+                }
+                InputStream inputStream = connection.getInputStream();
+                if (inputStream != null) {
+                    String body = readText(inputStream);
+                    String redirectUrl = extractRedirectUrl(body);
+                    if (!TextUtils.isEmpty(redirectUrl)) {
+                        return redirectUrl;
+                    }
+                }
+            }
+            if (isDirectStreamUrl(finalUrl) && !finalUrl.equalsIgnoreCase(urlString)) {
+                return finalUrl;
+            }
+            return urlString;
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    public static String resolvePlaybackUrlSafe(SharedPref sharedPref, String urlString) {
+        try {
+            return resolvePlaybackUrl(sharedPref, urlString);
+        } catch (Exception ignored) {
+            return urlString;
+        }
     }
 
     public static void reconcileActiveGuardRule(SharedPref sharedPref) {
@@ -226,6 +293,95 @@ public final class PlaylistGuardHelper {
             }
         }
         return null;
+    }
+
+    private static PlaylistGuardRule findRuleByGuardScope(String requestUrl, List<PlaylistGuardRule> rules, String playlistUrl) {
+        if (TextUtils.isEmpty(requestUrl) || rules == null || rules.isEmpty()) {
+            return null;
+        }
+        String requestScope = extractGuardScopeKey(requestUrl);
+        if (TextUtils.isEmpty(requestScope)) {
+            return null;
+        }
+        if (!TextUtils.isEmpty(playlistUrl)) {
+            String playlistScope = extractGuardScopeKey(playlistUrl);
+            if (requestScope.equals(playlistScope)) {
+                PlaylistGuardRule playlistRule = findMatchingRule(playlistUrl, rules);
+                if (playlistRule != null) {
+                    return playlistRule;
+                }
+            }
+        }
+        for (PlaylistGuardRule rule : rules) {
+            if (rule == null || TextUtils.isEmpty(rule.url_pattern)) {
+                continue;
+            }
+            if (requestScope.equals(extractGuardScopeKey(rule.url_pattern))) {
+                return rule;
+            }
+        }
+        return null;
+    }
+
+    private static String extractGuardScopeKey(String url) {
+        String key = normalizeMatchKey(url);
+        if (TextUtils.isEmpty(key)) {
+            return "";
+        }
+        int firstSlash = key.indexOf('/');
+        if (firstSlash < 0) {
+            return key;
+        }
+        int secondSlash = key.indexOf('/', firstSlash + 1);
+        if (secondSlash < 0) {
+            return key;
+        }
+        return key.substring(0, secondSlash);
+    }
+
+    private static boolean needsPlaybackResolution(String url) {
+        String lower = url.toLowerCase(Locale.US);
+        return lower.endsWith(".json")
+                || lower.contains("app-measurement/collect")
+                || lower.contains("/collect/s/");
+    }
+
+    private static boolean isDirectStreamUrl(String url) {
+        if (TextUtils.isEmpty(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase(Locale.US);
+        return lower.contains(".m3u8")
+                || lower.contains(".m3u")
+                || lower.contains(".mpd")
+                || lower.endsWith(".ts")
+                || lower.endsWith(".mp4")
+                || lower.contains("/hls/");
+    }
+
+    private static String extractRedirectUrl(String body) {
+        if (TextUtils.isEmpty(body)) {
+            return "";
+        }
+        Matcher matcher = REDIRECT_URL_PATTERN.matcher(body);
+        while (matcher.find()) {
+            String candidate = matcher.group();
+            if (isDirectStreamUrl(candidate)) {
+                return candidate;
+            }
+        }
+        return "";
+    }
+
+    private static String readText(InputStream inputStream) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                builder.append(line).append('\n');
+            }
+        }
+        return builder.toString();
     }
 
     static String normalizeMatchKey(String value) {

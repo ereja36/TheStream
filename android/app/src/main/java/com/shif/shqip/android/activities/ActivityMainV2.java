@@ -53,6 +53,7 @@ import android.net.Uri;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -235,11 +236,12 @@ public class ActivityMainV2 extends AppCompatActivity {
         heroPreviewChannel = channel;
         new Thread(() -> {
             PlaylistGuardSession.refreshBlocking(sharedPref);
-            runOnUiThread(() -> startHeroPreviewPlayer(channel));
+            String playbackUrl = PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, channel.channel_url);
+            runOnUiThread(() -> startHeroPreviewPlayer(channel, playbackUrl));
         }).start();
     }
 
-    private void startHeroPreviewPlayer(Channel channel) {
+    private void startHeroPreviewPlayer(Channel channel, String playbackUrl) {
         if (heroPreview == null || channel == null || heroPreviewChannel == null) {
             return;
         }
@@ -249,11 +251,14 @@ public class ActivityMainV2 extends AppCompatActivity {
         heroPreview.setUseController(false);
 
         DefaultDataSource.Factory factory = PlaylistGuardHelper.createDataSourceFactory(
-                this, sharedPref, channel.channel_url, channel.user_agent);
-        Uri uri = Uri.parse(channel.channel_url);
+                this, sharedPref, playbackUrl, channel.user_agent);
+        Uri uri = Uri.parse(playbackUrl);
         MediaSource mediaSource;
         int type = Util.inferContentType(uri);
-        if (type == com.google.android.exoplayer2.C.TYPE_HLS) {
+        String lowerUrl = playbackUrl.toLowerCase(Locale.US);
+        if (type == com.google.android.exoplayer2.C.TYPE_HLS
+                || lowerUrl.contains(".m3u8")
+                || lowerUrl.contains(".m3u")) {
             mediaSource = new HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri));
         } else {
             mediaSource = new ProgressiveMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri));
