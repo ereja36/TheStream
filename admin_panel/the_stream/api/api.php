@@ -1086,8 +1086,13 @@ require_once("Rest.inc.php");
 					return;
 				}
 
+				header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+				header('Pragma: no-cache');
+				header('Expires: 0');
+
 				$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_playlist_guard'");
 				$rules = array();
+				$updatedAt = '';
 				if ($tableCheck && $tableCheck->num_rows > 0) {
 					$query = "SELECT id, rule_name, url_pattern, referer, origin, user_agent, cookie, extra_headers
 					          FROM tbl_playlist_guard WHERE status = 1 ORDER BY id ASC";
@@ -1097,9 +1102,13 @@ require_once("Rest.inc.php");
 							$rules[] = $row;
 						}
 					}
+					$updatedResult = $this->mysqli->query("SELECT MAX(updated_at) AS updated_at FROM tbl_playlist_guard WHERE status = 1");
+					if ($updatedResult && ($updatedRow = $updatedResult->fetch_assoc())) {
+						$updatedAt = isset($updatedRow['updated_at']) ? (string) $updatedRow['updated_at'] : '';
+					}
 				}
 
-				$respon = array('status' => 'ok', 'rules' => $rules);
+				$respon = array('status' => 'ok', 'rules' => $rules, 'updated_at' => $updatedAt);
 				$this->response($this->json($respon), 200);
 			} else {
 				$this->responseInvalidParam();

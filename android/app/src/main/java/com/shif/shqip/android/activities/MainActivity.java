@@ -51,6 +51,7 @@ import com.shif.shqip.android.fragments.FragmentRecent;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.AppBarLayoutBehavior;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.DeviceApiHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.RtlViewPager;
 import com.shif.shqip.android.utils.Tools;
@@ -335,6 +336,8 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     protected void onResume() {
         super.onResume();
         adsManager.resumeBannerAd(Constant.BANNER_HOME);
+        DeviceApiHelper.refreshPlaylistGuardRulesAsync(sharedPref);
+        DesignUiHelper.refreshRemoteConfig(this, sharedPref, null);
     }
 
     @Override

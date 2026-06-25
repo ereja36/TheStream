@@ -19,7 +19,7 @@ import java.util.Map;
 
 public final class PlaylistGuardHelper {
 
-    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.7 (Android)";
+    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.7.2 (Android)";
 
     private PlaylistGuardHelper() {
     }
@@ -44,14 +44,42 @@ public final class PlaylistGuardHelper {
         if (sharedPref == null) {
             return null;
         }
-        PlaylistGuardRule direct = findMatchingRule(requestUrl, sharedPref.getPlaylistGuardRules());
+        List<PlaylistGuardRule> rules = sharedPref.getPlaylistGuardRules();
+        PlaylistGuardRule direct = findMatchingRule(requestUrl, rules);
         if (direct != null) {
             return direct;
         }
-        if (sharedPref.hasPlaylistChannels()) {
-            return sharedPref.getActiveGuardRule();
+        if (!sharedPref.hasPlaylistChannels()) {
+            return null;
         }
-        return null;
+        String playlistUrl = sharedPref.getPlaylistUrl();
+        PlaylistGuardRule playlistRule = findMatchingRule(playlistUrl, rules);
+        if (playlistRule != null) {
+            return playlistRule;
+        }
+        return findMatchingRule(sharedPref.getActiveGuardSourceUrl(), rules);
+    }
+
+    public static void reconcileActiveGuardRule(SharedPref sharedPref) {
+        if (sharedPref == null) {
+            return;
+        }
+        List<PlaylistGuardRule> rules = sharedPref.getPlaylistGuardRules();
+        if (rules.isEmpty()) {
+            sharedPref.clearActiveGuardRule();
+            return;
+        }
+        String playlistUrl = sharedPref.getPlaylistUrl();
+        PlaylistGuardRule matched = findMatchingRule(playlistUrl, rules);
+        if (matched == null) {
+            matched = findMatchingRule(sharedPref.getActiveGuardSourceUrl(), rules);
+        }
+        if (matched != null) {
+            String source = !TextUtils.isEmpty(playlistUrl) ? playlistUrl : sharedPref.getActiveGuardSourceUrl();
+            rememberRuleForPlaylist(sharedPref, source, matched);
+        } else {
+            sharedPref.clearActiveGuardRule();
+        }
     }
 
     public static void rememberRuleForPlaylist(SharedPref sharedPref, String playlistUrl, PlaylistGuardRule rule) {

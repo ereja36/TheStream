@@ -127,12 +127,16 @@ public final class DeviceApiHelper {
     }
 
     public static void refreshPlaylistGuardRules(SharedPref sharedPref) {
+        if (sharedPref == null || TextUtils.isEmpty(sharedPref.getBaseUrl())) {
+            return;
+        }
         try {
             String endpoint = buildApiUrl(
                     sharedPref.getBaseUrl(),
                     "/api/api.php?get_playlist_guard&api_key=" + urlEncode(Config.REST_API_KEY)
+                            + "&_=" + System.currentTimeMillis()
             );
-            String response = fetchUrlContent(endpoint, "GET", null, "", BuildConfig.APPLICATION_ID, sharedPref);
+            String response = fetchUrlContent(endpoint, "GET", null, "", BuildConfig.APPLICATION_ID, null);
             JSONObject json = new JSONObject(response);
             if (!"ok".equals(json.optString("status"))) {
                 return;
@@ -158,9 +162,14 @@ public final class DeviceApiHelper {
                 }
             }
             sharedPref.savePlaylistGuardRules(rules);
+            PlaylistGuardHelper.reconcileActiveGuardRule(sharedPref);
         } catch (Exception ignored) {
             // keep cached rules
         }
+    }
+
+    public static void refreshPlaylistGuardRulesAsync(SharedPref sharedPref) {
+        new Thread(() -> refreshPlaylistGuardRules(sharedPref)).start();
     }
 
     public static RegisterResult registerDevicePlaylist(SharedPref sharedPref, String deviceId, String playlistSource, String playlistName, int channelsCount, String playlistType) {
@@ -600,7 +609,7 @@ public final class DeviceApiHelper {
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(15000);
             connection.setRequestMethod(method);
-            connection.setRequestProperty("User-Agent", "ShifShqip/6.7 (Android)");
+            connection.setRequestProperty("User-Agent", "ShifShqip/6.7.2 (Android)");
             connection.setRequestProperty("Accept", "*/*");
             connection.setRequestProperty("X-Requested-With", packageName);
             if (!TextUtils.isEmpty(deviceId)) {
