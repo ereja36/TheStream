@@ -1,0 +1,117 @@
+plugins {
+    id 'com.android.application'
+    id 'com.google.gms.google-services'
+}
+
+android {
+    namespace = 'com.shif.shqip.android'
+    compileSdk = 36
+    defaultConfig {
+        applicationId = "com.shif.shqip.android"
+        minSdk = 23
+        targetSdk = 36
+        versionCode = 30
+        versionName = "6.8.0"
+        multiDexEnabled = true
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    buildFeatures {
+        buildConfig = true
+    }
+    bundle {
+        storeArchive {
+            enable = false
+        }
+    }
+    lint {
+        disable 'GradleDependency', 'GradleDynamicVersion', 'OldTargetApi'
+    }
+    signingConfigs {
+        release {
+            def keystorePath = rootProject.file('keystore/shif-shqip-release.jks')
+            if (keystorePath.exists()) {
+                storeFile keystorePath
+                storePassword System.getenv('SHIF_KEYSTORE_PASSWORD') ?: 'ShifShqip2026!'
+                keyAlias 'shifshqip'
+                keyPassword System.getenv('SHIF_KEY_PASSWORD') ?: 'ShifShqip2026!'
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            if (rootProject.file('keystore/shif-shqip-release.jks').exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+        release {
+            minifyEnabled false
+            if (rootProject.file('keystore/shif-shqip-release.jks').exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+/* IMPORTANT :
+ * Be careful when update dependencies, different version library may caused error */
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    //google support library
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
+    implementation 'androidx.lifecycle:lifecycle-process:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-common-java8:2.7.0'
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'androidx.multidex:multidex:2.0.1'
+    implementation 'androidx.work:work-runtime:2.9.0'
+    implementation 'com.google.android.exoplayer:exoplayer-core:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-dash:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-hls:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-ui:2.19.1'
+    implementation 'com.google.android.exoplayer:exoplayer-rtsp:2.19.1'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'com.google.android.play:review:2.0.2'
+	implementation 'com.google.android.play:app-update:2.1.0'
+
+    //Firebase
+    implementation platform('com.google.firebase:firebase-bom:34.5.0')
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-messaging'
+
+    //Ad Network Sdk options
+    implementation 'com.github.solodroid-dev.ads:admob-ads-sdk:1.+'
+
+    //Push notification
+    implementation 'com.github.solodroid-dev.push:notification-sdk:1.+'
+
+    //youtube player
+    implementation 'com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0'
+
+    //image library
+    implementation 'com.github.bumptech.glide:glide:5.0.5'
+    annotationProcessor 'com.github.bumptech.glide:compiler:5.0.5'
+
+    //Rest API
+    implementation 'com.squareup.retrofit2:converter-gson:3.0.0'
+    implementation 'com.squareup.retrofit2:retrofit:3.0.0'
+    implementation 'com.squareup.okhttp3:okhttp:5.3.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:5.3.0'
+
+    //Shimmer Effect
+    implementation 'com.facebook.shimmer:shimmer:0.5.0'
+
+    //local storage
+    implementation 'androidx.room:room-runtime:2.8.2'
+    annotationProcessor 'androidx.room:room-compiler:2.8.2'
+
+}

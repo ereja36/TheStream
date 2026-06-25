@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="v3_bg_start">#1A0533</color>
+    <color name="v3_bg_end">#0B1020</color>
+    <color name="v3_surface">#1B2238</color>
+    <color name="v3_card">#242C45</color>
+    <color name="v3_accent">#00E5FF</color>
+    <color name="v3_accent_2">#7C4DFF</color>
+    <color name="v3_text_primary">#F5F7FF</color>
+    <color name="v3_text_secondary">#9AA6C2</color>
+    <color name="v3_glass_border">#33FFFFFF</color>
+</resources>
