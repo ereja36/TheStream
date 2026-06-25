@@ -1,7 +1,7 @@
 <?php
 
 	$app_name = "Shif Shqip";
-	$app_version = "6.9.1";
+	$app_version = "6.9.2";
 	$copyright = "Copyright © 2026 Shif Shqip";
 	$menu_dashboard = "Dashboard";
 	$menu_category = "Manage Category";
