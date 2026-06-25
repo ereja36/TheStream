@@ -16,14 +16,34 @@ echo "==> Deploy panel/API to ${VPS_USER}@${VPS_HOST}"
 scp "${ROOT_DIR}/admin_panel/the_stream/api/api.php" \
   "${VPS_USER}@${VPS_HOST}:${REMOTE_PANEL}/api/api.php"
 
-scp "${ROOT_DIR}/admin_panel/the_stream/playlist-guard.php" \
-  "${VPS_USER}@${VPS_HOST}:${REMOTE_PANEL}/playlist-guard.php"
+for panel_file in \
+  playlist-guard.php \
+  app-ads.txt \
+  download.html \
+  dashboard.php \
+  settings.php \
+  app-inbox-notifications.php \
+  privacy.php; do
+  if [[ -f "${ROOT_DIR}/admin_panel/the_stream/${panel_file}" ]]; then
+    scp "${ROOT_DIR}/admin_panel/the_stream/${panel_file}" \
+      "${VPS_USER}@${VPS_HOST}:${REMOTE_PANEL}/${panel_file}"
+  fi
+done
 
-scp "${ROOT_DIR}/admin_panel/the_stream/app-ads.txt" \
-  "${VPS_USER}@${VPS_HOST}:${REMOTE_PANEL}/app-ads.txt"
+scp "${ROOT_DIR}/admin_panel/the_stream/includes/sidebar.php" \
+  "${VPS_USER}@${VPS_HOST}:${REMOTE_PANEL}/includes/sidebar.php"
+scp "${ROOT_DIR}/admin_panel/the_stream/includes/strings.php" \
+  "${VPS_USER}@${VPS_HOST}:${REMOTE_PANEL}/includes/strings.php"
 
-scp "${ROOT_DIR}/admin_panel/the_stream/download.html" \
-  "${VPS_USER}@${VPS_HOST}:${REMOTE_PANEL}/download.html"
+if [[ -f "${ROOT_DIR}/deploy/nginx-api.shifshqip.com.conf" ]]; then
+  scp "${ROOT_DIR}/deploy/nginx-api.shifshqip.com.conf" \
+    "${VPS_USER}@${VPS_HOST}:/etc/nginx/sites-available/api.shifshqip.com"
+fi
+
+if [[ -f "${ROOT_DIR}/database/migrations/009_play_store_panel_features.sql" ]]; then
+  scp "${ROOT_DIR}/database/migrations/009_play_store_panel_features.sql" \
+    "${VPS_USER}@${VPS_HOST}:/tmp/009_play_store_panel_features.sql"
+fi
 
 if [[ -f "${ROOT_DIR}/database/migrations/008_startup_support_popup.sql" ]]; then
   scp "${ROOT_DIR}/database/migrations/008_startup_support_popup.sql" \
@@ -37,6 +57,10 @@ fi
 
 ssh "${VPS_USER}@${VPS_HOST}" bash -s <<EOF
 set -e
+if [[ -f /tmp/009_play_store_panel_features.sql ]]; then
+  mysql -u ${DB_USER} ${DB_PASS:+-p"${DB_PASS}"} ${DB_NAME} < /tmp/009_play_store_panel_features.sql || true
+  rm -f /tmp/009_play_store_panel_features.sql
+fi
 if [[ -f /tmp/008_startup_support_popup.sql ]]; then
   mysql -u ${DB_USER} ${DB_PASS:+-p"${DB_PASS}"} ${DB_NAME} < /tmp/008_startup_support_popup.sql || true
   rm -f /tmp/008_startup_support_popup.sql
@@ -45,8 +69,11 @@ if [[ -f /tmp/007_playlist_guard_stream_pattern.sql ]]; then
   mysql -u ${DB_USER} ${DB_PASS:+-p"${DB_PASS}"} ${DB_NAME} < /tmp/007_playlist_guard_stream_pattern.sql || true
   rm -f /tmp/007_playlist_guard_stream_pattern.sql
 fi
-chown www-data:www-data ${REMOTE_PANEL}/api/api.php ${REMOTE_PANEL}/playlist-guard.php ${REMOTE_PANEL}/app-ads.txt ${REMOTE_PANEL}/download.html
-chmod 644 ${REMOTE_PANEL}/api/api.php ${REMOTE_PANEL}/playlist-guard.php ${REMOTE_PANEL}/app-ads.txt ${REMOTE_PANEL}/download.html
+chown www-data:www-data ${REMOTE_PANEL}/api/api.php ${REMOTE_PANEL}/playlist-guard.php ${REMOTE_PANEL}/app-ads.txt ${REMOTE_PANEL}/download.html ${REMOTE_PANEL}/dashboard.php ${REMOTE_PANEL}/settings.php ${REMOTE_PANEL}/app-inbox-notifications.php ${REMOTE_PANEL}/privacy.php ${REMOTE_PANEL}/includes/sidebar.php ${REMOTE_PANEL}/includes/strings.php
+chmod 644 ${REMOTE_PANEL}/api/api.php ${REMOTE_PANEL}/playlist-guard.php ${REMOTE_PANEL}/app-ads.txt ${REMOTE_PANEL}/download.html ${REMOTE_PANEL}/dashboard.php ${REMOTE_PANEL}/settings.php ${REMOTE_PANEL}/app-inbox-notifications.php ${REMOTE_PANEL}/privacy.php ${REMOTE_PANEL}/includes/sidebar.php ${REMOTE_PANEL}/includes/strings.php
+if [[ -f /etc/nginx/sites-available/api.shifshqip.com ]]; then
+  nginx -t && systemctl reload nginx
+fi
 EOF
 
 if [[ -f "${ROOT_DIR}/android/app/build/outputs/apk/release/app-release.apk" ]]; then

@@ -62,6 +62,13 @@
                         </a>
                     </li>
 
+                    <li class="<?php if (strpos($page, 'app-inbox-notifications') !== false) {echo 'active';} else { echo 'noactive'; }?>">
+                        <a href="app-inbox-notifications.php">
+                            <i class="material-icons">phonelink_ring</i>
+                            <span><?php echo $menu_inbox_notification; ?></span>
+                        </a>
+                    </li>
+
                     <li class="<?php if (strpos($page, 'admin') !== false) {echo 'active';} else { echo 'noactive'; }?>">
                         <a href="admin.php">
                             <i class="material-icons">people</i>

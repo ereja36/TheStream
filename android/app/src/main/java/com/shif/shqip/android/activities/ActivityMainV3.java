@@ -26,6 +26,7 @@ import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
+import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import java.util.ArrayList;
@@ -84,6 +85,8 @@ public class ActivityMainV3 extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        InboxNotificationHelper.pollAndShow(this, sharedPref);
+        InboxNotificationHelper.handleOpenIntent(this, sharedPref, getIntent());
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, () ->
                 DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref));
     }
@@ -97,7 +100,7 @@ public class ActivityMainV3 extends AppCompatActivity {
                 return true;
             }
             if (id == R.id.navigation_category) {
-                startActivity(new Intent(this, ActivitySearch.class));
+                startActivity(new Intent(this, ActivityPlaylistCategories.class));
                 return true;
             }
             if (id == R.id.navigation_favorite) {

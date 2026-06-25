@@ -27,11 +27,13 @@
         android:orientation="horizontal">
 
         <ImageButton
-            android:id="@+id/btn_cast"
+            android:id="@+id/btn_epg"
             android:layout_width="@dimen/spacing_xxlarge"
             android:layout_height="@dimen/spacing_xxlarge"
             android:background="?selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_cast" />
+            android:contentDescription="@string/player_epg_button"
+            android:src="@drawable/ic_setting_list"
+            android:visibility="gone" />
 
         <View
             android:layout_width="@dimen/spacing_middle"

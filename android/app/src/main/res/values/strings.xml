@@ -140,8 +140,9 @@
     <string name="playlist_add">Shto Playlist</string>
     <string name="playlist_open_file">Hap Skedarin</string>
     <string name="playlist_add_xtream">Xtream Codes</string>
-    <string name="playlist_add_website">Website / Portal URL</string>
     <string name="playlist_play_url">Luaj URL</string>
+    <string name="playlist_setup_note_short">Importo kanalet nga M3U, Xtream ose skedar lokal.</string>
+    <string name="player_epg_button">EPG</string>
     <string name="playlist_manage_title">Manage Playlists</string>
     <string name="playlist_manage_subtitle">Add and manage M3U and Xtream playlists</string>
 

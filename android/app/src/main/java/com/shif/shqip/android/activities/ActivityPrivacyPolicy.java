@@ -1,7 +1,9 @@
 package com.shif.shqip.android.activities;
 
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.view.MenuItem;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 
 import androidx.activity.OnBackPressedCallback;
@@ -29,9 +31,21 @@ public class ActivityPrivacyPolicy extends AppCompatActivity {
         Tools.setNavigation(this);
         sharedPref = new SharedPref(this);
         webView = findViewById(R.id.web_view);
-        Tools.displayContent(this, webView, sharedPref.getPrivacyPolicy());
+        loadPrivacyContent();
         setupToolbar();
         handleOnBackPressed();
+    }
+
+    private void loadPrivacyContent() {
+        String privacyUrl = sharedPref.getPrivacyPublicUrl();
+        if (!TextUtils.isEmpty(privacyUrl)) {
+            WebSettings webSettings = webView.getSettings();
+            webSettings.setJavaScriptEnabled(true);
+            webSettings.setDomStorageEnabled(true);
+            webView.loadUrl(privacyUrl);
+            return;
+        }
+        Tools.displayContent(this, webView, sharedPref.getPrivacyPolicy());
     }
 
     public void handleOnBackPressed() {

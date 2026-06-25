@@ -43,6 +43,7 @@ import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.DeviceApiHelper;
+import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.Tools;
 import com.bumptech.glide.Glide;
@@ -149,7 +150,15 @@ public class ActivitySplash extends AppCompatActivity {
                     ads = resp.ads;
                     license = resp.license;
                     Tools.saveAds(adsPref, ads);
-                    sharedPref.saveCredentials(settings.youtube_api_key, settings.more_apps_url, settings.privacy_policy, app.redirect_url, settings.providers);
+                    sharedPref.saveCredentials(
+                            settings.youtube_api_key,
+                            settings.more_apps_url,
+                            settings.privacy_policy,
+                            app.redirect_url,
+                            settings.providers,
+                            settings.enable_player_epg != 0,
+                            TextUtils.isEmpty(settings.privacy_public_url) ? "https://shifshqip.com/privacy" : settings.privacy_public_url);
+                    DeviceApiHelper.reportDeviceOpen(sharedPref, deviceId);
                     sharedPref.saveUser(license.item_id, license.item_name, license.buyer, license.license_type);
                     if (app.design_id != null) {
                         sharedPref.saveDesignId(app.design_id);
@@ -271,6 +280,7 @@ public class ActivitySplash extends AppCompatActivity {
         TextView laterButton = content.findViewById(R.id.btn_support_later);
 
         String displayDeviceId = DeviceApiHelper.getDisplayDeviceId(this);
+        final String fullDeviceId = DeviceApiHelper.getLocalDeviceId(this);
         titleView.setText(TextUtils.isEmpty(popupConfig.title)
                 ? getString(R.string.support_default_title)
                 : popupConfig.title);
@@ -300,7 +310,7 @@ public class ActivitySplash extends AppCompatActivity {
         copyButton.setOnClickListener(v -> {
             ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             if (clipboard != null) {
-                clipboard.setPrimaryClip(ClipData.newPlainText("device_id", displayDeviceId));
+                clipboard.setPrimaryClip(ClipData.newPlainText("device_id", fullDeviceId));
                 Toast.makeText(this, R.string.support_copied, Toast.LENGTH_SHORT).show();
             }
         });
@@ -397,6 +407,7 @@ public class ActivitySplash extends AppCompatActivity {
     }
 
     private void startMainActivity() {
+        InboxNotificationHelper.pollAndShow(this, sharedPref);
         Intent intent;
         if (sharedPref.hasPlaylistChannels()) {
             intent = DesignRouter.getMainActivityIntent(getApplicationContext());

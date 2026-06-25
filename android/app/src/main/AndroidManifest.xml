@@ -102,6 +102,10 @@
             android:configChanges="orientation|keyboardHidden|screenSize" />
 
         <activity
+            android:name=".activities.ActivityPlaylistCategories"
+            android:configChanges="orientation|keyboardHidden|screenSize" />
+
+        <activity
             android:name=".activities.ActivityPlaylistSetup"
             android:configChanges="orientation|keyboardHidden|screenSize" />
 

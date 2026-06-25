@@ -130,7 +130,6 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
         findViewById(R.id.btn_add_playlist).setOnClickListener(v -> showPlaylistUrlDialog());
         findViewById(R.id.btn_open_file).setOnClickListener(v -> openPlaylistFile());
         findViewById(R.id.btn_add_xtream).setOnClickListener(v -> showXtreamDialog());
-        findViewById(R.id.btn_add_website).setOnClickListener(v -> showWebsiteDialog());
         findViewById(R.id.btn_play_url).setOnClickListener(v -> showStreamUrlDialog());
     }
 
@@ -218,30 +217,6 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
                         return;
                     }
                     fetchAndSavePlaylist(buildXtreamM3uUrl(server, username, password), playlistName);
-                })
-                .setNegativeButton(R.string.dialog_cancel, null)
-                .show();
-    }
-
-    private void showWebsiteDialog() {
-        LinearLayout container = createDialogContainer();
-        final EditText nameInput = createDialogInput(getString(R.string.playlist_name_hint), InputType.TYPE_CLASS_TEXT);
-        final EditText urlInput = createDialogInput(getString(R.string.playlist_website_hint), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        container.addView(nameInput);
-        container.addView(urlInput);
-
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.playlist_add_website)
-                .setMessage(R.string.playlist_website_dialog_message)
-                .setView(container)
-                .setPositiveButton(R.string.dialog_ok, (dialog, which) -> {
-                    String playlistName = nameInput.getText().toString().trim();
-                    String websiteUrl = urlInput.getText().toString().trim();
-                    if (TextUtils.isEmpty(websiteUrl)) {
-                        showToast(getString(R.string.playlist_error_empty_url));
-                        return;
-                    }
-                    fetchAndSavePlaylist(websiteUrl, playlistName);
                 })
                 .setNegativeButton(R.string.dialog_cancel, null)
                 .show();
@@ -477,7 +452,6 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
         findViewById(R.id.btn_add_playlist).setEnabled(enabled);
         findViewById(R.id.btn_open_file).setEnabled(enabled);
         findViewById(R.id.btn_add_xtream).setEnabled(enabled);
-        findViewById(R.id.btn_add_website).setEnabled(enabled);
         findViewById(R.id.btn_play_url).setEnabled(enabled);
     }
 

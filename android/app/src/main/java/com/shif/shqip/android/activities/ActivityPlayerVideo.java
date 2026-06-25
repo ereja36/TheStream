@@ -255,43 +255,24 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             }
         });
 
-        styledPlayerView.findViewById(R.id.btn_cast).setOnClickListener(view -> {
-            if (contentLoaded) {
-                Intent shareVideo = new Intent(Intent.ACTION_VIEW);
-                shareVideo.setDataAndType(Uri.parse(video_url), "video/*");
-                shareVideo.setPackage("com.instantbits.cast.webvideo");
-                shareVideo.putExtra("secure_uri", true);
-                try {
-                    new MaterialAlertDialogBuilder(this)
-                            .setTitle(getString(R.string.dialog_title_cast))
-                            .setMessage(getString(R.string.ready_cast))
-                            .setPositiveButton(getString(R.string.dialog_ok), (dialog, which) -> {
-                                startActivity(shareVideo);
-                            })
-                            .setNegativeButton(getString(R.string.dialog_cancel), (dialogInterface, i) -> {
-                            })
-                            .show();
-                } catch (ActivityNotFoundException ex) {
-                    new MaterialAlertDialogBuilder(this)
-                            .setTitle(getString(R.string.whops))
-                            .setMessage(getString(R.string.error_cast))
-                            .setPositiveButton(getString(R.string.dialog_ok), (dialog, which) -> {
-                                Intent install = new Intent(Intent.ACTION_VIEW);
-                                String uriString = "https://play.google.com/store/apps/details?id=com.instantbits.cast.webvideo";
-                                install.setData(Uri.parse(uriString));
-                                startActivity(install);
-                            })
-                            .setNegativeButton(getString(R.string.dialog_cancel), (dialogInterface, i) -> {
-                            })
-                            .show();
+        View btnEpg = styledPlayerView.findViewById(R.id.btn_epg);
+        if (sharedPref.isPlayerEpgEnabled() && !TextUtils.isEmpty(epgUrl)) {
+            btnEpg.setVisibility(View.VISIBLE);
+            btnEpg.setOnClickListener(view -> {
+                if (layoutEpgInfo.getVisibility() == View.VISIBLE) {
+                    layoutEpgInfo.setVisibility(View.GONE);
+                } else {
+                    layoutEpgInfo.setVisibility(View.VISIBLE);
                 }
-            } else {
-                Toast.makeText(getApplicationContext(), R.string.please_wait, Toast.LENGTH_SHORT).show();
-            }
-        });
+            });
+        } else if (btnEpg != null) {
+            btnEpg.setVisibility(View.GONE);
+        }
 
         handleOnBackPressed();
-        loadEpgInfo();
+        if (sharedPref.isPlayerEpgEnabled()) {
+            loadEpgInfo();
+        }
     }
 
     private void playerOrientation() {
@@ -520,7 +501,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                     layoutEpgInfo.setVisibility(View.GONE);
                     return;
                 }
-                layoutEpgInfo.setVisibility(View.VISIBLE);
                 txtEpgNow.setText(epgPrograms.now == null
                         ? getString(R.string.epg_now_unavailable)
                         : getString(R.string.epg_now_format, formatProgram(epgPrograms.now)));

@@ -36,6 +36,7 @@ import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.EpgHelper;
+import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.Tools;
@@ -111,6 +112,8 @@ public class ActivityMainV2 extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        InboxNotificationHelper.pollAndShow(this, sharedPref);
+        handleInboxNotificationIntent(getIntent());
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, () -> {
             DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
             if (featuredChannel != null) {
@@ -155,7 +158,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void showAllChannelsSheet() {
-        startActivity(new Intent(this, ActivitySearch.class));
+        startActivity(new Intent(this, ActivityPlaylistCategories.class));
     }
 
     private void loadChannels() {
@@ -410,5 +413,9 @@ public class ActivityMainV2 extends AppCompatActivity {
             return image;
         }
         return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+    }
+
+    private void handleInboxNotificationIntent(Intent intent) {
+        InboxNotificationHelper.handleOpenIntent(this, sharedPref, intent);
     }
 }

@@ -1126,6 +1126,118 @@ require_once("Rest.inc.php");
 			}
 		}
 
+		public function report_device_open() {
+			include "../includes/config.php";
+			$settings_row = $this->get_settings_row($connect);
+			if ($_SERVER['REQUEST_METHOD'] != 'POST') $this->response('', 406);
+			if (!$this->validateResourceAccess($this->retrieveCurrentToken())) {
+				$this->responseInvalidParam();
+				return;
+			}
+			$access_key_received = isset($_POST['api_key']) ? $_POST['api_key'] : '';
+			if ($access_key_received != $settings_row['api_key']) {
+				$this->responseInvalidApiKey();
+				return;
+			}
+			$device_id = isset($_POST['device_id']) ? trim($_POST['device_id']) : '';
+			$app_version = isset($_POST['app_version']) ? trim($_POST['app_version']) : '';
+			if ($device_id == '') {
+				$this->response($this->json(array('status' => 'failed', 'msg' => 'device_id required')), 200);
+				return;
+			}
+			$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_device_heartbeat'");
+			if ($tableCheck && $tableCheck->num_rows > 0) {
+				$deviceEsc = $this->real_escape($device_id);
+				$versionEsc = $this->real_escape($app_version);
+				$eventType = 'open';
+				$exists = $this->mysqli->query("SELECT id FROM tbl_device_heartbeat WHERE device_id = '$deviceEsc' LIMIT 1");
+				if (!$exists || $exists->num_rows == 0) {
+					$eventType = 'install';
+				}
+				$eventEsc = $this->real_escape($eventType);
+				$this->mysqli->query("INSERT INTO tbl_device_heartbeat (device_id, app_version, event_type, created_at) VALUES ('$deviceEsc', '$versionEsc', '$eventEsc', NOW())");
+			}
+			$this->response($this->json(array('status' => 'ok')), 200);
+		}
+
+		public function get_inbox_notifications() {
+			include "../includes/config.php";
+			$settings_row = $this->get_settings_row($connect);
+			if ($this->get_request_method() != 'GET') $this->response('', 406);
+			if (!$this->validateResourceAccess($this->retrieveCurrentToken())) {
+				$this->responseInvalidParam();
+				return;
+			}
+			$access_key_received = isset($_GET['api_key']) ? $_GET['api_key'] : '';
+			if ($access_key_received != $settings_row['api_key']) {
+				$this->responseInvalidApiKey();
+				return;
+			}
+			$device_id = isset($_GET['device_id']) ? trim($_GET['device_id']) : '';
+			if ($device_id == '') {
+				$this->response($this->json(array('status' => 'failed', 'msg' => 'device_id required')), 200);
+				return;
+			}
+			$notifications = array();
+			$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_app_inbox_notifications'");
+			if ($tableCheck && $tableCheck->num_rows > 0) {
+				$deviceEsc = $this->real_escape($device_id);
+				$query = "SELECT n.id, n.title, n.message, n.target_url, n.created_at
+				          FROM tbl_app_inbox_notifications n
+				          LEFT JOIN tbl_app_inbox_delivery d ON d.notification_id = n.id AND d.device_id = '$deviceEsc'
+				          WHERE n.status = 1 AND d.id IS NULL
+				          ORDER BY n.id ASC
+				          LIMIT 20";
+				$notifications = $this->get_list_result($query);
+			}
+			$this->response($this->json(array('status' => 'ok', 'notifications' => $notifications)), 200);
+		}
+
+		public function ack_inbox_notification() {
+			include "../includes/config.php";
+			$settings_row = $this->get_settings_row($connect);
+			if ($_SERVER['REQUEST_METHOD'] != 'POST') $this->response('', 406);
+			if (!$this->validateResourceAccess($this->retrieveCurrentToken())) {
+				$this->responseInvalidParam();
+				return;
+			}
+			$access_key_received = isset($_POST['api_key']) ? $_POST['api_key'] : '';
+			if ($access_key_received != $settings_row['api_key']) {
+				$this->responseInvalidApiKey();
+				return;
+			}
+			$device_id = isset($_POST['device_id']) ? trim($_POST['device_id']) : '';
+			$notification_id = isset($_POST['notification_id']) ? intval($_POST['notification_id']) : 0;
+			$opened = isset($_POST['opened']) ? intval($_POST['opened']) : 0;
+			if ($device_id == '' || $notification_id <= 0) {
+				$this->response($this->json(array('status' => 'failed', 'msg' => 'invalid params')), 200);
+				return;
+			}
+			$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_app_inbox_delivery'");
+			if ($tableCheck && $tableCheck->num_rows > 0) {
+				$deviceEsc = $this->real_escape($device_id);
+				$exists = $this->mysqli->query("SELECT id FROM tbl_app_inbox_delivery WHERE notification_id = '$notification_id' AND device_id = '$deviceEsc' LIMIT 1");
+				if ($exists && $exists->num_rows > 0) {
+					if ($opened) {
+						$this->mysqli->query("UPDATE tbl_app_inbox_delivery SET delivered_at = IFNULL(delivered_at, NOW()), opened_at = NOW() WHERE notification_id = '$notification_id' AND device_id = '$deviceEsc'");
+					} else {
+						$this->mysqli->query("UPDATE tbl_app_inbox_delivery SET delivered_at = IFNULL(delivered_at, NOW()) WHERE notification_id = '$notification_id' AND device_id = '$deviceEsc'");
+					}
+				} else if ($opened) {
+					$this->mysqli->query("INSERT INTO tbl_app_inbox_delivery (notification_id, device_id, delivered_at, opened_at) VALUES ('$notification_id', '$deviceEsc', NOW(), NOW())");
+				} else {
+					$this->mysqli->query("INSERT INTO tbl_app_inbox_delivery (notification_id, device_id, delivered_at) VALUES ('$notification_id', '$deviceEsc', NOW())");
+				}
+			}
+			$this->response($this->json(array('status' => 'ok')), 200);
+		}
+
+		private function get_settings_row($connect) {
+			$setting_qry = "SELECT * FROM tbl_settings WHERE id = '1'";
+			$setting_result = mysqli_query($connect, $setting_qry);
+			return mysqli_fetch_assoc($setting_result);
+		}
+
 		private function isDeviceBlocked(string $deviceId, string &$reason = ''): bool {
 			$reason = '';
 			if ($deviceId == '') {
@@ -1248,6 +1360,12 @@ require_once("Rest.inc.php");
 		$api->get_startup_popup();
 	} else if (isset($_GET['get_playlist_guard'])) {
 		$api->get_playlist_guard();
+	} else if (isset($_GET['report_device_open'])) {
+		$api->report_device_open();
+	} else if (isset($_GET['get_inbox_notifications'])) {
+		$api->get_inbox_notifications();
+	} else if (isset($_GET['ack_inbox_notification'])) {
+		$api->ack_inbox_notification();
 	} else {
 		$api->processApi();
 	}

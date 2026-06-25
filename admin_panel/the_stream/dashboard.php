@@ -17,6 +17,9 @@ $playlistCount = 0;
 $bannedDeviceCount = 0;
 $premiumNoAdsCount = 0;
 $startupPopupActive = 0;
+$dailyActiveUsers = 0;
+$dailyInstalls = 0;
+$totalInboxDelivered = 0;
 $tableCheck = mysqli_query($connect, "SHOW TABLES LIKE 'tbl_device_playlist'");
 if ($tableCheck && mysqli_num_rows($tableCheck) > 0) {
     $devices = "SELECT COUNT(DISTINCT device_id) as num FROM tbl_device_playlist";
@@ -54,6 +57,34 @@ if ($tableCheck && mysqli_num_rows($tableCheck) > 0) {
     }
 }
 
+$heartbeatTableCheck = mysqli_query($connect, "SHOW TABLES LIKE 'tbl_device_heartbeat'");
+if ($heartbeatTableCheck && mysqli_num_rows($heartbeatTableCheck) > 0) {
+    $today = date('Y-m-d');
+    $dailyUsersQuery = "SELECT COUNT(DISTINCT device_id) AS num FROM tbl_device_heartbeat WHERE DATE(created_at) = '$today' AND event_type = 'open'";
+    $dailyUsersResult = $connect->query($dailyUsersQuery);
+    if ($dailyUsersResult) {
+        $dailyUsersRow = $dailyUsersResult->fetch_array();
+        $dailyActiveUsers = (int) $dailyUsersRow['num'];
+    }
+
+    $dailyInstallsQuery = "SELECT COUNT(DISTINCT device_id) AS num FROM tbl_device_heartbeat WHERE DATE(created_at) = '$today' AND event_type = 'install'";
+    $dailyInstallsResult = $connect->query($dailyInstallsQuery);
+    if ($dailyInstallsResult) {
+        $dailyInstallsRow = $dailyInstallsResult->fetch_array();
+        $dailyInstalls = (int) $dailyInstallsRow['num'];
+    }
+}
+
+$inboxTableCheck = mysqli_query($connect, "SHOW TABLES LIKE 'tbl_app_inbox_delivery'");
+if ($inboxTableCheck && mysqli_num_rows($inboxTableCheck) > 0) {
+    $inboxDeliveredQuery = "SELECT COUNT(*) AS num FROM tbl_app_inbox_delivery WHERE delivered_at IS NOT NULL";
+    $inboxDeliveredResult = $connect->query($inboxDeliveredQuery);
+    if ($inboxDeliveredResult) {
+        $inboxDeliveredRow = $inboxDeliveredResult->fetch_array();
+        $totalInboxDelivered = (int) $inboxDeliveredRow['num'];
+    }
+}
+
 $popupTableCheck = mysqli_query($connect, "SHOW TABLES LIKE 'tbl_startup_popup'");
 if ($popupTableCheck && mysqli_num_rows($popupTableCheck) > 0) {
     $popupState = "SELECT COUNT(*) as num FROM tbl_startup_popup WHERE status = 1";
@@ -76,6 +107,38 @@ if ($popupTableCheck && mysqli_num_rows($popupTableCheck) > 0) {
     <div class="container-fluid">
 
        <div class="row">
+
+        <div class="col-lg-3 col-md-3 col-sm-6 col-xs-12">
+            <div class="card demo-color-box bg-green waves-effect corner-radius col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                <br>
+                <div class="color-name uppercase">Daily Active Users</div>
+                <div class="color-name"><i class="material-icons">today</i></div>
+                <div class="color-class-name"><?php echo $dailyActiveUsers; ?> users today</div>
+                <br>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-3 col-sm-6 col-xs-12">
+            <div class="card demo-color-box bg-green waves-effect corner-radius col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                <br>
+                <div class="color-name uppercase">Daily Installs</div>
+                <div class="color-name"><i class="material-icons">get_app</i></div>
+                <div class="color-class-name"><?php echo $dailyInstalls; ?> new devices today</div>
+                <br>
+            </div>
+        </div>
+
+        <a href="app-inbox-notifications.php">
+            <div class="col-lg-3 col-md-3 col-sm-6 col-xs-12">
+                <div class="card demo-color-box bg-green waves-effect corner-radius col-lg-12 col-md-12 col-sm-12 col-xs-12">
+                    <br>
+                    <div class="color-name uppercase">In-App Notifications</div>
+                    <div class="color-name"><i class="material-icons">phonelink_ring</i></div>
+                    <div class="color-class-name"><?php echo $totalInboxDelivered; ?> total deliveries</div>
+                    <br>
+                </div>
+            </div>
+        </a>
 
         <a href="category.php">
             <div class="col-lg-3 col-md-3 col-sm-6 col-xs-12">

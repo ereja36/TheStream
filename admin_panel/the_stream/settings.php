@@ -26,7 +26,9 @@
             'fcm_notification_topic' => $_POST['fcm_notification_topic'],
             'privacy_policy' => $_POST['privacy_policy'],
             'youtube_api_key' => $_POST['youtube_api_key'],
-            'more_apps_url' => $_POST['more_apps_url']
+            'more_apps_url' => $_POST['more_apps_url'],
+            'enable_player_epg' => isset($_POST['enable_player_epg']) ? (int) $_POST['enable_player_epg'] : 0,
+            'privacy_public_url' => $_POST['privacy_public_url']
         );
 
         $update_setting = update('tbl_settings', $data, "WHERE id = '$ID'");
@@ -152,7 +154,29 @@
                                         </div>
                                         <div class="help-info pull-left"><font color="#337ab7">More apps url for other apps</font></div>
                                     </div>
-                                </div> 
+                                </div>
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <div class="form-line">
+                                            <div class="font-12"><b>Public Privacy Policy URL</b></div>
+                                            <input type="text" class="form-control" name="privacy_public_url" id="privacy_public_url" value="<?php echo isset($settings_row['privacy_public_url']) ? $settings_row['privacy_public_url'] : 'https://shifshqip.com/privacy'; ?>" required>
+                                        </div>
+                                        <div class="help-info pull-left"><font color="#337ab7">Shown in the app (e.g. https://shifshqip.com/privacy)</font></div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <div class="font-12"><b>Player EPG Button</b></div>
+                                        <select class="form-control show-tick" name="enable_player_epg" id="enable_player_epg">
+                                            <?php $epgEnabled = !isset($settings_row['enable_player_epg']) || (int) $settings_row['enable_player_epg'] === 1; ?>
+                                            <option value="1" <?php echo $epgEnabled ? 'selected="selected"' : ''; ?>>Enabled</option>
+                                            <option value="0" <?php echo !$epgEnabled ? 'selected="selected"' : ''; ?>>Disabled</option>
+                                        </select>
+                                        <div class="help-info pull-left"><font color="#337ab7">Show EPG button in video player when channel has EPG data</font></div>
+                                    </div>
+                                </div>
 
                                 <div class="col-sm-12">
                                     

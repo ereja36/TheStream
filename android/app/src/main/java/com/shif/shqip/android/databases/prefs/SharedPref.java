@@ -185,13 +185,23 @@ public class SharedPref {
         return sharedPreferences.getString("application_id", "com.shif.shqip.android");
     }
 
-    public void saveCredentials(String youtube_api_key, String more_apps_url, String privacy_policy, String redirect_url, String pushNotificationProvider) {
+    public void saveCredentials(String youtube_api_key, String more_apps_url, String privacy_policy, String redirect_url, String pushNotificationProvider, boolean enablePlayerEpg, String privacyPublicUrl) {
         editor.putString("youtube_api_key", youtube_api_key);
         editor.putString("more_apps_url", more_apps_url);
         editor.putString("privacy_policy", privacy_policy);
         editor.putString("redirect_url", redirect_url);
         editor.putString("providers", pushNotificationProvider);
+        editor.putBoolean("enable_player_epg", enablePlayerEpg);
+        editor.putString("privacy_public_url", privacyPublicUrl);
         editor.apply();
+    }
+
+    public boolean isPlayerEpgEnabled() {
+        return sharedPreferences.getBoolean("enable_player_epg", true);
+    }
+
+    public String getPrivacyPublicUrl() {
+        return sharedPreferences.getString("privacy_public_url", "https://shifshqip.com/privacy");
     }
 
     public String getYoutubeAPIKey() {

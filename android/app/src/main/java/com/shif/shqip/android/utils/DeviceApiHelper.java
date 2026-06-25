@@ -681,4 +681,82 @@ public final class DeviceApiHelper {
     private static String urlEncode(String value) {
         return Uri.encode(value == null ? "" : value);
     }
+
+    public static void reportDeviceOpen(SharedPref sharedPref, String deviceId) {
+        if (sharedPref == null || TextUtils.isEmpty(deviceId)) {
+            return;
+        }
+        try {
+            String endpoint = buildApiUrl(sharedPref.getBaseUrl(), "/api/api.php?report_device_open");
+            String payload = "api_key=" + urlEncode(Config.REST_API_KEY)
+                    + "&device_id=" + urlEncode(deviceId)
+                    + "&app_version=" + urlEncode(BuildConfig.VERSION_NAME);
+            fetchUrlContent(endpoint, "POST", payload, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
+        } catch (Exception ignored) {
+            // non-blocking telemetry
+        }
+    }
+
+    public static class InboxNotification {
+        public long id;
+        public String title = "";
+        public String message = "";
+        public String targetUrl = "";
+    }
+
+    public static List<InboxNotification> fetchInboxNotifications(SharedPref sharedPref, String deviceId) {
+        List<InboxNotification> notifications = new ArrayList<>();
+        if (sharedPref == null || TextUtils.isEmpty(deviceId)) {
+            return notifications;
+        }
+        try {
+            String endpoint = buildApiUrl(
+                    sharedPref.getBaseUrl(),
+                    "/api/api.php?get_inbox_notifications&api_key=" + urlEncode(Config.REST_API_KEY)
+                            + "&device_id=" + urlEncode(deviceId)
+            );
+            String response = fetchUrlContent(endpoint, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
+            JSONObject json = new JSONObject(response);
+            if (!"ok".equalsIgnoreCase(json.optString("status", ""))) {
+                return notifications;
+            }
+            JSONArray array = json.optJSONArray("notifications");
+            if (array == null) {
+                return notifications;
+            }
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject item = array.optJSONObject(i);
+                if (item == null) {
+                    continue;
+                }
+                InboxNotification notification = new InboxNotification();
+                notification.id = item.optLong("id", 0);
+                notification.title = item.optString("title", "");
+                notification.message = item.optString("message", "");
+                notification.targetUrl = item.optString("target_url", "");
+                if (notification.id > 0) {
+                    notifications.add(notification);
+                }
+            }
+        } catch (Exception ignored) {
+            // ignore polling errors
+        }
+        return notifications;
+    }
+
+    public static void ackInboxNotification(SharedPref sharedPref, String deviceId, long notificationId, boolean opened) {
+        if (sharedPref == null || TextUtils.isEmpty(deviceId) || notificationId <= 0) {
+            return;
+        }
+        try {
+            String endpoint = buildApiUrl(sharedPref.getBaseUrl(), "/api/api.php?ack_inbox_notification");
+            String payload = "api_key=" + urlEncode(Config.REST_API_KEY)
+                    + "&device_id=" + urlEncode(deviceId)
+                    + "&notification_id=" + notificationId
+                    + "&opened=" + (opened ? 1 : 0);
+            fetchUrlContent(endpoint, "POST", payload, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
+        } catch (Exception ignored) {
+            // ignore ack errors
+        }
+    }
 }

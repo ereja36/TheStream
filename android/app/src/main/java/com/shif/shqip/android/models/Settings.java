@@ -10,5 +10,7 @@ public class Settings implements Serializable {
     public String onesignal_app_id = "";
     public String more_apps_url = "";
     public String providers = "";
+    public int enable_player_epg = 1;
+    public String privacy_public_url = "https://shifshqip.com/privacy";
 
 }
