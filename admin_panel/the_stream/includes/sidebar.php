@@ -104,6 +104,13 @@
                         </a>
                     </li>
 
+                    <li class="<?php if (strpos($page, 'playlist-guard') !== false) {echo 'active';} else { echo 'noactive'; }?>">
+                        <a href="playlist-guard.php">
+                            <i class="material-icons">security</i>
+                            <span><?php echo $menu_playlist_guard; ?></span>
+                        </a>
+                    </li>
+
                     <li class="<?php if (strpos($page, 'license') !== false) {echo 'active';} else { echo 'noactive'; }?>">
                         <a href="license.php">
                             <i class="material-icons">vpn_key</i>

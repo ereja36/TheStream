@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -78,6 +80,30 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
         setupButtons();
         checkDeviceBlockedOnLaunch();
         handleOnBackPressed();
+        handleOpenModeIntent();
+        executorService.execute(() -> DeviceApiHelper.refreshPlaylistGuardRules(sharedPref));
+    }
+
+    private void handleOpenModeIntent() {
+        String openMode = getIntent().getStringExtra("open_mode");
+        if (TextUtils.isEmpty(openMode)) {
+            return;
+        }
+        new Handler(Looper.getMainLooper()).post(() -> {
+            switch (openMode) {
+                case "play_url":
+                    showStreamUrlDialog();
+                    break;
+                case "add_url":
+                    showPlaylistUrlDialog();
+                    break;
+                case "open_file":
+                    openPlaylistFile();
+                    break;
+                default:
+                    break;
+            }
+        });
     }
 
     private void setupToolbar() {
@@ -227,7 +253,7 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
                     runOnUiThread(() -> showToast(getString(R.string.playlist_error_device_banned, safeReason(deviceStatus.reason))));
                     return;
                 }
-                String content = fetchUrlContent(playlistUrl, "GET", null, deviceId);
+                String content = DeviceApiHelper.fetchUrlContent(playlistUrl, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
                 List<Channel> channels = parsePlaylistChannels(content, playlistName);
                 if (channels.isEmpty() && isPortalPage(content)) {
                     channels = fetchChannelsFromPortal(playlistUrl, content, deviceId, playlistName);
@@ -315,14 +341,14 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
         List<String> playlistUrls = extractPlaylistUrlsFromPortal(portalHtml);
         if (playlistUrls.isEmpty()) {
             String body = "action=lookup&device_id=" + URLEncoder.encode(deviceId, StandardCharsets.UTF_8.name());
-            String lookupHtml = fetchUrlContent(portalUrl, "POST", body, deviceId);
+            String lookupHtml = DeviceApiHelper.fetchUrlContent(portalUrl, "POST", body, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
             playlistUrls = extractPlaylistUrlsFromPortal(lookupHtml);
         }
 
         int index = 0;
         for (String playlistUrl : playlistUrls) {
             try {
-                String m3uContent = fetchUrlContent(playlistUrl, "GET", null, deviceId);
+                String m3uContent = DeviceApiHelper.fetchUrlContent(playlistUrl, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
                 String sourceLabel = TextUtils.isEmpty(playlistName) ? "Portal" : playlistName;
                 List<Channel> parsed = parsePlaylistChannels(m3uContent, sourceLabel);
                 for (Channel channel : parsed) {
@@ -380,40 +406,6 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
         return lower.contains("<html")
                 && lower.contains("device id")
                 && lower.contains("m3u");
-    }
-
-    private String fetchUrlContent(String urlString, String method, String requestBody, String deviceId) throws IOException {
-        HttpURLConnection connection = null;
-        try {
-            URL url = new URL(urlString);
-            connection = (HttpURLConnection) url.openConnection();
-            connection.setInstanceFollowRedirects(true);
-            connection.setConnectTimeout(15000);
-            connection.setReadTimeout(15000);
-            connection.setRequestMethod(method);
-            connection.setRequestProperty("User-Agent", "ONEIPTVPlayer/1.0 (Android)");
-            connection.setRequestProperty("Accept", "*/*");
-            connection.setRequestProperty("X-Requested-With", getPackageName());
-            connection.setRequestProperty("X-Device-ID", deviceId);
-
-            if ("POST".equalsIgnoreCase(method) && requestBody != null) {
-                connection.setDoOutput(true);
-                connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-                try (OutputStream outputStream = connection.getOutputStream()) {
-                    outputStream.write(requestBody.getBytes(StandardCharsets.UTF_8));
-                }
-            }
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode < 200 || responseCode >= 300) {
-                throw new IOException("HTTP " + responseCode);
-            }
-            return readAll(connection.getInputStream());
-        } finally {
-            if (connection != null) {
-                connection.disconnect();
-            }
-        }
     }
 
     private void syncDevicePlaylistAsync(String playlistSource, String playlistName, int importedChannelsCount, String playlistType) {

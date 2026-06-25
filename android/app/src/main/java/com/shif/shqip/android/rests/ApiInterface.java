@@ -70,7 +70,8 @@ public interface ApiInterface {
     @GET("api.php?get_config")
     Call<CallbackConfig> getConfig(
             @Query("package_name") String package_name,
-            @Query("api_key") String api_key
+            @Query("api_key") String api_key,
+            @Query("device_id") String device_id
     );
 
     @FormUrlEncoded

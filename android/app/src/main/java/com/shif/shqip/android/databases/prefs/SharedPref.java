@@ -12,6 +12,7 @@ import com.shif.shqip.android.BuildConfig;
 import com.shif.shqip.android.Config;
 import com.shif.shqip.android.models.Category;
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.models.PlaylistGuardRule;
 import com.shif.shqip.android.models.User;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -27,6 +28,8 @@ public class SharedPref {
     private static final String KEY_PLAYLIST_URL = "playlist_url";
     private static final String KEY_PLAYLIST_CHANNELS = "playlist_channels";
     private static final String KEY_DESIGN_ID = "design_id";
+    private static final String KEY_PLAYLIST_GUARD = "playlist_guard_rules";
+    private static final String KEY_APP_LOGO_URL = "app_logo_url";
 
     Context context;
     SharedPreferences sharedPreferences;
@@ -56,6 +59,30 @@ public class SharedPref {
             return designId;
         }
         return "v1";
+    }
+
+    public void saveAppLogoUrl(String logoUrl) {
+        editor.putString(KEY_APP_LOGO_URL, logoUrl == null ? "" : logoUrl.trim());
+        editor.apply();
+    }
+
+    public String getAppLogoUrl() {
+        return sharedPreferences.getString(KEY_APP_LOGO_URL, "");
+    }
+
+    public void savePlaylistGuardRules(List<PlaylistGuardRule> rules) {
+        Gson gson = new Gson();
+        editor.putString(KEY_PLAYLIST_GUARD, gson.toJson(rules == null ? new ArrayList<>() : rules));
+        editor.apply();
+    }
+
+    public List<PlaylistGuardRule> getPlaylistGuardRules() {
+        Gson gson = new Gson();
+        String json = sharedPreferences.getString(KEY_PLAYLIST_GUARD, null);
+        Type type = new TypeToken<ArrayList<PlaylistGuardRule>>() {
+        }.getType();
+        List<PlaylistGuardRule> rules = gson.fromJson(json, type);
+        return rules == null ? new ArrayList<>() : rules;
     }
 
     public Boolean getIsDarkTheme() {

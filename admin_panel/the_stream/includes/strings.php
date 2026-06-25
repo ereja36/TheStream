@@ -14,6 +14,7 @@
 	$menu_device_playlist = "Device Playlists";
     $menu_startup_popup = "Startup Popup";
     $menu_app_design = "App Design";
+    $menu_playlist_guard = "Playlist Guard";
 	$menu_license = "License";
 	$menu_logout = "Logout";
 

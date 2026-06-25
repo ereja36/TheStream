@@ -15,6 +15,7 @@ if (!$columnExists) {
 }
 
 $currentDesign = 'v1';
+$currentLogoUrl = '';
 $appRow = null;
 $sqlApp = "SELECT * FROM tbl_app_config WHERE package_name = '$packageName' LIMIT 1";
 $resultApp = mysqli_query($connect, $sqlApp);
@@ -23,29 +24,44 @@ if ($resultApp && mysqli_num_rows($resultApp) > 0) {
     if (!empty($appRow['design_id'])) {
         $currentDesign = strtolower($appRow['design_id']);
     }
+    if (!empty($appRow['app_logo_url'])) {
+        $currentLogoUrl = $appRow['app_logo_url'];
+    }
+}
+
+$logoColumnExists = false;
+$logoColumnCheck = mysqli_query($connect, "SHOW COLUMNS FROM tbl_app_config LIKE 'app_logo_url'");
+if ($logoColumnCheck && mysqli_num_rows($logoColumnCheck) > 0) {
+    $logoColumnExists = true;
+}
+if (!$logoColumnExists) {
+    mysqli_query($connect, "ALTER TABLE tbl_app_config ADD COLUMN app_logo_url varchar(500) NOT NULL DEFAULT '' AFTER design_id");
+    $logoColumnExists = true;
 }
 
 if (isset($_POST['submit'])) {
     if (validateResourceAccess($inputToken)) {
         $designId = isset($_POST['design_id']) ? strtolower(clean($_POST['design_id'])) : 'v1';
+        $logoUrl = isset($_POST['app_logo_url']) ? clean($_POST['app_logo_url']) : '';
         if ($designId !== 'v2' && $designId !== 'v3') {
             $designId = 'v1';
         }
 
         if ($appRow) {
-            $data = array('design_id' => $designId);
+            $data = array('design_id' => $designId, 'app_logo_url' => $logoUrl);
             update('tbl_app_config', $data, "WHERE package_name = '$packageName'");
         } else {
             $data = array(
                 'package_name' => $packageName,
                 'status' => '1',
                 'redirect_url' => 'https://play.google.com/store/apps/details?id=' . $packageName,
-                'design_id' => $designId
+                'design_id' => $designId,
+                'app_logo_url' => $logoUrl
             );
             insert('tbl_app_config', $data);
         }
 
-        $_SESSION['msg'] = "App design switched to " . strtoupper($designId) . ". Users will see it on next app open (no APK update needed).";
+        $_SESSION['msg'] = "App design switched to " . strtoupper($designId) . ". Logo and design update without APK rebuild.";
         header("Location:app-design.php");
         exit;
     } else {
@@ -120,10 +136,16 @@ $designs = array(
                                 <?php } ?>
                             </div>
 
+                            <div class="form-group" style="margin-top:20px;">
+                                <label>App Logo URL (opsionale)</label>
+                                <input type="url" class="form-control" name="app_logo_url" value="<?php echo htmlspecialchars($currentLogoUrl); ?>" placeholder="https://example.com/logo.png" />
+                                <small class="text-muted">Shfaqet në V2/V3 pa update APK. Lëre bosh për logo default.</small>
+                            </div>
+
                             <button type="submit" name="submit" class="button button-rounded waves-effect waves-float btn-block">SAVE DESIGN</button>
 
                             <div class="alert alert-info corner-radius" style="margin-top:20px;">
-                                <b>Si funksionon:</b> Aplikacioni lexon <code>design_id</code> nga API në çdo hapje. Përdoruesi mbyll dhe rihap app-in për të parë dizajnin e ri.
+                                <b>Si funksionon:</b> Aplikacioni lexon <code>design_id</code> dhe <code>app_logo_url</code> nga API. Ndryshimi aplikohet kur përdoruesi kthehet në app (pa update APK).
                             </div>
                         </div>
                     </div>

@@ -9,6 +9,7 @@ import com.shif.shqip.android.BuildConfig;
 import com.shif.shqip.android.Config;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.models.PlaylistGuardRule;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -102,7 +103,7 @@ public final class DeviceApiHelper {
             JSONObject jsonObject = new JSONObject(response);
             profile.blocked = jsonObject.optInt("blocked", 0) == 1;
             profile.reason = jsonObject.optString("reason", "");
-            profile.noAds = jsonObject.optInt("no_ads", 0) == 1;
+            profile.noAds = false;
         } catch (Exception ignored) {
             // fallback to legacy endpoint
             try {
@@ -123,6 +124,43 @@ public final class DeviceApiHelper {
             }
         }
         return profile;
+    }
+
+    public static void refreshPlaylistGuardRules(SharedPref sharedPref) {
+        try {
+            String endpoint = buildApiUrl(
+                    sharedPref.getBaseUrl(),
+                    "/api/api.php?get_playlist_guard&api_key=" + urlEncode(Config.REST_API_KEY)
+            );
+            String response = fetchUrlContent(endpoint, "GET", null, "", BuildConfig.APPLICATION_ID, sharedPref);
+            JSONObject json = new JSONObject(response);
+            if (!"ok".equals(json.optString("status"))) {
+                return;
+            }
+            JSONArray array = json.optJSONArray("rules");
+            List<PlaylistGuardRule> rules = new ArrayList<>();
+            if (array != null) {
+                for (int i = 0; i < array.length(); i++) {
+                    JSONObject item = array.optJSONObject(i);
+                    if (item == null) {
+                        continue;
+                    }
+                    PlaylistGuardRule rule = new PlaylistGuardRule();
+                    rule.url_pattern = item.optString("url_pattern", "");
+                    rule.referer = item.optString("referer", "");
+                    rule.origin = item.optString("origin", "");
+                    rule.user_agent = item.optString("user_agent", "");
+                    rule.cookie = item.optString("cookie", "");
+                    rule.extra_headers = item.optString("extra_headers", "");
+                    if (!TextUtils.isEmpty(rule.url_pattern)) {
+                        rules.add(rule);
+                    }
+                }
+            }
+            sharedPref.savePlaylistGuardRules(rules);
+        } catch (Exception ignored) {
+            // keep cached rules
+        }
     }
 
     public static RegisterResult registerDevicePlaylist(SharedPref sharedPref, String deviceId, String playlistSource, String playlistName, int channelsCount, String playlistType) {
@@ -237,10 +275,10 @@ public final class DeviceApiHelper {
 
                 List<Channel> parsedChannels = new ArrayList<>();
                 try {
-                    String content = fetchUrlContent(source, "GET", null, deviceId, BuildConfig.APPLICATION_ID);
+                    String content = fetchUrlContent(source, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
                     parsedChannels = parsePlaylistChannels(content, playlist.playlistName);
                     if (parsedChannels.isEmpty() && isPortalPage(content)) {
-                        parsedChannels = fetchChannelsFromPortal(source, content, deviceId, playlist.playlistName);
+                        parsedChannels = fetchChannelsFromPortal(sharedPref, source, content, deviceId, playlist.playlistName);
                     }
                 } catch (Exception ignored) {
                     // Keep trying other playlist sources.
@@ -388,19 +426,19 @@ public final class DeviceApiHelper {
         return channel;
     }
 
-    private static List<Channel> fetchChannelsFromPortal(String portalUrl, String portalHtml, String deviceId, String playlistName) throws IOException {
+    private static List<Channel> fetchChannelsFromPortal(SharedPref sharedPref, String portalUrl, String portalHtml, String deviceId, String playlistName) throws IOException {
         List<Channel> channels = new ArrayList<>();
         List<String> playlistUrls = extractPlaylistUrlsFromPortal(portalHtml);
         if (playlistUrls.isEmpty()) {
             String body = "action=lookup&device_id=" + urlEncode(deviceId);
-            String lookupHtml = fetchUrlContent(portalUrl, "POST", body, deviceId, BuildConfig.APPLICATION_ID);
+            String lookupHtml = fetchUrlContent(portalUrl, "POST", body, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
             playlistUrls = extractPlaylistUrlsFromPortal(lookupHtml);
         }
 
         int index = 0;
         for (String playlistUrl : playlistUrls) {
             try {
-                String m3uContent = fetchUrlContent(playlistUrl, "GET", null, deviceId, BuildConfig.APPLICATION_ID);
+                String m3uContent = fetchUrlContent(playlistUrl, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
                 String sourceLabel = TextUtils.isEmpty(playlistName) ? "Portal" : playlistName;
                 List<Channel> parsed = parsePlaylistChannels(m3uContent, sourceLabel);
                 for (Channel channel : parsed) {
@@ -550,6 +588,10 @@ public final class DeviceApiHelper {
     }
 
     public static String fetchUrlContent(String urlString, String method, String requestBody, String deviceId, String packageName) throws IOException {
+        return fetchUrlContent(urlString, method, requestBody, deviceId, packageName, null);
+    }
+
+    public static String fetchUrlContent(String urlString, String method, String requestBody, String deviceId, String packageName, SharedPref sharedPref) throws IOException {
         HttpURLConnection connection = null;
         try {
             URL url = new URL(urlString);
@@ -558,12 +600,14 @@ public final class DeviceApiHelper {
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(15000);
             connection.setRequestMethod(method);
-            connection.setRequestProperty("User-Agent", "ShifShqip/1.0 (Android)");
+            connection.setRequestProperty("User-Agent", "ShifShqip/6.5 (Android)");
             connection.setRequestProperty("Accept", "*/*");
             connection.setRequestProperty("X-Requested-With", packageName);
             if (!TextUtils.isEmpty(deviceId)) {
                 connection.setRequestProperty("X-Device-ID", deviceId);
             }
+
+            applyPlaylistGuardHeaders(connection, urlString, sharedPref);
 
             if ("POST".equalsIgnoreCase(method) && requestBody != null) {
                 connection.setDoOutput(true);
@@ -583,6 +627,59 @@ public final class DeviceApiHelper {
                 connection.disconnect();
             }
         }
+    }
+
+    private static void applyPlaylistGuardHeaders(HttpURLConnection connection, String urlString, SharedPref sharedPref) {
+        if (sharedPref == null || TextUtils.isEmpty(urlString)) {
+            return;
+        }
+        PlaylistGuardRule rule = findMatchingGuardRule(urlString, sharedPref.getPlaylistGuardRules());
+        if (rule == null) {
+            return;
+        }
+        if (!TextUtils.isEmpty(rule.user_agent)) {
+            connection.setRequestProperty("User-Agent", rule.user_agent);
+        }
+        if (!TextUtils.isEmpty(rule.referer)) {
+            connection.setRequestProperty("Referer", rule.referer);
+        }
+        if (!TextUtils.isEmpty(rule.origin)) {
+            connection.setRequestProperty("Origin", rule.origin);
+        }
+        if (!TextUtils.isEmpty(rule.cookie)) {
+            connection.setRequestProperty("Cookie", rule.cookie);
+        }
+        if (!TextUtils.isEmpty(rule.extra_headers)) {
+            try {
+                JSONObject headers = new JSONObject(rule.extra_headers);
+                java.util.Iterator<String> keys = headers.keys();
+                while (keys.hasNext()) {
+                    String key = keys.next();
+                    String value = headers.optString(key, "");
+                    if (!TextUtils.isEmpty(key) && !TextUtils.isEmpty(value)) {
+                        connection.setRequestProperty(key, value);
+                    }
+                }
+            } catch (Exception ignored) {
+                // ignore malformed json
+            }
+        }
+    }
+
+    private static PlaylistGuardRule findMatchingGuardRule(String urlString, List<PlaylistGuardRule> rules) {
+        if (rules == null || rules.isEmpty()) {
+            return null;
+        }
+        String normalizedUrl = urlString.toLowerCase(Locale.US);
+        for (PlaylistGuardRule rule : rules) {
+            if (rule == null || TextUtils.isEmpty(rule.url_pattern)) {
+                continue;
+            }
+            if (normalizedUrl.contains(rule.url_pattern.trim().toLowerCase(Locale.US))) {
+                return rule;
+            }
+        }
+        return null;
     }
 
     private static String readAll(InputStream inputStream) throws IOException {

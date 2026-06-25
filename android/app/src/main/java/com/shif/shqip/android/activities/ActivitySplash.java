@@ -129,7 +129,7 @@ public class ActivitySplash extends AppCompatActivity {
     }
 
     private void requestAPI(String apiUrl) {
-        this.callbackCall = RestAdapter.createAPI(apiUrl).getConfig(Tools.getApplicationId(), Config.REST_API_KEY);
+        this.callbackCall = RestAdapter.createAPI(apiUrl).getConfig(Tools.getApplicationId(), Config.REST_API_KEY, deviceId);
         this.callbackCall.enqueue(new Callback<>() {
             public void onResponse(@NonNull Call<CallbackConfig> call, @NonNull Response<CallbackConfig> response) {
                 CallbackConfig resp = response.body();
@@ -143,6 +143,9 @@ public class ActivitySplash extends AppCompatActivity {
                     sharedPref.saveUser(license.item_id, license.item_name, license.buyer, license.license_type);
                     if (app.design_id != null) {
                         sharedPref.saveDesignId(app.design_id);
+                    }
+                    if (app.app_logo_url != null) {
+                        sharedPref.saveAppLogoUrl(app.app_logo_url);
                     }
                     if (app.status != null && app.status.equals("0")) {
                         Intent intent = new Intent(getApplicationContext(), ActivityRedirect.class);
@@ -171,15 +174,13 @@ public class ActivitySplash extends AppCompatActivity {
     private void handleStartupState() {
         startupExecutor.execute(() -> {
             try {
+                DeviceApiHelper.refreshPlaylistGuardRules(sharedPref);
+
                 DeviceApiHelper.DeviceProfile profile = DeviceApiHelper.fetchDeviceProfile(sharedPref, deviceId);
                 if (profile.blocked) {
                     sharedPref.clearPlaylistChannels();
                     runOnUiThread(() -> showBlockedDialog(profile.reason));
                     return;
-                }
-
-                if (profile.noAds) {
-                    adsPref.setAdStatus(false);
                 }
 
                 DeviceApiHelper.PlaylistSyncResult playlistSync = DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);

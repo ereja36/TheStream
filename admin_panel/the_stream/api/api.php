@@ -496,17 +496,22 @@ require_once("Rest.inc.php");
 
 						$sql_settings = "SELECT * FROM tbl_settings WHERE id = 1";
 						$sql_ads = "SELECT * FROM tbl_ads WHERE id = 1";
-						$sqlApp = "SELECT package_name, status, redirect_url, design_id FROM tbl_app_config WHERE package_name = '$package_name' LIMIT 1 ";
+						$sqlApp = "SELECT package_name, status, redirect_url, design_id, app_logo_url FROM tbl_app_config WHERE package_name = '$package_name' LIMIT 1 ";
 						$sqlLicense = "SELECT item_id, item_name, buyer, license_type, purchase_date FROM tbl_license LIMIT 1";
 
 						$settings = $this->get_one_result($sql_settings);
 						$ads = $this->get_one_result($sql_ads);
 
+						$device_id = isset($_GET['device_id']) ? trim($_GET['device_id']) : '';
+						if ($device_id != '' && $this->isDeviceNoAds($device_id)) {
+							$ads['ad_status'] = 'off';
+						}
+
 						$appCount = count($this->get_list_result($sqlApp));
 						$app = $this->get_one_result($sqlApp);
 						$license = $this->get_one_result($sqlLicense);
 
-						$AppArray = array( 'package_name' => '', 'status' => '', 'redirect_url' => '', 'design_id' => 'v1');
+						$AppArray = array( 'package_name' => '', 'status' => '', 'redirect_url' => '', 'design_id' => 'v1', 'app_logo_url' => '');
 
 						if ($appCount > 0) {
 							$respon = array('status' => 'ok', 'app' => $app, 'settings' => $settings, 'ads' => $ads, 'license' => $license);
@@ -740,14 +745,12 @@ require_once("Rest.inc.php");
 
 				$blockReason = '';
 				$blocked = $this->isDeviceBlocked($device_id, $blockReason);
-				$noAds = $this->isDeviceNoAds($device_id);
 
 				$respon = array(
 					'status' => 'ok',
 					'device_id' => $device_id,
 					'blocked' => $blocked ? 1 : 0,
-					'reason' => $blockReason,
-					'no_ads' => $noAds ? 1 : 0
+					'reason' => $blockReason
 				);
 				$this->response($this->json($respon), 200);
 			} else {
@@ -1066,6 +1069,43 @@ require_once("Rest.inc.php");
 			$this->response($this->json($resp), 200);
 		}
 
+		public function get_playlist_guard() {
+
+			include "../includes/config.php";
+			$setting_qry = "SELECT * FROM tbl_settings WHERE id = '1'";
+			$setting_result = mysqli_query($connect, $setting_qry);
+			$settings_row = mysqli_fetch_assoc($setting_result);
+			$api_key = $settings_row['api_key'];
+
+			if ($this->get_request_method() != "GET") $this->response('', 406);
+
+			if ($this->validateResourceAccess($this->retrieveCurrentToken())) {
+				$access_key_received = isset($_GET['api_key']) ? $_GET['api_key'] : '';
+				if ($access_key_received != $api_key) {
+					$this->responseInvalidApiKey();
+					return;
+				}
+
+				$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_playlist_guard'");
+				$rules = array();
+				if ($tableCheck && $tableCheck->num_rows > 0) {
+					$query = "SELECT id, rule_name, url_pattern, referer, origin, user_agent, cookie, extra_headers
+					          FROM tbl_playlist_guard WHERE status = 1 ORDER BY id ASC";
+					$result = $this->mysqli->query($query);
+					if ($result) {
+						while ($row = $result->fetch_assoc()) {
+							$rules[] = $row;
+						}
+					}
+				}
+
+				$respon = array('status' => 'ok', 'rules' => $rules);
+				$this->response($this->json($respon), 200);
+			} else {
+				$this->responseInvalidParam();
+			}
+		}
+
 		private function isDeviceBlocked(string $deviceId, string &$reason = ''): bool {
 			$reason = '';
 			if ($deviceId == '') {
@@ -1186,6 +1226,8 @@ require_once("Rest.inc.php");
 		$api->get_device_profile();
 	} else if (isset($_GET['get_startup_popup'])) {
 		$api->get_startup_popup();
+	} else if (isset($_GET['get_playlist_guard'])) {
+		$api->get_playlist_guard();
 	} else {
 		$api->processApi();
 	}

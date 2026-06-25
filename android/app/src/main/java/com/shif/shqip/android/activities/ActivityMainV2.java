@@ -34,11 +34,14 @@ import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
-import com.shif.shqip.android.utils.DesignRouter;
+import com.shif.shqip.android.utils.DesignUiHelper;
+import com.shif.shqip.android.utils.EpgHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -53,6 +56,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     private TextView emptyMessage;
     private FrameLayout overlayContainer;
     private NestedScrollView scrollHome;
+    private final ExecutorService epgExecutor = Executors.newSingleThreadExecutor();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,25 +73,26 @@ public class ActivityMainV2 extends AppCompatActivity {
 
         setupTopActions();
         setupBottomNav();
+        DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
         loadChannels();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        epgExecutor.shutdownNow();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        refreshDesignIfNeeded();
-    }
-
-    private void refreshDesignIfNeeded() {
-        if (!"v2".equals(sharedPref.getDesignId())) {
-            startActivity(DesignRouter.getMainActivityIntent(this));
-            finish();
-        }
+        DesignUiHelper.refreshRemoteConfig(this, sharedPref, () ->
+                DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref));
     }
 
     private void setupTopActions() {
         findViewById(R.id.btn_add_playlist).setOnClickListener(v ->
-                startActivity(new Intent(this, ActivityPlaylistSetup.class)));
+                DesignUiHelper.showAddMenu(this, v));
         findViewById(R.id.btn_search).setOnClickListener(v ->
                 startActivity(new Intent(this, ActivitySearch.class)));
         findViewById(R.id.btn_settings).setOnClickListener(v ->
@@ -168,11 +173,13 @@ public class ActivityMainV2 extends AppCompatActivity {
     private void bindHero(Channel channel) {
         TextView heroTitle = findViewById(R.id.hero_title);
         TextView heroSubtitle = findViewById(R.id.hero_subtitle);
+        TextView heroEpg = findViewById(R.id.hero_epg);
         ImageView heroImage = findViewById(R.id.hero_image);
         Button watchButton = findViewById(R.id.btn_watch);
 
         heroTitle.setText(channel.channel_name);
         heroSubtitle.setText(TextUtils.isEmpty(channel.category_name) ? "TV" : channel.category_name);
+        heroEpg.setVisibility(View.GONE);
 
         String imageUrl = resolveImageUrl(channel.channel_image);
         if (!TextUtils.isEmpty(imageUrl)) {
@@ -184,6 +191,29 @@ public class ActivityMainV2 extends AppCompatActivity {
 
         watchButton.setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         findViewById(R.id.hero_container).setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
+        loadHeroEpg(channel, heroEpg);
+    }
+
+    private void loadHeroEpg(Channel channel, TextView heroEpg) {
+        if (heroEpg == null || TextUtils.isEmpty(channel.epg_url)) {
+            return;
+        }
+        epgExecutor.execute(() -> {
+            EpgHelper.EpgPrograms programs = EpgHelper.fetchPrograms(
+                    channel.epg_url,
+                    channel.epg_id,
+                    channel.channel_name
+            );
+            runOnUiThread(() -> {
+                if (isFinishing() || programs == null || programs.now == null) {
+                    return;
+                }
+                String unknown = getString(R.string.epg_unknown_title);
+                String nowText = getString(R.string.epg_now_format, EpgHelper.formatProgram(programs.now, unknown));
+                heroEpg.setText(nowText);
+                heroEpg.setVisibility(View.VISIBLE);
+            });
+        });
     }
 
     private void buildCategorySections() {

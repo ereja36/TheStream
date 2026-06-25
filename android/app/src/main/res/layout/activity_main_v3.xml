@@ -79,6 +79,16 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
+    <ImageView
+        android:id="@+id/img_app_logo"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="16dp"
+        android:contentDescription="@string/app_name"
+        android:scaleType="centerInside"
+        android:visibility="gone" />
+
     <LinearLayout
         android:id="@+id/top_actions"
         android:layout_width="wrap_content"

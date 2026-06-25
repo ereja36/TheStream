@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -24,7 +25,7 @@ import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
-import com.shif.shqip.android.utils.DesignRouter;
+import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import java.util.ArrayList;
@@ -69,12 +70,13 @@ public class ActivityMainV3 extends AppCompatActivity {
         gridRecycler.setAdapter(gridAdapter);
 
         findViewById(R.id.btn_add_playlist).setOnClickListener(v ->
-                startActivity(new Intent(this, ActivityPlaylistSetup.class)));
+                DesignUiHelper.showAddMenu(this, v));
         findViewById(R.id.btn_search).setOnClickListener(v ->
                 startActivity(new Intent(this, ActivitySearch.class)));
         findViewById(R.id.btn_settings).setOnClickListener(v ->
                 startActivity(new Intent(this, ActivitySettings.class)));
 
+        DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
         setupBottomNav();
         loadChannels();
     }
@@ -82,10 +84,8 @@ public class ActivityMainV3 extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (!"v3".equals(sharedPref.getDesignId())) {
-            startActivity(DesignRouter.getMainActivityIntent(this));
-            finish();
-        }
+        DesignUiHelper.refreshRemoteConfig(this, sharedPref, () ->
+                DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref));
     }
 
     private void setupBottomNav() {

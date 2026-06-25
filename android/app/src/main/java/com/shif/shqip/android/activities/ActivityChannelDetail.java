@@ -354,6 +354,10 @@ public class ActivityChannelDetail extends AppCompatActivity {
             alertDialog.dismiss();
         });
 
+        if (!Config.ENABLE_PLAY_STREAMING_USING_EXTERNAL_PLAYER) {
+            btnActionPlayExternal.setVisibility(View.GONE);
+        }
+
         checkbox.setOnCheckedChangeListener((compoundButton, checked) -> {
             sharedPref.setDialogPlayerOption(!checked);
         });
