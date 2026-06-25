@@ -7,7 +7,6 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.PlaylistGuardRule;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
-import com.google.android.exoplayer2.upstream.HttpDataSource;
 
 import org.json.JSONObject;
 
@@ -19,7 +18,7 @@ import java.util.Map;
 
 public final class PlaylistGuardHelper {
 
-    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.7.2 (Android)";
+    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.7.3 (Android)";
 
     private PlaylistGuardHelper() {
     }
@@ -28,16 +27,30 @@ public final class PlaylistGuardHelper {
         if (TextUtils.isEmpty(urlString) || rules == null || rules.isEmpty()) {
             return null;
         }
-        String normalizedUrl = urlString.toLowerCase(Locale.US);
+        String normalizedUrl = normalizeMatchKey(urlString);
         for (PlaylistGuardRule rule : rules) {
             if (rule == null || TextUtils.isEmpty(rule.url_pattern)) {
                 continue;
             }
-            if (normalizedUrl.contains(rule.url_pattern.trim().toLowerCase(Locale.US))) {
+            String pattern = normalizeMatchKey(rule.url_pattern);
+            if (!TextUtils.isEmpty(pattern) && normalizedUrl.contains(pattern)) {
                 return rule;
             }
         }
         return null;
+    }
+
+    public static PlaylistGuardRule findRuleByPattern(List<PlaylistGuardRule> rules, String urlPattern) {
+        if (rules == null || rules.isEmpty() || TextUtils.isEmpty(urlPattern)) {
+            return null;
+        }
+        String normalizedPattern = normalizeMatchKey(urlPattern);
+        for (PlaylistGuardRule rule : rules) {
+            if (rule != null && normalizedPattern.equals(normalizeMatchKey(rule.url_pattern))) {
+                return rule;
+            }
+        }
+        return findMatchingRule(urlPattern, rules);
     }
 
     public static PlaylistGuardRule resolveRule(SharedPref sharedPref, String requestUrl) {
@@ -45,18 +58,36 @@ public final class PlaylistGuardHelper {
             return null;
         }
         List<PlaylistGuardRule> rules = sharedPref.getPlaylistGuardRules();
+        if (rules.isEmpty()) {
+            return null;
+        }
+
         PlaylistGuardRule direct = findMatchingRule(requestUrl, rules);
         if (direct != null) {
             return direct;
         }
-        if (!sharedPref.hasPlaylistChannels()) {
-            return null;
+
+        PlaylistGuardRule streamRule = findStreamPatternRule(requestUrl, rules);
+        if (streamRule != null) {
+            return streamRule;
         }
+
         String playlistUrl = sharedPref.getPlaylistUrl();
-        PlaylistGuardRule playlistRule = findMatchingRule(playlistUrl, rules);
-        if (playlistRule != null) {
-            return playlistRule;
+        if (!TextUtils.isEmpty(playlistUrl)) {
+            PlaylistGuardRule playlistRule = findMatchingRule(playlistUrl, rules);
+            if (playlistRule != null) {
+                return playlistRule;
+            }
         }
+
+        PlaylistGuardRule active = sharedPref.getActiveGuardRule();
+        if (active != null) {
+            PlaylistGuardRule hydrated = findRuleByPattern(rules, active.url_pattern);
+            if (hydrated != null) {
+                return hydrated;
+            }
+        }
+
         return findMatchingRule(sharedPref.getActiveGuardSourceUrl(), rules);
     }
 
@@ -73,6 +104,12 @@ public final class PlaylistGuardHelper {
         PlaylistGuardRule matched = findMatchingRule(playlistUrl, rules);
         if (matched == null) {
             matched = findMatchingRule(sharedPref.getActiveGuardSourceUrl(), rules);
+        }
+        if (matched == null) {
+            PlaylistGuardRule active = sharedPref.getActiveGuardRule();
+            if (active != null) {
+                matched = findRuleByPattern(rules, active.url_pattern);
+            }
         }
         if (matched != null) {
             String source = !TextUtils.isEmpty(playlistUrl) ? playlistUrl : sharedPref.getActiveGuardSourceUrl();
@@ -172,6 +209,42 @@ public final class PlaylistGuardHelper {
             httpFactory.setDefaultRequestProperties(headers);
         }
         return new DefaultDataSource.Factory(context.getApplicationContext(), httpFactory);
+    }
+
+    private static PlaylistGuardRule findStreamPatternRule(String requestUrl, List<PlaylistGuardRule> rules) {
+        if (TextUtils.isEmpty(requestUrl) || rules == null) {
+            return null;
+        }
+        String normalizedUrl = normalizeMatchKey(requestUrl);
+        for (PlaylistGuardRule rule : rules) {
+            if (rule == null || TextUtils.isEmpty(rule.stream_url_pattern)) {
+                continue;
+            }
+            String pattern = normalizeMatchKey(rule.stream_url_pattern);
+            if (!TextUtils.isEmpty(pattern) && normalizedUrl.contains(pattern)) {
+                return rule;
+            }
+        }
+        return null;
+    }
+
+    static String normalizeMatchKey(String value) {
+        if (TextUtils.isEmpty(value)) {
+            return "";
+        }
+        String normalized = value.trim().toLowerCase(Locale.US);
+        if (normalized.startsWith("https://")) {
+            normalized = normalized.substring(8);
+        } else if (normalized.startsWith("http://")) {
+            normalized = normalized.substring(7);
+        }
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.startsWith("www.")) {
+            normalized = normalized.substring(4);
+        }
+        return normalized;
     }
 
     private static void applyExtraHeaders(HttpURLConnection connection, String extraHeadersJson) {

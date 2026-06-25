@@ -37,6 +37,7 @@ import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.EpgHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
+import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.Tools;
 
 import com.google.android.exoplayer2.ExoPlayer;
@@ -111,7 +112,9 @@ public class ActivityMainV2 extends AppCompatActivity {
         super.onResume();
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, () -> {
             DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
-            resumeHeroPreview();
+            if (featuredChannel != null) {
+                startHeroPreview(featuredChannel);
+            }
         });
     }
 
@@ -228,12 +231,18 @@ public class ActivityMainV2 extends AppCompatActivity {
         if (!streamUrl.startsWith("http") && !streamUrl.startsWith("rtsp") && !streamUrl.startsWith("rtmp")) {
             return;
         }
-        if (heroPreviewChannel != null && channel.channel_url.equals(heroPreviewChannel.channel_url)) {
-            resumeHeroPreview();
-            return;
-        }
         releaseHeroPreview();
         heroPreviewChannel = channel;
+        new Thread(() -> {
+            PlaylistGuardSession.refreshBlocking(sharedPref);
+            runOnUiThread(() -> startHeroPreviewPlayer(channel));
+        }).start();
+    }
+
+    private void startHeroPreviewPlayer(Channel channel) {
+        if (heroPreview == null || channel == null || heroPreviewChannel == null) {
+            return;
+        }
         heroPlayer = new ExoPlayer.Builder(this).build();
         heroPlayer.setVolume(0f);
         heroPreview.setPlayer(heroPlayer);

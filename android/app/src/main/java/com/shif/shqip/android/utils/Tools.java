@@ -498,6 +498,12 @@ public class Tools {
 
     public static void startPlayer(Activity activity, View view, Channel channel) {
         if (isNetworkAvailable(activity)) {
+            SharedPref sharedPref = new SharedPref(activity);
+            boolean needsGuardRefresh = channel.channel_type == null
+                    || (!"YOUTUBE".equals(channel.channel_type) && !"EMBED".equals(channel.channel_type));
+            if (needsGuardRefresh) {
+                PlaylistGuardSession.refreshBlocking(sharedPref);
+            }
             Intent intent;
             if (channel.channel_type != null && channel.channel_type.equals("YOUTUBE")) {
                 intent = new Intent(activity, ActivityPlayerYoutube.class);

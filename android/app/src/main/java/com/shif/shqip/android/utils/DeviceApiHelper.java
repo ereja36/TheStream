@@ -150,12 +150,13 @@ public final class DeviceApiHelper {
                         continue;
                     }
                     PlaylistGuardRule rule = new PlaylistGuardRule();
-                    rule.url_pattern = item.optString("url_pattern", "");
-                    rule.referer = item.optString("referer", "");
-                    rule.origin = item.optString("origin", "");
-                    rule.user_agent = item.optString("user_agent", "");
-                    rule.cookie = item.optString("cookie", "");
-                    rule.extra_headers = item.optString("extra_headers", "");
+                    rule.url_pattern = readJsonString(item, "url_pattern");
+                    rule.stream_url_pattern = readJsonString(item, "stream_url_pattern");
+                    rule.referer = readJsonString(item, "referer");
+                    rule.origin = readJsonString(item, "origin");
+                    rule.user_agent = readJsonString(item, "user_agent");
+                    rule.cookie = readJsonString(item, "cookie");
+                    rule.extra_headers = readJsonString(item, "extra_headers");
                     if (!TextUtils.isEmpty(rule.url_pattern)) {
                         rules.add(rule);
                     }
@@ -164,12 +165,20 @@ public final class DeviceApiHelper {
             sharedPref.savePlaylistGuardRules(rules);
             PlaylistGuardHelper.reconcileActiveGuardRule(sharedPref);
         } catch (Exception ignored) {
-            // keep cached rules
+            PlaylistGuardHelper.reconcileActiveGuardRule(sharedPref);
         }
     }
 
     public static void refreshPlaylistGuardRulesAsync(SharedPref sharedPref) {
-        new Thread(() -> refreshPlaylistGuardRules(sharedPref)).start();
+        PlaylistGuardSession.refreshAsync(sharedPref);
+    }
+
+    private static String readJsonString(JSONObject item, String key) {
+        if (item == null || TextUtils.isEmpty(key) || !item.has(key) || item.isNull(key)) {
+            return "";
+        }
+        Object value = item.opt(key);
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     public static RegisterResult registerDevicePlaylist(SharedPref sharedPref, String deviceId, String playlistSource, String playlistName, int channelsCount, String playlistType) {
@@ -250,6 +259,7 @@ public final class DeviceApiHelper {
     public static PlaylistSyncResult refreshPlaylistChannelsFromApi(SharedPref sharedPref, String deviceId) {
         PlaylistSyncResult syncResult = new PlaylistSyncResult();
         try {
+            PlaylistGuardSession.refreshBlocking(sharedPref);
             DeviceProfile profile = fetchDeviceProfile(sharedPref, deviceId);
             if (profile.blocked) {
                 syncResult.blocked = true;
@@ -609,7 +619,7 @@ public final class DeviceApiHelper {
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(15000);
             connection.setRequestMethod(method);
-            connection.setRequestProperty("User-Agent", "ShifShqip/6.7.2 (Android)");
+            connection.setRequestProperty("User-Agent", "ShifShqip/6.7.3 (Android)");
             connection.setRequestProperty("Accept", "*/*");
             connection.setRequestProperty("X-Requested-With", packageName);
             if (!TextUtils.isEmpty(deviceId)) {

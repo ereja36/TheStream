@@ -35,6 +35,7 @@ import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.DeviceApiHelper;
+import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.Tools;
 import com.bumptech.glide.Glide;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -174,7 +175,7 @@ public class ActivitySplash extends AppCompatActivity {
     private void handleStartupState() {
         startupExecutor.execute(() -> {
             try {
-                DeviceApiHelper.refreshPlaylistGuardRules(sharedPref);
+                PlaylistGuardSession.refreshBlocking(sharedPref);
 
                 DeviceApiHelper.DeviceProfile profile = DeviceApiHelper.fetchDeviceProfile(sharedPref, deviceId);
                 if (profile.blocked) {

@@ -39,6 +39,7 @@ import com.shif.shqip.android.models.Resp;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
+import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.TrackSelectionDialog;
 import com.google.android.exoplayer2.C;
@@ -99,6 +100,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private StyledPlayerView styledPlayerView;
     private ExoPlayer exoPlayer;
     private DefaultDataSource.Factory dataSourceFactory;
+    private DefaultTrackSelector trackSelector;
     private ProgressBar progressBar;
     boolean fullscreen = false;
     private ImageView fullscreenButton;
@@ -151,21 +153,26 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         layoutEpgInfo = findViewById(R.id.layout_epg_info);
         txtEpgNow = findViewById(R.id.txt_epg_now);
         txtEpgNext = findViewById(R.id.txt_epg_next);
+        progressBar.setVisibility(View.VISIBLE);
 
-        if (user_agent.equals("default")) {
-            dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(this, sharedPref, video_url, user_agent);
-            Log.d(TAG, "user agent : " + PlaylistGuardHelper.resolveUserAgent(
-                    PlaylistGuardHelper.resolveRule(sharedPref, video_url), user_agent));
-        } else {
-            dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(this, sharedPref, video_url, user_agent);
-            Log.d(TAG, "user agent : " + PlaylistGuardHelper.resolveUserAgent(
-                    PlaylistGuardHelper.resolveRule(sharedPref, video_url), user_agent));
+        new Thread(() -> {
+            PlaylistGuardSession.refreshBlocking(sharedPref);
+            runOnUiThread(this::initializePlayer);
+        }).start();
+    }
+
+    private void initializePlayer() {
+        if (isFinishing()) {
+            return;
         }
 
-        LoadControl loadControl = new DefaultLoadControl();
+        dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(this, sharedPref, video_url, user_agent);
+        Log.d(TAG, "user agent : " + PlaylistGuardHelper.resolveUserAgent(
+                PlaylistGuardHelper.resolveRule(sharedPref, video_url), user_agent));
 
+        LoadControl loadControl = new DefaultLoadControl();
         AdaptiveTrackSelection.Factory trackSelectionFactory = new AdaptiveTrackSelection.Factory();
-        DefaultTrackSelector trackSelector = new DefaultTrackSelector(this, trackSelectionFactory);
+        trackSelector = new DefaultTrackSelector(this, trackSelectionFactory);
 
         exoPlayer = new ExoPlayer.Builder(this)
                 .setTrackSelector(trackSelector)
@@ -180,7 +187,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         playerOrientation();
 
         Uri uri = Uri.parse(video_url);
-
         MediaSource mediaSource = buildMediaSource(uri);
         exoPlayer.setMediaSource(mediaSource);
         exoPlayer.prepare();
@@ -215,7 +221,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                             break;
                         case Player.STATE_BUFFERING:
                             progressBar.setVisibility(View.VISIBLE);
-                            exoPlayer.seekTo(0);
+                            exoPlayer.setPlayWhenReady(true);
                             break;
                         case Player.STATE_IDLE:
                             break;
@@ -239,8 +245,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
         styledPlayerView.findViewById(R.id.exo_track_selection_view).setOnClickListener(view -> {
             if (contentLoaded) {
-                MappingTrackSelector.MappedTrackInfo mappedTrackInfo;
-                DefaultTrackSelector.Parameters parameters = trackSelector.getParameters();
                 TrackSelectionDialog trackSelectionDialog = TrackSelectionDialog.createForPlayer(
                         exoPlayer, dismissedDialog -> {
                         });
@@ -287,7 +291,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
         handleOnBackPressed();
         loadEpgInfo();
-
     }
 
     private void playerOrientation() {
@@ -409,15 +412,19 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        exoPlayer.setPlayWhenReady(false);
-        exoPlayer.getPlaybackState();
+        if (exoPlayer != null) {
+            exoPlayer.setPlayWhenReady(false);
+            exoPlayer.getPlaybackState();
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        exoPlayer.setPlayWhenReady(true);
-        exoPlayer.getPlaybackState();
+        if (exoPlayer != null) {
+            exoPlayer.setPlayWhenReady(true);
+            exoPlayer.getPlaybackState();
+        }
     }
 
     public void closePlayer() {
@@ -427,11 +434,15 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 exitTime = System.currentTimeMillis();
             } else {
                 finish();
-                exoPlayer.stop();
+                if (exoPlayer != null) {
+                    exoPlayer.stop();
+                }
             }
         } else {
             finish();
-            exoPlayer.stop();
+            if (exoPlayer != null) {
+                exoPlayer.stop();
+            }
         }
     }
 
@@ -446,6 +457,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     public void retryLoad() {
+        if (exoPlayer == null) {
+            return;
+        }
         Uri uri = Uri.parse(video_url);
         MediaSource mediaSource = buildMediaSource(uri);
         exoPlayer.setMediaSource(mediaSource);

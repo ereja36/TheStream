@@ -8,11 +8,19 @@ if ($tableCheck && mysqli_num_rows($tableCheck) > 0) {
     $tableExists = true;
 }
 
+if ($tableExists) {
+    $streamColumnCheck = mysqli_query($connect, "SHOW COLUMNS FROM tbl_playlist_guard LIKE 'stream_url_pattern'");
+    if (!$streamColumnCheck || mysqli_num_rows($streamColumnCheck) === 0) {
+        mysqli_query($connect, "ALTER TABLE tbl_playlist_guard ADD COLUMN stream_url_pattern varchar(500) NOT NULL DEFAULT '' AFTER url_pattern");
+    }
+}
+
 if (!$tableExists) {
     mysqli_query($connect, "CREATE TABLE IF NOT EXISTS `tbl_playlist_guard` (
       `id` int(11) NOT NULL AUTO_INCREMENT,
       `rule_name` varchar(255) NOT NULL DEFAULT '',
       `url_pattern` varchar(500) NOT NULL,
+      `stream_url_pattern` varchar(500) NOT NULL DEFAULT '',
       `referer` varchar(500) NOT NULL DEFAULT '',
       `origin` varchar(500) NOT NULL DEFAULT '',
       `user_agent` varchar(500) NOT NULL DEFAULT '',
@@ -31,6 +39,7 @@ if ($tableExists && isset($_POST['submit'])) {
         $data = array(
             'rule_name' => clean($_POST['rule_name']),
             'url_pattern' => clean($_POST['url_pattern']),
+            'stream_url_pattern' => clean($_POST['stream_url_pattern']),
             'referer' => clean($_POST['referer']),
             'origin' => clean($_POST['origin']),
             'user_agent' => clean($_POST['user_agent']),
@@ -109,9 +118,15 @@ if ($tableExists) {
                             </div>
 
                             <div class="form-group">
-                                <label>URL pattern (pjesa unike e linkut)</label>
+                                <label>URL pattern (pjesa unike e linkut të playlistës)</label>
                                 <input type="text" class="form-control" name="url_pattern" value="<?php echo $editRow ? $editRow['url_pattern'] : 'herokuapp.com/k1/playlist'; ?>" required>
-                                <small>P.sh. <code>herokuapp.com/k1/playlist</code> — vetëm për URL që përputhen aplikohen header-at.</small>
+                                <small>P.sh. <code>herokuapp.com/k1/playlist</code> — pa http/https. Kur përputhet playlista, header-at aplikohen edhe për kanalet.</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Stream URL pattern (opsionale)</label>
+                                <input type="text" class="form-control" name="stream_url_pattern" value="<?php echo $editRow ? (isset($editRow['stream_url_pattern']) ? $editRow['stream_url_pattern'] : '') : ''; ?>">
+                                <small>P.sh. <code>cdn.example.com/live</code> — vetëm nëse stream-et janë në domain tjetër nga playlista.</small>
                             </div>
 
                             <div class="form-group">

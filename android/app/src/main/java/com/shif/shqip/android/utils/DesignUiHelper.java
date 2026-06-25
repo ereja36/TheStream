@@ -118,7 +118,7 @@ public final class DesignUiHelper {
             }
             return;
         }
-        DeviceApiHelper.refreshPlaylistGuardRulesAsync(sharedPref);
+        PlaylistGuardSession.refreshAsync(sharedPref);
         String deviceId = DeviceApiHelper.getLocalDeviceId(activity);
         RestAdapter.createAPI(sharedPref.getBaseUrl())
                 .getConfig(Tools.getApplicationId(), Config.REST_API_KEY, deviceId)

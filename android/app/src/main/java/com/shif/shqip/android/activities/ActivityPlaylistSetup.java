@@ -33,6 +33,7 @@ import com.shif.shqip.android.models.PlaylistGuardRule;
 import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.DeviceApiHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
+import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.Tools;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -83,7 +84,7 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
         checkDeviceBlockedOnLaunch();
         handleOnBackPressed();
         handleOpenModeIntent();
-        executorService.execute(() -> DeviceApiHelper.refreshPlaylistGuardRules(sharedPref));
+        executorService.execute(() -> PlaylistGuardSession.refreshBlocking(sharedPref));
     }
 
     private void handleOpenModeIntent() {
@@ -250,6 +251,7 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
         showToast(getString(R.string.playlist_loading));
         executorService.execute(() -> {
             try {
+                PlaylistGuardSession.refreshBlocking(sharedPref);
                 DeviceBlockStatus deviceStatus = fetchDeviceBlockStatus();
                 if (deviceStatus.blocked) {
                     runOnUiThread(() -> showToast(getString(R.string.playlist_error_device_banned, safeReason(deviceStatus.reason))));

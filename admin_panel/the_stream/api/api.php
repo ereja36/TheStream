@@ -1094,11 +1094,22 @@ require_once("Rest.inc.php");
 				$rules = array();
 				$updatedAt = '';
 				if ($tableCheck && $tableCheck->num_rows > 0) {
-					$query = "SELECT id, rule_name, url_pattern, referer, origin, user_agent, cookie, extra_headers
-					          FROM tbl_playlist_guard WHERE status = 1 ORDER BY id ASC";
+					$streamColumnCheck = $this->mysqli->query("SHOW COLUMNS FROM tbl_playlist_guard LIKE 'stream_url_pattern'");
+					$hasStreamPattern = $streamColumnCheck && $streamColumnCheck->num_rows > 0;
+					$selectFields = $hasStreamPattern
+						? "id, rule_name, url_pattern, stream_url_pattern, referer, origin, user_agent, cookie, extra_headers"
+						: "id, rule_name, url_pattern, referer, origin, user_agent, cookie, extra_headers";
+					$query = "SELECT $selectFields FROM tbl_playlist_guard WHERE status = 1 ORDER BY id ASC";
 					$result = $this->mysqli->query($query);
 					if ($result) {
 						while ($row = $result->fetch_assoc()) {
+							$row['url_pattern'] = isset($row['url_pattern']) ? (string) $row['url_pattern'] : '';
+							$row['stream_url_pattern'] = isset($row['stream_url_pattern']) ? (string) $row['stream_url_pattern'] : '';
+							$row['referer'] = isset($row['referer']) ? (string) $row['referer'] : '';
+							$row['origin'] = isset($row['origin']) ? (string) $row['origin'] : '';
+							$row['user_agent'] = isset($row['user_agent']) ? (string) $row['user_agent'] : '';
+							$row['cookie'] = isset($row['cookie']) ? (string) $row['cookie'] : '';
+							$row['extra_headers'] = isset($row['extra_headers']) ? (string) $row['extra_headers'] : '';
 							$rules[] = $row;
 						}
 					}
@@ -1109,7 +1120,7 @@ require_once("Rest.inc.php");
 				}
 
 				$respon = array('status' => 'ok', 'rules' => $rules, 'updated_at' => $updatedAt);
-				$this->response($this->json($respon), 200);
+				$this->response(json_encode($respon), 200);
 			} else {
 				$this->responseInvalidParam();
 			}
