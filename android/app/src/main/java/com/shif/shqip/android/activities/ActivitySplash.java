@@ -159,6 +159,7 @@ public class ActivitySplash extends AppCompatActivity {
                     if (app.design_id != null) {
                         sharedPref.saveDesignId(app.design_id);
                     }
+                    sharedPref.ensureDefaultTheme();
                     if (app.app_logo_url != null) {
                         sharedPref.saveAppLogoUrl(app.app_logo_url);
                     }

@@ -28,10 +28,10 @@ public class ActivityPlaylistCategories extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Tools.getTheme(this);
-        setContentView(R.layout.activity_playlist_categories);
-        Tools.setNavigation(this);
         sharedPref = new SharedPref(this);
+        Tools.getDesignTheme(this);
+        setContentView(R.layout.activity_playlist_categories);
+        Tools.applyDesignSystemBars(this, !sharedPref.getIsDarkTheme());
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         Tools.setupToolbar(this, toolbar, getString(R.string.title_nav_category), true);

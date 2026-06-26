@@ -116,6 +116,7 @@ public class ActivitySettings extends AppCompatActivity {
             return;
         }
         sharedPref.setIsDarkTheme(isDarkTheme);
+        Tools.applyNightMode(isDarkTheme);
         if (switchTheme != null) {
             switchTheme.setChecked(isDarkTheme);
         }

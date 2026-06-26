@@ -80,7 +80,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Tools.getTheme(this);
+        Tools.getDesignTheme(this);
         sharedPref = new SharedPref(this);
         setContentView(R.layout.activity_main_v2);
         DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_nav_pill);
@@ -117,6 +117,13 @@ public class ActivityMainV2 extends AppCompatActivity {
         handleInboxNotificationIntent(getIntent());
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, () -> {
             DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
+            if (featuredChannel != null) {
+                if (heroPlayer != null) {
+                    resumeHeroPreview();
+                } else {
+                    startHeroPreview(featuredChannel);
+                }
+            }
         });
     }
 
@@ -226,6 +233,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         watchButton.setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         findViewById(R.id.hero_container).setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         loadHeroEpg(channel, heroEpg);
+        startHeroPreview(channel);
     }
 
     private void startHeroPreview(Channel channel) {

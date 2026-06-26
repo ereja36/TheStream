@@ -48,7 +48,7 @@ public class ActivityMainV3 extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Tools.getTheme(this);
+        Tools.getDesignTheme(this);
         sharedPref = new SharedPref(this);
         setContentView(R.layout.activity_main_v3);
         DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_nav);

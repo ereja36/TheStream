@@ -12,7 +12,7 @@ public class Config {
     public static final boolean SET_CATEGORY_AS_MAIN_MENU = false;
 
     //dark theme configuration
-    public static final boolean SET_DARK_MODE_AS_DEFAULT_THEME = false;
+    public static final boolean SET_DARK_MODE_AS_DEFAULT_THEME = true;
 
     //available channel view type : CHANNEL_LIST_DEFAULT, CHANNEL_GRID_2_COLUMN or CHANNEL_GRID_3_COLUMN
     public static final int CHANNEL_VIEW_TYPE = Constant.CHANNEL_LIST_DEFAULT;

@@ -46,6 +46,16 @@ public class SharedPref {
         this.context = context;
         sharedPreferences = context.getSharedPreferences(BuildConfig.APPLICATION_ID + "_" + "shared_preferences", Context.MODE_PRIVATE);
         editor = sharedPreferences.edit();
+        ensureDefaultTheme();
+    }
+
+    public void ensureDefaultTheme() {
+        if (!sharedPreferences.contains("theme")) {
+            String designId = getDesignId();
+            boolean defaultDark = "v2".equals(designId) || "v3".equals(designId) || Config.SET_DARK_MODE_AS_DEFAULT_THEME;
+            editor.putBoolean("theme", defaultDark);
+            editor.apply();
+        }
     }
 
     public void saveDesignId(String designId) {

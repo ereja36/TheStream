@@ -39,6 +39,7 @@ import android.widget.Toast;
 import androidx.activity.ComponentActivity;
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.ActionBar;
+import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -99,12 +100,44 @@ public class Tools {
 
     public static void getTheme(Context context) {
         SharedPref sharedPref = new SharedPref(context);
+        applyNightMode(sharedPref.getIsDarkTheme());
         if (sharedPref.getIsDarkTheme()) {
             context.setTheme(R.style.AppDarkTheme);
         } else {
             context.setTheme(R.style.AppTheme);
         }
         EdgeToEdge.enable((ComponentActivity) context);
+    }
+
+    public static void getDesignTheme(Context context) {
+        SharedPref sharedPref = new SharedPref(context);
+        applyNightMode(sharedPref.getIsDarkTheme());
+        if (sharedPref.getIsDarkTheme()) {
+            context.setTheme(R.style.AppDarkTheme);
+        } else {
+            context.setTheme(R.style.AppTheme);
+        }
+        if (context instanceof ComponentActivity) {
+            ComponentActivity activity = (ComponentActivity) context;
+            WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), true);
+            applyDesignSystemBars(activity, !sharedPref.getIsDarkTheme());
+        }
+    }
+
+    public static void applyNightMode(boolean darkTheme) {
+        AppCompatDelegate.setDefaultNightMode(darkTheme
+                ? AppCompatDelegate.MODE_NIGHT_YES
+                : AppCompatDelegate.MODE_NIGHT_NO);
+    }
+
+    public static void applyDesignSystemBars(Activity activity, boolean lightBars) {
+        int bgColor = ContextCompat.getColor(activity, R.color.v2_bg);
+        activity.getWindow().setStatusBarColor(bgColor);
+        activity.getWindow().setNavigationBarColor(bgColor);
+        WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView())
+                .setAppearanceLightStatusBars(lightBars);
+        WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView())
+                .setAppearanceLightNavigationBars(lightBars);
     }
 
     public static void getPlayerTheme(Context context) {
