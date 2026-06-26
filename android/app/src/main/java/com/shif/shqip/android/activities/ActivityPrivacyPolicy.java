@@ -1,10 +1,17 @@
 package com.shif.shqip.android.activities;
 
+import android.graphics.Color;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.MenuItem;
+import android.view.View;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.OnBackPressedDispatcher;
@@ -19,9 +26,14 @@ import com.shif.shqip.android.utils.Tools;
 
 public class ActivityPrivacyPolicy extends AppCompatActivity {
 
+    private static final String FALLBACK_PRIVACY_URL = "https://shifshqip.com/privacy";
+
     SharedPref sharedPref;
     WebView webView;
+    ProgressBar progressBar;
+    TextView errorView;
     OnBackPressedDispatcher onBackPressedDispatcher;
+    private String activeUrl = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,6 +43,8 @@ public class ActivityPrivacyPolicy extends AppCompatActivity {
         Tools.setNavigation(this);
         sharedPref = new SharedPref(this);
         webView = findViewById(R.id.web_view);
+        progressBar = findViewById(R.id.progress_privacy);
+        errorView = findViewById(R.id.txt_privacy_error);
         loadPrivacyContent();
         setupToolbar();
         handleOnBackPressed();
@@ -38,14 +52,70 @@ public class ActivityPrivacyPolicy extends AppCompatActivity {
 
     private void loadPrivacyContent() {
         String privacyUrl = sharedPref.getPrivacyPublicUrl();
-        if (!TextUtils.isEmpty(privacyUrl)) {
-            WebSettings webSettings = webView.getSettings();
-            webSettings.setJavaScriptEnabled(true);
-            webSettings.setDomStorageEnabled(true);
-            webView.loadUrl(privacyUrl);
+        if (TextUtils.isEmpty(privacyUrl)) {
+            privacyUrl = FALLBACK_PRIVACY_URL;
+        }
+        activeUrl = privacyUrl;
+
+        if (progressBar != null) {
+            progressBar.setVisibility(View.VISIBLE);
+        }
+        if (errorView != null) {
+            errorView.setVisibility(View.GONE);
+        }
+
+        WebSettings webSettings = webView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setDomStorageEnabled(true);
+        webSettings.setLoadWithOverviewMode(true);
+        webSettings.setUseWideViewPort(true);
+        if (sharedPref.getIsDarkTheme()) {
+            webView.setBackgroundColor(Color.parseColor("#121212"));
+        } else {
+            webView.setBackgroundColor(Color.WHITE);
+        }
+
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                if (progressBar != null) {
+                    progressBar.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (request == null || !request.isForMainFrame()) {
+                    return;
+                }
+                showPrivacyError();
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return false;
+            }
+        });
+
+        webView.loadUrl(privacyUrl);
+    }
+
+    private void showPrivacyError() {
+        if (progressBar != null) {
+            progressBar.setVisibility(View.GONE);
+        }
+        String inlinePolicy = sharedPref.getPrivacyPolicy();
+        if (!TextUtils.isEmpty(inlinePolicy)) {
+            if (errorView != null) {
+                errorView.setVisibility(View.GONE);
+            }
+            Tools.displayContent(this, webView, inlinePolicy);
             return;
         }
-        Tools.displayContent(this, webView, sharedPref.getPrivacyPolicy());
+        if (errorView != null) {
+            errorView.setVisibility(View.VISIBLE);
+            errorView.setOnClickListener(v -> loadPrivacyContent());
+        }
     }
 
     public void handleOnBackPressed() {
@@ -53,7 +123,11 @@ public class ActivityPrivacyPolicy extends AppCompatActivity {
         onBackPressedDispatcher.addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                finish();
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    finish();
+                }
             }
         });
     }

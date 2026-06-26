@@ -667,12 +667,43 @@ require_once("Rest.inc.php");
 				}
 
 				$device_id = mysqli_real_escape_string($connect, $device_id);
+
+				$globalEnabled = isset($settings_row['global_playlist_enabled']) && (int) $settings_row['global_playlist_enabled'] === 1;
+				$globalUrl = isset($settings_row['global_playlist_url']) ? trim($settings_row['global_playlist_url']) : '';
+				$globalName = isset($settings_row['global_playlist_name']) && $settings_row['global_playlist_name'] != ''
+					? $settings_row['global_playlist_name']
+					: 'Shif Shqip';
+
+				if ($globalEnabled && $globalUrl != '') {
+					$globalUrlEsc = mysqli_real_escape_string($connect, $globalUrl);
+					$globalNameEsc = mysqli_real_escape_string($connect, $globalName);
+					$playlists = array(array(
+						'id' => 0,
+						'device_id' => $device_id,
+						'playlist_name' => $globalNameEsc,
+						'playlist_type' => 'm3u',
+						'playlist_source' => $globalUrlEsc,
+						'channels_count' => 0,
+						'status' => 1,
+						'updated_at' => date('Y-m-d H:i:s')
+					));
+					$respon = array(
+						'status' => 'ok',
+						'count' => 1,
+						'global_override' => 1,
+						'hide_source' => 1,
+						'playlists' => $playlists
+					);
+					$this->response($this->json($respon), 200);
+					return;
+				}
+
 				$query = "SELECT id, device_id, playlist_name, playlist_type, playlist_source, channels_count, status, updated_at 
 						  FROM tbl_device_playlist 
 						  WHERE device_id = '$device_id' AND status = 1
 						  ORDER BY status DESC, updated_at DESC";
 				$playlists = $this->get_list_result($query);
-				$respon = array('status' => 'ok', 'count' => count($playlists), 'playlists' => $playlists);
+				$respon = array('status' => 'ok', 'count' => count($playlists), 'global_override' => 0, 'hide_source' => 0, 'playlists' => $playlists);
 				$this->response($this->json($respon), 200);
 			} else {
 				$this->responseInvalidParam();

@@ -32,6 +32,11 @@ public class SharedPref {
     private static final String KEY_APP_LOGO_URL = "app_logo_url";
     private static final String KEY_ACTIVE_GUARD_RULE = "active_guard_rule";
     private static final String KEY_ACTIVE_GUARD_SOURCE = "active_guard_source";
+    private static final String KEY_USER_PLAYLIST_BACKUP_CHANNELS = "user_playlist_backup_channels";
+    private static final String KEY_USER_PLAYLIST_BACKUP_URL = "user_playlist_backup_url";
+    private static final String KEY_USER_PLAYLIST_BACKUP_NAME = "user_playlist_backup_name";
+    private static final String KEY_GLOBAL_PLAYLIST_ACTIVE = "global_playlist_active";
+    private static final String KEY_HIDE_PLAYLIST_SOURCE = "hide_playlist_source";
 
     Context context;
     SharedPreferences sharedPreferences;
@@ -50,9 +55,6 @@ public class SharedPref {
         }
         editor.putString(KEY_DESIGN_ID, normalized);
         editor.apply();
-        if ("v2".equals(normalized) || "v3".equals(normalized)) {
-            setIsDarkTheme(true);
-        }
     }
 
     public String getDesignId() {
@@ -115,10 +117,9 @@ public class SharedPref {
 
     public Boolean getIsDarkTheme() {
         String designId = getDesignId();
-        if ("v2".equals(designId) || "v3".equals(designId)) {
-            return true;
-        }
-        return sharedPreferences.getBoolean("theme", Config.SET_DARK_MODE_AS_DEFAULT_THEME);
+        boolean defaultDark = ("v2".equals(designId) || "v3".equals(designId))
+                || Config.SET_DARK_MODE_AS_DEFAULT_THEME;
+        return sharedPreferences.getBoolean("theme", defaultDark);
     }
 
     public void setIsDarkTheme(Boolean isDarkTheme) {
@@ -359,6 +360,74 @@ public class SharedPref {
             return "TV";
         }
         return categoryName.trim();
+    }
+
+    public void setGlobalPlaylistActive(boolean active) {
+        editor.putBoolean(KEY_GLOBAL_PLAYLIST_ACTIVE, active);
+        editor.apply();
+    }
+
+    public boolean isGlobalPlaylistActive() {
+        return sharedPreferences.getBoolean(KEY_GLOBAL_PLAYLIST_ACTIVE, false);
+    }
+
+    public void setHidePlaylistSource(boolean hide) {
+        editor.putBoolean(KEY_HIDE_PLAYLIST_SOURCE, hide);
+        editor.apply();
+    }
+
+    public boolean shouldHidePlaylistSource() {
+        return sharedPreferences.getBoolean(KEY_HIDE_PLAYLIST_SOURCE, false);
+    }
+
+    public boolean hasUserPlaylistBackup() {
+        return !TextUtils.isEmpty(sharedPreferences.getString(KEY_USER_PLAYLIST_BACKUP_CHANNELS, ""));
+    }
+
+    public void backupUserPlaylist() {
+        if (hasUserPlaylistBackup() || isGlobalPlaylistActive()) {
+            return;
+        }
+        Gson gson = new Gson();
+        editor.putString(KEY_USER_PLAYLIST_BACKUP_CHANNELS, gson.toJson(getPlaylistChannels()));
+        editor.putString(KEY_USER_PLAYLIST_BACKUP_URL, getPlaylistUrl());
+        editor.putString(KEY_USER_PLAYLIST_BACKUP_NAME, sharedPreferences.getString("playlist_name", ""));
+        editor.apply();
+    }
+
+    public void restoreUserPlaylistBackup() {
+        if (!hasUserPlaylistBackup()) {
+            return;
+        }
+        Gson gson = new Gson();
+        String json = sharedPreferences.getString(KEY_USER_PLAYLIST_BACKUP_CHANNELS, null);
+        Type type = new TypeToken<ArrayList<Channel>>() {
+        }.getType();
+        List<Channel> channels = gson.fromJson(json, type);
+        if (channels != null && !channels.isEmpty()) {
+            savePlaylistChannels(channels);
+        }
+        String backupUrl = sharedPreferences.getString(KEY_USER_PLAYLIST_BACKUP_URL, "");
+        if (!TextUtils.isEmpty(backupUrl)) {
+            savePlaylistUrl(backupUrl);
+        }
+        clearUserPlaylistBackup();
+    }
+
+    public void clearUserPlaylistBackup() {
+        editor.remove(KEY_USER_PLAYLIST_BACKUP_CHANNELS);
+        editor.remove(KEY_USER_PLAYLIST_BACKUP_URL);
+        editor.remove(KEY_USER_PLAYLIST_BACKUP_NAME);
+        editor.apply();
+    }
+
+    public void savePlaylistName(String playlistName) {
+        editor.putString("playlist_name", playlistName == null ? "" : playlistName.trim());
+        editor.apply();
+    }
+
+    public String getPlaylistName() {
+        return sharedPreferences.getString("playlist_name", "");
     }
 
 }

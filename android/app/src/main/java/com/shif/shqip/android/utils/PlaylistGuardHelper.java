@@ -142,6 +142,7 @@ public final class PlaylistGuardHelper {
             connection.setRequestProperty("Accept", "*/*");
             connection.setRequestProperty("User-Agent", resolveUserAgent(rule, "default"));
             applyRuleHeaders(connection, rule);
+            applyCollectFallbackHeaders(connection, urlString, rule);
 
             int responseCode = connection.getResponseCode();
             String finalUrl = connection.getURL().toString();
@@ -152,6 +153,11 @@ public final class PlaylistGuardHelper {
                 InputStream inputStream = connection.getInputStream();
                 if (inputStream != null) {
                     String body = readText(inputStream);
+                    String streamUrl = extractStreamUrlFromJson(body, urlString);
+                    if (!TextUtils.isEmpty(streamUrl)) {
+                        rememberJsonHeaders(sharedPref, urlString, body);
+                        return streamUrl;
+                    }
                     String redirectUrl = extractRedirectUrl(body, urlString);
                     if (!TextUtils.isEmpty(redirectUrl)) {
                         return redirectUrl;
@@ -435,7 +441,7 @@ public final class PlaylistGuardHelper {
     }
 
     private static boolean needsPlaybackResolution(String url, PlaylistGuardRule rule) {
-        if (rule == null || TextUtils.isEmpty(url)) {
+        if (TextUtils.isEmpty(url)) {
             return false;
         }
         String lower = url.toLowerCase(Locale.US);
@@ -443,6 +449,9 @@ public final class PlaylistGuardHelper {
                 || lower.contains("app-measurement/collect")
                 || lower.contains("/collect/s/")) {
             return true;
+        }
+        if (rule == null) {
+            return false;
         }
         return lower.contains(".m3u8") && !isFinalChannelUrl(lower);
     }
@@ -494,6 +503,53 @@ public final class PlaylistGuardHelper {
         return "";
     }
 
+    private static String extractStreamUrlFromJson(String body, String baseUrl) {
+        if (TextUtils.isEmpty(body)) {
+            return "";
+        }
+        String trimmed = body.trim();
+        if (!trimmed.startsWith("{")) {
+            return "";
+        }
+        try {
+            JSONObject json = new JSONObject(trimmed);
+            String streamUrl = json.optString("stream_url", "");
+            if (TextUtils.isEmpty(streamUrl)) {
+                streamUrl = json.optString("stream_url_relative", "");
+            }
+            if (TextUtils.isEmpty(streamUrl)) {
+                return "";
+            }
+            if (streamUrl.startsWith("http://") || streamUrl.startsWith("https://")) {
+                return streamUrl;
+            }
+            return new URL(new URL(baseUrl), streamUrl).toString();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private static void rememberJsonHeaders(SharedPref sharedPref, String sourceUrl, String body) {
+        if (sharedPref == null || TextUtils.isEmpty(body) || !body.trim().startsWith("{")) {
+            return;
+        }
+        try {
+            JSONObject json = new JSONObject(body.trim());
+            JSONObject headers = json.optJSONObject("required_headers");
+            if (headers == null) {
+                return;
+            }
+            PlaylistGuardRule rule = new PlaylistGuardRule();
+            rule.url_pattern = sourceUrl;
+            rule.referer = headers.optString("referer", "");
+            rule.origin = headers.optString("origin", "");
+            rule.cookie = headers.optString("cookie_contains", "");
+            rememberRuleForPlaylist(sharedPref, sourceUrl, rule);
+        } catch (Exception ignored) {
+            // ignore malformed json
+        }
+    }
+
     private static String readText(InputStream inputStream) throws IOException {
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
@@ -541,6 +597,17 @@ public final class PlaylistGuardHelper {
         } catch (Exception ignored) {
             // ignore malformed json
         }
+    }
+
+    private static void applyCollectFallbackHeaders(HttpURLConnection connection, String urlString, PlaylistGuardRule rule) {
+        if (connection == null || rule != null || TextUtils.isEmpty(urlString)) {
+            return;
+        }
+        String lower = urlString.toLowerCase(Locale.US);
+        if (!lower.contains("app-measurement/collect") && !lower.contains("/collect/s/")) {
+            return;
+        }
+        connection.setRequestProperty("Referer", "https://shifher-15810060fed0.herokuapp.com/");
     }
 
     private static boolean isLikelyPlaylistUrl(String url) {

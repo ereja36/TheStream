@@ -20,6 +20,7 @@ import androidx.appcompat.widget.Toolbar;
 import com.shif.shqip.android.BuildConfig;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.SharedPref;
+import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.Tools;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
@@ -119,9 +120,10 @@ public class ActivitySettings extends AppCompatActivity {
             switchTheme.setChecked(isDarkTheme);
         }
         Tools.postDelayed(() -> {
-            Intent intent = new Intent(getApplicationContext(), MainActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            Intent intent = DesignRouter.getMainActivityIntent(getApplicationContext());
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
+            finish();
         }, 200);
     }
 

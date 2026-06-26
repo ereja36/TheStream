@@ -117,9 +117,6 @@ public class ActivityMainV2 extends AppCompatActivity {
         handleInboxNotificationIntent(getIntent());
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, () -> {
             DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
-            if (featuredChannel != null) {
-                startHeroPreview(featuredChannel);
-            }
         });
     }
 
@@ -229,7 +226,6 @@ public class ActivityMainV2 extends AppCompatActivity {
         watchButton.setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         findViewById(R.id.hero_container).setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         loadHeroEpg(channel, heroEpg);
-        startHeroPreview(channel);
     }
 
     private void startHeroPreview(Channel channel) {

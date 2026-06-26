@@ -88,6 +88,7 @@
     <string name="player_landscape">Landscape</string>
     <string name="title_setting_privacy">Privacy Policy</string>
     <string name="sub_title_setting_privacy">Privacy, terms and policies</string>
+    <string name="privacy_load_error">Could not load privacy policy. Tap to try again.</string>
     <string name="title_setting_share">Share the App</string>
     <string name="sub_title_setting_share">Tell a friend about this app</string>
     <string name="title_setting_rate">Rate This App</string>
@@ -143,6 +144,7 @@
     <string name="playlist_add_xtream">Xtream Codes</string>
     <string name="playlist_play_url">Luaj URL</string>
     <string name="playlist_setup_note_short">Importo kanalet nga M3U, Xtream ose skedar lokal.</string>
+    <string name="playlist_managed_by_admin">Playlista juaj menaxhohet nga administratori. Burimi i listës nuk shfaqet në aplikacion.</string>
     <string name="player_epg_button">EPG</string>
     <string name="playlist_manage_title">Manage Playlists</string>
     <string name="playlist_manage_subtitle">Add and manage M3U and Xtream playlists</string>

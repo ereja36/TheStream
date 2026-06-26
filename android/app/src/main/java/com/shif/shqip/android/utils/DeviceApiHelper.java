@@ -280,17 +280,35 @@ public final class DeviceApiHelper {
                 return syncResult;
             }
 
-            List<DevicePlaylist> playlists = fetchDevicePlaylists(sharedPref, deviceId);
+            PlaylistFetchResult fetchResult = fetchDevicePlaylistsWithMeta(sharedPref, deviceId);
+            List<DevicePlaylist> playlists = fetchResult.playlists;
             syncResult.playlistCount = playlists.size();
 
+            if (fetchResult.globalOverride) {
+                if (!sharedPref.isGlobalPlaylistActive()) {
+                    sharedPref.backupUserPlaylist();
+                    sharedPref.setGlobalPlaylistActive(true);
+                }
+                sharedPref.setHidePlaylistSource(fetchResult.hideSource);
+            } else if (sharedPref.isGlobalPlaylistActive()) {
+                sharedPref.restoreUserPlaylistBackup();
+                sharedPref.setGlobalPlaylistActive(false);
+                sharedPref.setHidePlaylistSource(false);
+                playlists = fetchResult.playlists;
+                syncResult.playlistCount = playlists.size();
+            }
+
             if (playlists.isEmpty()) {
-                sharedPref.clearPlaylistChannels();
+                if (!sharedPref.hasPlaylistChannels()) {
+                    sharedPref.clearPlaylistChannels();
+                }
                 return syncResult;
             }
 
             List<Channel> merged = new ArrayList<>();
             Set<String> urls = new LinkedHashSet<>();
             String firstSource = "";
+            String firstName = "";
 
             for (DevicePlaylist playlist : playlists) {
                 if (playlist.status != 1) {
@@ -302,15 +320,17 @@ public final class DeviceApiHelper {
                 }
                 if (TextUtils.isEmpty(firstSource)) {
                     firstSource = source;
+                    firstName = playlist.playlistName;
                 }
 
                 List<Channel> parsedChannels = new ArrayList<>();
                 try {
                     String content = fetchUrlContent(source, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
-                    parsedChannels = parsePlaylistChannels(content, playlist.playlistName);
+                    parsedChannels = parsePlaylistContent(content, playlist.playlistName, source);
                     if (parsedChannels.isEmpty() && isPortalPage(content)) {
                         parsedChannels = fetchChannelsFromPortal(sharedPref, source, content, deviceId, playlist.playlistName);
                     }
+                    applyJsonPlaylistGuardRule(sharedPref, content, source);
                 } catch (Exception ignored) {
                     // Keep trying other playlist sources.
                 }
@@ -327,8 +347,11 @@ public final class DeviceApiHelper {
             syncResult.channels = merged;
             if (!merged.isEmpty()) {
                 sharedPref.savePlaylistChannels(merged);
-                if (!TextUtils.isEmpty(firstSource)) {
+                if (!fetchResult.hideSource && !TextUtils.isEmpty(firstSource)) {
                     sharedPref.savePlaylistUrl(firstSource);
+                }
+                if (!TextUtils.isEmpty(firstName)) {
+                    sharedPref.savePlaylistName(firstName);
                 }
             }
         } catch (Exception ignored) {
@@ -337,8 +360,14 @@ public final class DeviceApiHelper {
         return syncResult;
     }
 
-    public static List<DevicePlaylist> fetchDevicePlaylists(SharedPref sharedPref, String deviceId) throws Exception {
-        List<DevicePlaylist> playlists = new ArrayList<>();
+    public static class PlaylistFetchResult {
+        public List<DevicePlaylist> playlists = new ArrayList<>();
+        public boolean globalOverride = false;
+        public boolean hideSource = false;
+    }
+
+    public static PlaylistFetchResult fetchDevicePlaylistsWithMeta(SharedPref sharedPref, String deviceId) throws Exception {
+        PlaylistFetchResult result = new PlaylistFetchResult();
         String endpoint = buildApiUrl(
                 sharedPref.getBaseUrl(),
                 "/api/api.php?get_device_playlists&api_key=" + urlEncode(Config.REST_API_KEY) +
@@ -348,15 +377,18 @@ public final class DeviceApiHelper {
         JSONObject json = new JSONObject(response);
 
         if (json.optInt("blocked", 0) == 1) {
-            return playlists;
+            return result;
         }
         if (!"ok".equalsIgnoreCase(json.optString("status", ""))) {
-            return playlists;
+            return result;
         }
+
+        result.globalOverride = json.optInt("global_override", 0) == 1;
+        result.hideSource = json.optInt("hide_source", 0) == 1;
 
         JSONArray array = json.optJSONArray("playlists");
         if (array == null) {
-            return playlists;
+            return result;
         }
         for (int i = 0; i < array.length(); i++) {
             JSONObject item = array.optJSONObject(i);
@@ -368,9 +400,99 @@ public final class DeviceApiHelper {
             playlist.playlistType = item.optString("playlist_type", "");
             playlist.playlistSource = item.optString("playlist_source", "");
             playlist.status = item.optInt("status", 1);
-            playlists.add(playlist);
+            result.playlists.add(playlist);
         }
-        return playlists;
+        return result;
+    }
+
+    public static List<DevicePlaylist> fetchDevicePlaylists(SharedPref sharedPref, String deviceId) throws Exception {
+        return fetchDevicePlaylistsWithMeta(sharedPref, deviceId).playlists;
+    }
+
+    public static List<Channel> parsePlaylistContent(String content, String playlistName, String sourceUrl) {
+        if (isJsonPlaylistIndex(content)) {
+            return parseJsonPlaylistIndex(content, playlistName);
+        }
+        return parsePlaylistChannels(content, playlistName);
+    }
+
+    private static boolean isJsonPlaylistIndex(String content) {
+        if (TextUtils.isEmpty(content)) {
+            return false;
+        }
+        String trimmed = content.trim();
+        if (!trimmed.startsWith("{")) {
+            return false;
+        }
+        try {
+            JSONObject json = new JSONObject(trimmed);
+            return json.optBoolean("ok", false) && json.has("channels");
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public static List<Channel> parseJsonPlaylistIndex(String content, String playlistName) {
+        List<Channel> channels = new ArrayList<>();
+        if (TextUtils.isEmpty(content)) {
+            return channels;
+        }
+        try {
+            JSONObject json = new JSONObject(content.trim());
+            JSONArray array = json.optJSONArray("channels");
+            if (array == null) {
+                return channels;
+            }
+            String categoryLabel = TextUtils.isEmpty(playlistName) ? "TV" : playlistName + " • TV";
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject item = array.optJSONObject(i);
+                if (item == null) {
+                    continue;
+                }
+                String name = item.optString("name", "");
+                String url = item.optString("url", "");
+                if (TextUtils.isEmpty(name) || TextUtils.isEmpty(url)) {
+                    continue;
+                }
+                Channel channel = new Channel();
+                channel.channel_id = "json_" + (i + 1);
+                channel.channel_name = name.trim();
+                channel.channel_image = "";
+                channel.channel_url = url.trim();
+                channel.channel_description = "";
+                channel.channel_type = "JSON";
+                channel.video_id = "";
+                channel.category_name = categoryLabel;
+                channel.user_agent = "default";
+                channel.total_views = "0";
+                channel.epg_id = "";
+                channel.epg_url = "";
+                channels.add(channel);
+            }
+        } catch (Exception ignored) {
+            return channels;
+        }
+        return channels;
+    }
+
+    public static void applyJsonPlaylistGuardRule(SharedPref sharedPref, String content, String sourceUrl) {
+        if (sharedPref == null || TextUtils.isEmpty(content) || !content.trim().startsWith("{")) {
+            return;
+        }
+        try {
+            JSONObject json = new JSONObject(content.trim());
+            JSONObject headers = json.optJSONObject("required_headers");
+            if (headers == null) {
+                return;
+            }
+            PlaylistGuardRule rule = new PlaylistGuardRule();
+            rule.url_pattern = sourceUrl;
+            rule.referer = readJsonString(headers, "referer");
+            rule.origin = readJsonString(headers, "origin");
+            PlaylistGuardHelper.rememberRuleForPlaylist(sharedPref, sourceUrl, rule);
+        } catch (Exception ignored) {
+            // ignore malformed json
+        }
     }
 
     public static List<Channel> parsePlaylistChannels(String content, String playlistName) {

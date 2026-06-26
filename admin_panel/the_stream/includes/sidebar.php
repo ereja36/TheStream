@@ -62,13 +62,6 @@
                         </a>
                     </li>
 
-                    <li class="<?php if (strpos($page, 'app-inbox-notifications') !== false) {echo 'active';} else { echo 'noactive'; }?>">
-                        <a href="app-inbox-notifications.php">
-                            <i class="material-icons">phonelink_ring</i>
-                            <span><?php echo $menu_inbox_notification; ?></span>
-                        </a>
-                    </li>
-
                     <li class="<?php if (strpos($page, 'admin') !== false) {echo 'active';} else { echo 'noactive'; }?>">
                         <a href="admin.php">
                             <i class="material-icons">people</i>
@@ -94,6 +87,13 @@
                         <a href="device-playlist.php">
                             <i class="material-icons">devices</i>
                             <span><?php echo $menu_device_playlist; ?></span>
+                        </a>
+                    </li>
+
+                    <li class="<?php if (strpos($page, 'global-playlist') !== false) {echo 'active';} else { echo 'noactive'; }?>">
+                        <a href="global-playlist.php">
+                            <i class="material-icons">public</i>
+                            <span><?php echo $menu_global_playlist; ?></span>
                         </a>
                     </li>
 

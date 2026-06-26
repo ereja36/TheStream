@@ -134,6 +134,14 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
     }
 
     private void showPlaylistUrlDialog() {
+        if (sharedPref.shouldHidePlaylistSource()) {
+            new MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.playlist_add)
+                    .setMessage(R.string.playlist_managed_by_admin)
+                    .setPositiveButton(R.string.option_ok, null)
+                    .show();
+            return;
+        }
         LinearLayout container = createDialogContainer();
         final EditText nameInput = createDialogInput(getString(R.string.playlist_name_hint), InputType.TYPE_CLASS_TEXT);
         final EditText urlInput = createDialogInput(getString(R.string.playlist_url_hint), InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
@@ -237,7 +245,8 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
                 if (matchedRule != null) {
                     PlaylistGuardHelper.rememberRuleForPlaylist(sharedPref, playlistUrl, matchedRule);
                 }
-                List<Channel> channels = parsePlaylistChannels(content, playlistName);
+                DeviceApiHelper.applyJsonPlaylistGuardRule(sharedPref, content, playlistUrl);
+                List<Channel> channels = DeviceApiHelper.parsePlaylistContent(content, playlistName, playlistUrl);
                 if (channels.isEmpty() && isPortalPage(content)) {
                     channels = fetchChannelsFromPortal(playlistUrl, content, deviceId, playlistName);
                 }
@@ -316,7 +325,7 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
     }
 
     private List<Channel> parsePlaylistChannels(String content, String playlistName) {
-        return DeviceApiHelper.parsePlaylistChannels(content, playlistName);
+        return DeviceApiHelper.parsePlaylistContent(content, playlistName, "");
     }
 
     private List<Channel> fetchChannelsFromPortal(String portalUrl, String portalHtml, String deviceId, String playlistName) throws IOException {
