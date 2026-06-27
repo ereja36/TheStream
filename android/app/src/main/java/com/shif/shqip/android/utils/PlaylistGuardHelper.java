@@ -8,6 +8,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.PlaylistGuardRule;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
+import com.google.android.exoplayer2.upstream.HttpDataSource;
 
 import org.json.JSONObject;
 
@@ -306,21 +307,14 @@ public final class PlaylistGuardHelper {
         String userAgent = portalRequest
                 ? "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)"
                 : resolveUserAgent(rule, channelUserAgent);
-        Map<String, String> headers = portalRequest ? new HashMap<>() : buildRequestHeaders(rule);
+        if (portalRequest && context != null) {
+            HttpDataSource.Factory httpFactory = new PortalHttpDataSource.Factory(context, sharedPref, userAgent);
+            return new DefaultDataSource.Factory(context.getApplicationContext(), httpFactory);
+        }
+
+        Map<String, String> headers = buildRequestHeaders(rule);
         headers.put("X-Shif-App", "1");
         headers.put("X-Requested-With", BuildConfig.APPLICATION_ID);
-        if (context != null && portalRequest) {
-            String deviceId = DeviceApiHelper.getLocalDeviceId(context);
-            if (!TextUtils.isEmpty(deviceId)) {
-                headers.put("X-Device-ID", deviceId);
-            }
-            headers.putAll(PlaylistPortalHelper.buildPortalHeaders(
-                    requestUrl,
-                    "GET",
-                    deviceId,
-                    sharedPref
-            ));
-        }
 
         DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
                 .setAllowCrossProtocolRedirects(true)
@@ -470,6 +464,9 @@ public final class PlaylistGuardHelper {
 
     private static boolean needsPlaybackResolution(String url, PlaylistGuardRule rule) {
         if (TextUtils.isEmpty(url)) {
+            return false;
+        }
+        if (PlaylistPortalHelper.isPortalUrl(url)) {
             return false;
         }
         String lower = url.toLowerCase(Locale.US);
