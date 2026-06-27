@@ -93,6 +93,7 @@ public class ActivityMainV2 extends AppCompatActivity {
 
         setupTopActions();
         setupBottomNav();
+        bringChromeToFront();
         DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
         loadChannels();
     }
@@ -158,16 +159,26 @@ public class ActivityMainV2 extends AppCompatActivity {
 
     private void showHome() {
         overlayContainer.setVisibility(View.GONE);
+        overlayContainer.setClickable(false);
         scrollHome.setVisibility(View.VISIBLE);
+        bringChromeToFront();
     }
 
     private void showFavoritesOverlay() {
         overlayContainer.setVisibility(View.VISIBLE);
+        overlayContainer.setClickable(true);
         scrollHome.setVisibility(View.GONE);
+        overlayContainer.bringToFront();
         getSupportFragmentManager()
                 .beginTransaction()
                 .replace(R.id.overlay_container, new FragmentFavorite())
                 .commitAllowingStateLoss();
+    }
+
+    private void bringChromeToFront() {
+        View topActions = findViewById(R.id.top_actions);
+        View bottomNav = findViewById(R.id.bottom_nav_pill);
+        DesignInsetsHelper.bringChromeToFront(topActions, bottomNav);
     }
 
     private void loadChannels() {
@@ -280,6 +291,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         heroPlayer.setPlayWhenReady(true);
         heroPreview.setVisibility(View.VISIBLE);
         findViewById(R.id.hero_image).setVisibility(View.GONE);
+        bringChromeToFront();
     }
 
     private void pauseHeroPreview() {

@@ -28,21 +28,44 @@ public final class DesignInsetsHelper {
             return;
         }
 
+        View topBar = topBarId != 0 ? activity.findViewById(topBarId) : null;
         View bottomBar = bottomBarId != 0 ? activity.findViewById(bottomBarId) : null;
+        final int extraTopDp = dp(activity, 8);
         final int extraBottomDp = dp(activity, 8);
 
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            if (topBar != null) {
+                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) topBar.getLayoutParams();
+                lp.topMargin = bars.top + extraTopDp;
+                topBar.setLayoutParams(lp);
+            }
             if (bottomBar != null) {
                 ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) bottomBar.getLayoutParams();
                 lp.bottomMargin = bars.bottom + extraBottomDp;
                 bottomBar.setLayoutParams(lp);
-                bottomBar.bringToFront();
             }
+            bringChromeToFront(topBar, bottomBar);
             return insets;
         });
 
         ViewCompat.requestApplyInsets(root);
+        bringChromeToFront(topBar, bottomBar);
+    }
+
+    public static void bringChromeToFront(View topBar, View bottomBar) {
+        if (topBar != null) {
+            topBar.bringToFront();
+            topBar.setElevation(dp(topBar, 24));
+        }
+        if (bottomBar != null) {
+            bottomBar.bringToFront();
+            bottomBar.setElevation(dp(bottomBar, 24));
+        }
+    }
+
+    private static int dp(View view, int value) {
+        return Math.round(value * view.getResources().getDisplayMetrics().density);
     }
 
     private static int dp(Activity activity, int value) {
