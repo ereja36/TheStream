@@ -30,29 +30,8 @@ function generatePortalAccessKey() {
     return bin2hex(random_bytes(16));
 }
 
-function syncPortalGuardRule($connect, $portal) {
-    $urlPattern = 'playlist.shifshqip.com';
-    $ruleName = 'Playlist Portal';
-    $data = array(
-        'rule_name' => $ruleName,
-        'url_pattern' => $urlPattern,
-        'stream_url_pattern' => 'playlist.shifshqip.com',
-        'referer' => $portal['outbound_referer'],
-        'origin' => $portal['outbound_origin'],
-        'user_agent' => $portal['outbound_user_agent'],
-        'cookie' => $portal['outbound_cookie'],
-        'extra_headers' => $portal['outbound_extra_headers'],
-        'status' => (int) $portal['status'] === 1 ? 1 : 0
-    );
-
-    $slugEsc = mysqli_real_escape_string($connect, $portal['portal_slug']);
-    $existing = mysqli_query($connect, "SELECT id FROM tbl_playlist_guard WHERE rule_name = 'Playlist Portal $slugEsc' OR url_pattern LIKE '%playlist.shifshqip.com/k1/app-measurement/collect/$slugEsc%' LIMIT 1");
-    if ($existing && mysqli_num_rows($existing) > 0) {
-        $row = mysqli_fetch_assoc($existing);
-        update('tbl_playlist_guard', $data, "WHERE id = '" . clean($row['id']) . "'");
-    } else {
-        insert('tbl_playlist_guard', $data);
-    }
+function cleanupPortalGuardRules($connect) {
+    mysqli_query($connect, "DELETE FROM tbl_playlist_guard WHERE rule_name LIKE 'Playlist Portal%' OR url_pattern LIKE '%playlist.shifshqip.com%'");
 }
 
 $portal = null;
@@ -99,7 +78,7 @@ if (isset($_POST['submit'])) {
             'status' => isset($_POST['status']) ? 1 : 0
         );
         update('tbl_playlist_portal', $data, "WHERE id = '" . clean($portal['id']) . "'");
-        syncPortalGuardRule($connect, $data);
+        cleanupPortalGuardRules($connect);
 
         $settingsData = array(
             'global_playlist_url' => 'https://playlist.shifshqip.com/'
@@ -215,7 +194,8 @@ if ($settingsResult) {
                                 <input type="text" class="form-control" name="required_package" value="<?php echo htmlspecialchars($portal['required_package']); ?>">
                             </div>
 
-                            <h4>Outbound headers (to fetch private source)</h4>
+                            <h4>Parametrat për source private (serveri i përdor kur merr playlistën)</h4>
+                            <p class="help-info">Këto header-a përdoren vetëm nga playlist.shifshqip.com për të lexuar burimin tënd private. Përdoruesit nuk i shohin kurrë.</p>
                             <div class="form-group form-line">
                                 <label><b>User-Agent</b></label>
                                 <input type="text" class="form-control" name="outbound_user_agent" value="<?php echo htmlspecialchars($portal['outbound_user_agent']); ?>">

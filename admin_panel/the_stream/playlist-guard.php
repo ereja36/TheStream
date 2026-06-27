@@ -1,4 +1,7 @@
-<?php include_once('includes/header.php'); ?>
+<?php
+header('Location: playlist-portal.php');
+exit;
+include_once('includes/header.php'); ?>
 
 <?php
 

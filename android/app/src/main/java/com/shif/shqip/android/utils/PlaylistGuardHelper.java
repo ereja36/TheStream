@@ -71,7 +71,7 @@ public final class PlaylistGuardHelper {
     }
 
     public static PlaylistGuardRule resolveRule(SharedPref sharedPref, String requestUrl) {
-        if (sharedPref == null) {
+        if (sharedPref == null || PlaylistPortalHelper.isPortalUrl(requestUrl)) {
             return null;
         }
         List<PlaylistGuardRule> rules = sharedPref.getPlaylistGuardRules();
@@ -301,11 +301,12 @@ public final class PlaylistGuardHelper {
     }
 
     public static DefaultDataSource.Factory createDataSourceFactory(Context context, SharedPref sharedPref, String requestUrl, String channelUserAgent) {
-        PlaylistGuardRule rule = resolveRule(sharedPref, requestUrl);
+        boolean portalRequest = PlaylistPortalHelper.isPortalUrl(requestUrl);
+        PlaylistGuardRule rule = portalRequest ? null : resolveRule(sharedPref, requestUrl);
         String userAgent = resolveUserAgent(rule, channelUserAgent);
-        Map<String, String> headers = buildRequestHeaders(rule);
+        Map<String, String> headers = portalRequest ? new HashMap<>() : buildRequestHeaders(rule);
         headers.put("X-Shif-App", "1");
-        if (context != null) {
+        if (context != null && portalRequest) {
             headers.putAll(PlaylistPortalHelper.buildPortalHeaders(
                     requestUrl,
                     "GET",

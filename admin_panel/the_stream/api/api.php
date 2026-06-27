@@ -1181,7 +1181,7 @@ require_once("Rest.inc.php");
 					$selectFields = $hasStreamPattern
 						? "id, rule_name, url_pattern, stream_url_pattern, referer, origin, user_agent, cookie, extra_headers"
 						: "id, rule_name, url_pattern, referer, origin, user_agent, cookie, extra_headers";
-					$query = "SELECT $selectFields FROM tbl_playlist_guard WHERE status = 1 ORDER BY id ASC";
+					$query = "SELECT $selectFields FROM tbl_playlist_guard WHERE status = 1 AND url_pattern NOT LIKE '%playlist.shifshqip.com%' AND rule_name NOT LIKE 'Playlist Portal%' ORDER BY id ASC";
 					$result = $this->mysqli->query($query);
 					if ($result) {
 						while ($row = $result->fetch_assoc()) {

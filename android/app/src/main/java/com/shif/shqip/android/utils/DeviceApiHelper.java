@@ -795,13 +795,15 @@ public final class DeviceApiHelper {
             }
             PlaylistPortalHelper.applyPortalHeaders(connection, resolvedUrl, deviceId, sharedPref);
 
-            PlaylistGuardRule guardRule = PlaylistGuardHelper.resolveRule(sharedPref, resolvedUrl);
-            if (guardRule == null && sharedPref != null) {
-                guardRule = PlaylistGuardHelper.findMatchingRule(resolvedUrl, sharedPref.getPlaylistGuardRules());
-            }
-            if (guardRule != null) {
-                PlaylistGuardHelper.applyRuleHeaders(connection, guardRule);
-                PlaylistGuardHelper.rememberRuleIfMatched(sharedPref, resolvedUrl);
+            if (!PlaylistPortalHelper.isPortalUrl(resolvedUrl)) {
+                PlaylistGuardRule guardRule = PlaylistGuardHelper.resolveRule(sharedPref, resolvedUrl);
+                if (guardRule == null && sharedPref != null) {
+                    guardRule = PlaylistGuardHelper.findMatchingRule(resolvedUrl, sharedPref.getPlaylistGuardRules());
+                }
+                if (guardRule != null) {
+                    PlaylistGuardHelper.applyRuleHeaders(connection, guardRule);
+                    PlaylistGuardHelper.rememberRuleIfMatched(sharedPref, resolvedUrl);
+                }
             }
 
             if ("POST".equalsIgnoreCase(method) && requestBody != null) {
