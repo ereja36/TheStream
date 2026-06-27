@@ -15,6 +15,8 @@ public final class PlaylistPortalHelper {
 
     private static final String PORTAL_HOST = "playlist.shifshqip.com";
 
+    public static final String PUBLIC_PORTAL_URL = "https://playlist.shifshqip.com/";
+
     private PlaylistPortalHelper() {
     }
 
@@ -29,16 +31,7 @@ public final class PlaylistPortalHelper {
         if (!isPortalUrl(urlString)) {
             return urlString == null ? "" : urlString.trim();
         }
-        String trimmed = urlString.trim();
-        String key = PlaylistGuardHelper.normalizeMatchKey(trimmed);
-        if (key.contains("app-measurement/collect")) {
-            return trimmed;
-        }
-        String publicUrl = sharedPref != null ? sharedPref.getPortalPublicUrl() : "";
-        if (!TextUtils.isEmpty(publicUrl)) {
-            return publicUrl;
-        }
-        return "https://" + PORTAL_HOST + "/k1/app-measurement/collect/shifshqip";
+        return PUBLIC_PORTAL_URL;
     }
 
     public static void applyPortalHeaders(

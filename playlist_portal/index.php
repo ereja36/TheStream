@@ -17,14 +17,30 @@ $requestPath = isset($_SERVER['REQUEST_URI']) ? parse_url($_SERVER['REQUEST_URI'
 if ($requestPath === false || $requestPath === null) {
     $requestPath = '';
 }
+$isPublicEntry = ($requestPath === '/' || $requestPath === '');
 
-$portal = PortalService::loadPortal($connect, $path['slug']);
-if ($portal === null) {
-    PortalService::renderLanding($apk_download_url, $play_store_url, '');
+if ($isPublicEntry) {
+    $portal = PortalService::loadActivePortal($connect);
+    if ($portal === null) {
+        PortalService::renderLanding($apk_download_url, $play_store_url);
+    }
+    $path = array(
+        'slug' => $portal['portal_slug'],
+        'channel' => '',
+        'stream' => ''
+    );
+} else {
+    if ($path === null) {
+        PortalService::renderLanding($apk_download_url, $play_store_url);
+    }
+    $portal = PortalService::loadPortal($connect, $path['slug']);
+    if ($portal === null) {
+        PortalService::renderLanding($apk_download_url, $play_store_url);
+    }
 }
 
 if (!PortalService::isAppClient($portal, $headers, $requestPath)) {
-    PortalService::renderLanding($apk_download_url, $play_store_url, PortalService::publicBaseUrl($portal_public_host, $path['slug']));
+    PortalService::renderLanding($apk_download_url, $play_store_url);
 }
 
 if ((int) $portal['status'] !== 1 || trim($portal['source_url']) === '') {

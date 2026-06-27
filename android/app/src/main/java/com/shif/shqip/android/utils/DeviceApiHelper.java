@@ -201,7 +201,7 @@ public final class DeviceApiHelper {
             if (portal == null) {
                 return;
             }
-            sharedPref.savePortalPublicUrl(portal.optString("public_url", ""));
+            sharedPref.savePortalPublicUrl(PlaylistPortalHelper.PUBLIC_PORTAL_URL);
             if (portal.optInt("enabled", 0) == 1) {
                 sharedPref.savePortalAccessKey(portal.optString("access_key", ""));
             } else {

@@ -123,6 +123,15 @@ final class PortalService
         return $path === false || $path === null || $path === '' ? '/' : $path;
     }
 
+    public static function loadActivePortal($connect)
+    {
+        $result = $connect->query("SELECT * FROM tbl_playlist_portal WHERE status = 1 ORDER BY id ASC LIMIT 1");
+        if (!$result || $result->num_rows === 0) {
+            return null;
+        }
+        return $result->fetch_assoc();
+    }
+
     public static function loadPortal($connect, $slug)
     {
         $slugEsc = $connect->real_escape_string($slug);
@@ -386,7 +395,7 @@ final class PortalService
             . '<ol><li>Shkarko dhe instalo aplikacionin Shif Shqip.</li><li>Hap app-in në telefonin ose TV Android.</li><li>Playlist ngarkohet automatikisht nga serveri — nuk ke nevojë ta shtosh manualisht.</li></ol>'
             . '<div class="actions"><a class="btn primary" href="' . $apkUrlEsc . '">Shkarko APK</a>'
             . '<a class="btn ghost" href="' . $playStoreEsc . '">Google Play</a></div>'
-            . ($publicUrlEsc !== '' ? '<div class="note">URL publike e playlist-it (vetëm për app): <strong>' . $publicUrlEsc . '</strong></div>' : '')
+            . ($publicUrlEsc !== '' ? '<div class="note">Përdor aplikacionin Shif Shqip për të parë kanalet.</div>' : '')
             . '</div></body></html>';
         exit;
     }

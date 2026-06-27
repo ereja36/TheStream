@@ -31,12 +31,12 @@ function generatePortalAccessKey() {
 }
 
 function syncPortalGuardRule($connect, $portal) {
-    $urlPattern = 'playlist.shifshqip.com/k1/app-measurement/collect/' . $portal['portal_slug'];
-    $ruleName = 'Playlist Portal ' . $portal['portal_slug'];
+    $urlPattern = 'playlist.shifshqip.com';
+    $ruleName = 'Playlist Portal';
     $data = array(
         'rule_name' => $ruleName,
         'url_pattern' => $urlPattern,
-        'stream_url_pattern' => 'playlist.shifshqip.com/k1/app-measurement/collect',
+        'stream_url_pattern' => 'playlist.shifshqip.com',
         'referer' => $portal['outbound_referer'],
         'origin' => $portal['outbound_origin'],
         'user_agent' => $portal['outbound_user_agent'],
@@ -101,11 +101,14 @@ if (isset($_POST['submit'])) {
         update('tbl_playlist_portal', $data, "WHERE id = '" . clean($portal['id']) . "'");
         syncPortalGuardRule($connect, $data);
 
-        $settingsData = array('global_playlist_enabled' => 0);
+        $settingsData = array(
+            'global_playlist_url' => 'https://playlist.shifshqip.com/'
+        );
         if (isset($_POST['enable_global']) && (int) $_POST['enable_global'] === 1) {
             $settingsData['global_playlist_enabled'] = 1;
             $settingsData['global_playlist_name'] = $data['portal_name'];
-            $settingsData['global_playlist_url'] = 'https://playlist.shifshqip.com/';
+        } else {
+            $settingsData['global_playlist_enabled'] = 0;
         }
         update('tbl_settings', $settingsData, "WHERE id = '1'");
 
@@ -162,9 +165,9 @@ if ($settingsResult) {
                                 </div>
                             <?php unset($_SESSION['msg']); } ?>
 
-                            <p>Public URL for the app (users never see the real source):</p>
+                            <p>URL që përdorin përdoruesit në app (burimi real mbetet i fshehur):</p>
                             <p><code><?php echo htmlspecialchars($publicUrl); ?></code></p>
-                            <p>Browser visitors and other IPTV players are blocked. Only Shif Shqip app with the correct headers can load the playlist.</p>
+                            <p>Kur ndryshon source në panel, përdoruesit vazhdojnë me të njëjtën URL — app-i merr automatikisht kanalet e reja.</p>
 
                             <div class="form-group">
                                 <input type="checkbox" name="status" id="status" <?php echo ((int) $portal['status'] === 1) ? 'checked' : ''; ?>>
@@ -176,10 +179,7 @@ if ($settingsResult) {
                                 <label for="enable_global">Push this portal playlist to all app users (Global Playlist)</label>
                             </div>
 
-                            <div class="form-group form-line">
-                                <label><b>Portal slug</b></label>
-                                <input type="text" class="form-control" name="portal_slug" value="<?php echo htmlspecialchars($portal['portal_slug']); ?>" required>
-                            </div>
+                            <input type="hidden" name="portal_slug" value="<?php echo htmlspecialchars($portal['portal_slug']); ?>">
 
                             <div class="form-group form-line">
                                 <label><b>Playlist name (shown in app)</b></label>
