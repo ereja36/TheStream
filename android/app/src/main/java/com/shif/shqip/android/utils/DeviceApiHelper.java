@@ -349,6 +349,7 @@ public final class DeviceApiHelper {
                 if (TextUtils.isEmpty(source) || source.startsWith("content://")) {
                     continue;
                 }
+                source = PlaylistPortalHelper.resolvePortalUrl(source, sharedPref);
                 if (TextUtils.isEmpty(firstSource)) {
                     firstSource = source;
                     firstName = playlist.playlistName;
@@ -778,7 +779,8 @@ public final class DeviceApiHelper {
     public static String fetchUrlContent(String urlString, String method, String requestBody, String deviceId, String packageName, SharedPref sharedPref) throws IOException {
         HttpURLConnection connection = null;
         try {
-            URL url = new URL(urlString);
+            String resolvedUrl = PlaylistPortalHelper.resolvePortalUrl(urlString, sharedPref);
+            URL url = new URL(resolvedUrl);
             connection = (HttpURLConnection) url.openConnection();
             connection.setInstanceFollowRedirects(true);
             connection.setConnectTimeout(15000);
@@ -791,15 +793,15 @@ public final class DeviceApiHelper {
             if (!TextUtils.isEmpty(deviceId)) {
                 connection.setRequestProperty("X-Device-ID", deviceId);
             }
-            PlaylistPortalHelper.applyPortalHeaders(connection, urlString, deviceId, sharedPref);
+            PlaylistPortalHelper.applyPortalHeaders(connection, resolvedUrl, deviceId, sharedPref);
 
-            PlaylistGuardRule guardRule = PlaylistGuardHelper.resolveRule(sharedPref, urlString);
+            PlaylistGuardRule guardRule = PlaylistGuardHelper.resolveRule(sharedPref, resolvedUrl);
             if (guardRule == null && sharedPref != null) {
-                guardRule = PlaylistGuardHelper.findMatchingRule(urlString, sharedPref.getPlaylistGuardRules());
+                guardRule = PlaylistGuardHelper.findMatchingRule(resolvedUrl, sharedPref.getPlaylistGuardRules());
             }
             if (guardRule != null) {
                 PlaylistGuardHelper.applyRuleHeaders(connection, guardRule);
-                PlaylistGuardHelper.rememberRuleIfMatched(sharedPref, urlString);
+                PlaylistGuardHelper.rememberRuleIfMatched(sharedPref, resolvedUrl);
             }
 
             if ("POST".equalsIgnoreCase(method) && requestBody != null) {

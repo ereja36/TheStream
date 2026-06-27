@@ -17,14 +17,21 @@ final class PortalService
                 'stream' => $proxyMatches[2]
             );
         }
-        if (!preg_match('#/k1/app-measurement/collect/([^/]+)(?:/([^/]+))?(?:/([0-9]+))?/?$#', $path, $matches)) {
-            return null;
+        if (preg_match('#/k1/app-measurement/collect/([^/]+)(?:/([^/]+))?(?:/([0-9]+))?/?$#', $path, $matches)) {
+            return array(
+                'slug' => $matches[1],
+                'channel' => isset($matches[2]) ? $matches[2] : '',
+                'stream' => isset($matches[3]) ? $matches[3] : ''
+            );
         }
-        return array(
-            'slug' => $matches[1],
-            'channel' => isset($matches[2]) ? $matches[2] : '',
-            'stream' => isset($matches[3]) ? $matches[3] : ''
-        );
+        $trimmed = rtrim((string) $path, '/');
+        if ($trimmed === '') {
+            return array('slug' => 'shifshqip', 'channel' => '', 'stream' => '');
+        }
+        if (preg_match('#^/([^/]+)$#', $trimmed, $simple) && $simple[1] !== 'k1') {
+            return array('slug' => $simple[1], 'channel' => '', 'stream' => '');
+        }
+        return null;
     }
 
     public static function readHeaders()

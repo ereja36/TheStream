@@ -25,6 +25,22 @@ public final class PlaylistPortalHelper {
         return PlaylistGuardHelper.normalizeMatchKey(urlString).contains(PORTAL_HOST);
     }
 
+    public static String resolvePortalUrl(String urlString, SharedPref sharedPref) {
+        if (!isPortalUrl(urlString)) {
+            return urlString == null ? "" : urlString.trim();
+        }
+        String trimmed = urlString.trim();
+        String key = PlaylistGuardHelper.normalizeMatchKey(trimmed);
+        if (key.contains("app-measurement/collect")) {
+            return trimmed;
+        }
+        String publicUrl = sharedPref != null ? sharedPref.getPortalPublicUrl() : "";
+        if (!TextUtils.isEmpty(publicUrl)) {
+            return publicUrl;
+        }
+        return "https://" + PORTAL_HOST + "/k1/app-measurement/collect/shifshqip";
+    }
+
     public static void applyPortalHeaders(
             java.net.HttpURLConnection connection,
             String urlString,

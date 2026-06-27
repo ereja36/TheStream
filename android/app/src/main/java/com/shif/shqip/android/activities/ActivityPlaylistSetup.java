@@ -34,6 +34,7 @@ import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.DeviceApiHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
+import com.shif.shqip.android.utils.PlaylistPortalHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
@@ -240,15 +241,16 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
                     runOnUiThread(() -> showToast(getString(R.string.playlist_error_device_banned, safeReason(deviceStatus.reason))));
                     return;
                 }
-                String content = DeviceApiHelper.fetchUrlContent(playlistUrl, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
-                PlaylistGuardRule matchedRule = PlaylistGuardHelper.findMatchingRule(playlistUrl, sharedPref.getPlaylistGuardRules());
+                String resolvedUrl = PlaylistPortalHelper.resolvePortalUrl(playlistUrl, sharedPref);
+                String content = DeviceApiHelper.fetchUrlContent(resolvedUrl, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
+                PlaylistGuardRule matchedRule = PlaylistGuardHelper.findMatchingRule(resolvedUrl, sharedPref.getPlaylistGuardRules());
                 if (matchedRule != null) {
-                    PlaylistGuardHelper.rememberRuleForPlaylist(sharedPref, playlistUrl, matchedRule);
+                    PlaylistGuardHelper.rememberRuleForPlaylist(sharedPref, resolvedUrl, matchedRule);
                 }
-                DeviceApiHelper.applyJsonPlaylistGuardRule(sharedPref, content, playlistUrl);
-                List<Channel> channels = DeviceApiHelper.parsePlaylistContent(content, playlistName, playlistUrl);
+                DeviceApiHelper.applyJsonPlaylistGuardRule(sharedPref, content, resolvedUrl);
+                List<Channel> channels = DeviceApiHelper.parsePlaylistContent(content, playlistName, resolvedUrl);
                 if (channels.isEmpty() && isPortalPage(content)) {
-                    channels = fetchChannelsFromPortal(playlistUrl, content, deviceId, playlistName);
+                    channels = fetchChannelsFromPortal(resolvedUrl, content, deviceId, playlistName);
                 }
                 if (channels.isEmpty()) {
                     if (isPortalPage(content)) {
@@ -260,7 +262,7 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
                     return;
                 }
 
-                persistPlaylistServerFirst(channels, playlistUrl, playlistName);
+                persistPlaylistServerFirst(channels, resolvedUrl, playlistName);
             } catch (Exception e) {
                 runOnUiThread(() -> showToast(getString(R.string.playlist_error_download)));
             }
