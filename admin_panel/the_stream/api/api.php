@@ -1126,12 +1126,17 @@ require_once("Rest.inc.php");
 					'portal_slug' => 'shifshqip',
 					'portal_name' => 'Shif Shqip',
 					'public_url' => '',
-					'access_key' => ''
+					'access_key' => '',
+					'stream_host' => '',
+					'stream_user_agent' => '',
+					'stream_referer' => '',
+					'stream_origin' => '',
+					'stream_cookie' => ''
 				);
 
 				$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_playlist_portal'");
 				if ($tableCheck && $tableCheck->num_rows > 0) {
-					$result = $this->mysqli->query("SELECT portal_slug, portal_name, access_key, status FROM tbl_playlist_portal ORDER BY id ASC LIMIT 1");
+					$result = $this->mysqli->query("SELECT portal_slug, portal_name, access_key, status, source_url, outbound_user_agent, outbound_referer, outbound_origin, outbound_cookie FROM tbl_playlist_portal ORDER BY id ASC LIMIT 1");
 					if ($result && ($row = $result->fetch_assoc())) {
 						$slug = isset($row['portal_slug']) ? (string) $row['portal_slug'] : 'shifshqip';
 						$portal['portal_slug'] = $slug;
@@ -1140,6 +1145,17 @@ require_once("Rest.inc.php");
 						$portal['public_url'] = 'https://playlist.shifshqip.com/';
 						if ($portal['enabled'] === 1) {
 							$portal['access_key'] = isset($row['access_key']) ? (string) $row['access_key'] : '';
+							$sourceUrl = isset($row['source_url']) ? (string) $row['source_url'] : '';
+							if ($sourceUrl !== '') {
+								$parts = parse_url($sourceUrl);
+								if (is_array($parts) && isset($parts['host'])) {
+									$portal['stream_host'] = (string) $parts['host'];
+								}
+							}
+							$portal['stream_user_agent'] = isset($row['outbound_user_agent']) ? (string) $row['outbound_user_agent'] : '';
+							$portal['stream_referer'] = isset($row['outbound_referer']) ? (string) $row['outbound_referer'] : '';
+							$portal['stream_origin'] = isset($row['outbound_origin']) ? (string) $row['outbound_origin'] : '';
+							$portal['stream_cookie'] = isset($row['outbound_cookie']) ? (string) $row['outbound_cookie'] : '';
 						}
 					}
 				}

@@ -554,20 +554,15 @@ final class PortalService
 
     public static function rewriteM3uIndex($body, $host, $slug, $sourceUrl = '')
     {
-        $base = self::publicBaseUrl($host, $slug);
         $lines = preg_split('/\r\n|\n|\r/', (string) $body);
-        $entries = self::parseM3uEntries($body, $sourceUrl);
         $output = array();
-        $entryIndex = 0;
         foreach ($lines as $line) {
             $trimmed = trim($line);
             if ($trimmed === '' || $trimmed[0] === '#') {
                 $output[] = $line;
                 continue;
             }
-            $channelSlug = isset($entries[$entryIndex]) ? $entries[$entryIndex]['slug'] : (string) ($entryIndex + 1);
-            $entryIndex++;
-            $output[] = $base . '/' . rawurlencode($channelSlug) . '/1';
+            $output[] = self::resolveRelativeUrl($trimmed, $sourceUrl);
         }
         return implode("\n", $output);
     }

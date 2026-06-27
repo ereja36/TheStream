@@ -2,7 +2,9 @@ package com.shif.shqip.android.utils;
 
 import android.text.TextUtils;
 
+import com.shif.shqip.android.BuildConfig;
 import com.shif.shqip.android.databases.prefs.SharedPref;
+import com.shif.shqip.android.models.PlaylistGuardRule;
 
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -32,6 +34,28 @@ public final class PlaylistPortalHelper {
             return urlString == null ? "" : urlString.trim();
         }
         return PUBLIC_PORTAL_URL;
+    }
+
+    public static boolean isPortalStreamUrl(String urlString, SharedPref sharedPref) {
+        if (sharedPref == null || TextUtils.isEmpty(urlString) || !sharedPref.isPortalStreamActive()) {
+            return false;
+        }
+        String host = sharedPref.getPortalStreamHost();
+        return !TextUtils.isEmpty(host)
+                && PlaylistGuardHelper.normalizeMatchKey(urlString).contains(PlaylistGuardHelper.normalizeMatchKey(host));
+    }
+
+    public static PlaylistGuardRule buildPortalStreamRule(SharedPref sharedPref) {
+        if (sharedPref == null || !sharedPref.isPortalStreamActive()) {
+            return null;
+        }
+        PlaylistGuardRule rule = new PlaylistGuardRule();
+        rule.url_pattern = sharedPref.getPortalStreamHost();
+        rule.user_agent = sharedPref.getPortalStreamUserAgent();
+        rule.referer = sharedPref.getPortalStreamReferer();
+        rule.origin = sharedPref.getPortalStreamOrigin();
+        rule.cookie = sharedPref.getPortalStreamCookie();
+        return rule;
     }
 
     public static void applyPortalHeaders(

@@ -39,6 +39,11 @@ public class SharedPref {
     private static final String KEY_HIDE_PLAYLIST_SOURCE = "hide_playlist_source";
     private static final String KEY_PORTAL_ACCESS_KEY = "portal_access_key";
     private static final String KEY_PORTAL_PUBLIC_URL = "portal_public_url";
+    private static final String KEY_PORTAL_STREAM_HOST = "portal_stream_host";
+    private static final String KEY_PORTAL_STREAM_USER_AGENT = "portal_stream_user_agent";
+    private static final String KEY_PORTAL_STREAM_REFERER = "portal_stream_referer";
+    private static final String KEY_PORTAL_STREAM_ORIGIN = "portal_stream_origin";
+    private static final String KEY_PORTAL_STREAM_COOKIE = "portal_stream_cookie";
 
     Context context;
     SharedPreferences sharedPreferences;
@@ -414,6 +419,48 @@ public class SharedPref {
 
     public String getPortalPublicUrl() {
         return sharedPreferences.getString(KEY_PORTAL_PUBLIC_URL, "");
+    }
+
+    public void savePortalStreamConfig(String host, String userAgent, String referer, String origin, String cookie) {
+        editor.putString(KEY_PORTAL_STREAM_HOST, host == null ? "" : host.trim());
+        editor.putString(KEY_PORTAL_STREAM_USER_AGENT, userAgent == null ? "" : userAgent.trim());
+        editor.putString(KEY_PORTAL_STREAM_REFERER, referer == null ? "" : referer.trim());
+        editor.putString(KEY_PORTAL_STREAM_ORIGIN, origin == null ? "" : origin.trim());
+        editor.putString(KEY_PORTAL_STREAM_COOKIE, cookie == null ? "" : cookie.trim());
+        editor.apply();
+    }
+
+    public void clearPortalStreamConfig() {
+        editor.putString(KEY_PORTAL_STREAM_HOST, "");
+        editor.putString(KEY_PORTAL_STREAM_USER_AGENT, "");
+        editor.putString(KEY_PORTAL_STREAM_REFERER, "");
+        editor.putString(KEY_PORTAL_STREAM_ORIGIN, "");
+        editor.putString(KEY_PORTAL_STREAM_COOKIE, "");
+        editor.apply();
+    }
+
+    public boolean isPortalStreamActive() {
+        return !TextUtils.isEmpty(getPortalAccessKey()) && !TextUtils.isEmpty(getPortalStreamHost());
+    }
+
+    public String getPortalStreamHost() {
+        return sharedPreferences.getString(KEY_PORTAL_STREAM_HOST, "");
+    }
+
+    public String getPortalStreamUserAgent() {
+        return sharedPreferences.getString(KEY_PORTAL_STREAM_USER_AGENT, "");
+    }
+
+    public String getPortalStreamReferer() {
+        return sharedPreferences.getString(KEY_PORTAL_STREAM_REFERER, "");
+    }
+
+    public String getPortalStreamOrigin() {
+        return sharedPreferences.getString(KEY_PORTAL_STREAM_ORIGIN, "");
+    }
+
+    public String getPortalStreamCookie() {
+        return sharedPreferences.getString(KEY_PORTAL_STREAM_COOKIE, "");
     }
 
     public boolean hasUserPlaylistBackup() {

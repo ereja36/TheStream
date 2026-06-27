@@ -209,8 +209,16 @@ public final class DeviceApiHelper {
             sharedPref.savePortalPublicUrl(PlaylistPortalHelper.PUBLIC_PORTAL_URL);
             if (portal.optInt("enabled", 0) == 1) {
                 sharedPref.savePortalAccessKey(portal.optString("access_key", ""));
+                sharedPref.savePortalStreamConfig(
+                        portal.optString("stream_host", ""),
+                        portal.optString("stream_user_agent", ""),
+                        portal.optString("stream_referer", ""),
+                        portal.optString("stream_origin", ""),
+                        portal.optString("stream_cookie", "")
+                );
             } else {
                 sharedPref.savePortalAccessKey("");
+                sharedPref.clearPortalStreamConfig();
             }
         } catch (Exception ignored) {
             // keep cached portal key
