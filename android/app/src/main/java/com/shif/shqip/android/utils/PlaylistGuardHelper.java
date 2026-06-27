@@ -75,9 +75,6 @@ public final class PlaylistGuardHelper {
         if (sharedPref == null || PlaylistPortalHelper.isPortalUrl(requestUrl)) {
             return null;
         }
-        if (PlaylistPortalHelper.isPortalStreamUrl(requestUrl, sharedPref)) {
-            return PlaylistPortalHelper.buildPortalStreamRule(sharedPref);
-        }
         List<PlaylistGuardRule> rules = sharedPref.getPlaylistGuardRules();
         if (rules.isEmpty()) {
             return null;

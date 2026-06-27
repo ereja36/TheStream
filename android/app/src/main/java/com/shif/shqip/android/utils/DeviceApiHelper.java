@@ -192,12 +192,14 @@ public final class DeviceApiHelper {
             return;
         }
         try {
+            String deviceId = getLocalDeviceId(sharedPref.getContext());
             String endpoint = buildApiUrl(
                     sharedPref.getBaseUrl(),
                     "/api/api.php?get_playlist_portal&api_key=" + urlEncode(Config.REST_API_KEY)
+                            + "&device_id=" + urlEncode(deviceId)
                             + "&_=" + System.currentTimeMillis()
             );
-            String response = fetchUrlContent(endpoint, "GET", null, "", BuildConfig.APPLICATION_ID, sharedPref);
+            String response = fetchUrlContent(endpoint, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
             JSONObject json = new JSONObject(response);
             if (!"ok".equals(json.optString("status"))) {
                 return;
@@ -207,18 +209,11 @@ public final class DeviceApiHelper {
                 return;
             }
             sharedPref.savePortalPublicUrl(PlaylistPortalHelper.PUBLIC_PORTAL_URL);
+            sharedPref.clearPortalStreamConfig();
             if (portal.optInt("enabled", 0) == 1) {
                 sharedPref.savePortalAccessKey(portal.optString("access_key", ""));
-                sharedPref.savePortalStreamConfig(
-                        portal.optString("stream_host", ""),
-                        portal.optString("stream_user_agent", ""),
-                        portal.optString("stream_referer", ""),
-                        portal.optString("stream_origin", ""),
-                        portal.optString("stream_cookie", "")
-                );
             } else {
                 sharedPref.savePortalAccessKey("");
-                sharedPref.clearPortalStreamConfig();
             }
         } catch (Exception ignored) {
             // keep cached portal key

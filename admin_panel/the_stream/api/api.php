@@ -1121,41 +1121,30 @@ require_once("Rest.inc.php");
 				header('Pragma: no-cache');
 				header('Expires: 0');
 
+				$deviceId = isset($_GET['device_id']) ? trim((string) $_GET['device_id']) : '';
+
 				$portal = array(
 					'enabled' => 0,
 					'portal_slug' => 'shifshqip',
 					'portal_name' => 'Shif Shqip',
 					'public_url' => '',
-					'access_key' => '',
-					'stream_host' => '',
-					'stream_user_agent' => '',
-					'stream_referer' => '',
-					'stream_origin' => '',
-					'stream_cookie' => ''
+					'access_key' => ''
 				);
 
 				$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_playlist_portal'");
 				if ($tableCheck && $tableCheck->num_rows > 0) {
-					$result = $this->mysqli->query("SELECT portal_slug, portal_name, access_key, status, source_url, outbound_user_agent, outbound_referer, outbound_origin, outbound_cookie FROM tbl_playlist_portal ORDER BY id ASC LIMIT 1");
+					$result = $this->mysqli->query("SELECT portal_slug, portal_name, access_key, status FROM tbl_playlist_portal ORDER BY id ASC LIMIT 1");
 					if ($result && ($row = $result->fetch_assoc())) {
 						$slug = isset($row['portal_slug']) ? (string) $row['portal_slug'] : 'shifshqip';
 						$portal['portal_slug'] = $slug;
 						$portal['portal_name'] = isset($row['portal_name']) ? (string) $row['portal_name'] : 'Shif Shqip';
 						$portal['enabled'] = isset($row['status']) && (int) $row['status'] === 1 ? 1 : 0;
 						$portal['public_url'] = 'https://playlist.shifshqip.com/';
-						if ($portal['enabled'] === 1) {
-							$portal['access_key'] = isset($row['access_key']) ? (string) $row['access_key'] : '';
-							$sourceUrl = isset($row['source_url']) ? (string) $row['source_url'] : '';
-							if ($sourceUrl !== '') {
-								$parts = parse_url($sourceUrl);
-								if (is_array($parts) && isset($parts['host'])) {
-									$portal['stream_host'] = (string) $parts['host'];
-								}
+						if ($portal['enabled'] === 1 && strlen($deviceId) >= 8) {
+							$masterKey = isset($row['access_key']) ? (string) $row['access_key'] : '';
+							if ($masterKey !== '') {
+								$portal['access_key'] = hash_hmac('sha256', $deviceId, $masterKey);
 							}
-							$portal['stream_user_agent'] = isset($row['outbound_user_agent']) ? (string) $row['outbound_user_agent'] : '';
-							$portal['stream_referer'] = isset($row['outbound_referer']) ? (string) $row['outbound_referer'] : '';
-							$portal['stream_origin'] = isset($row['outbound_origin']) ? (string) $row['outbound_origin'] : '';
-							$portal['stream_cookie'] = isset($row['outbound_cookie']) ? (string) $row['outbound_cookie'] : '';
 						}
 					}
 				}

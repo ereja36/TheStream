@@ -103,7 +103,12 @@ final class PortalService
         }
 
         $accessKey = isset($portal['access_key']) ? (string) $portal['access_key'] : '';
-        if ($accessKey === '' || !hash_equals($accessKey, (string) $headers['x_shif_portal_key'])) {
+        $providedKey = (string) $headers['x_shif_portal_key'];
+        if ($accessKey === '' || $providedKey === '') {
+            return false;
+        }
+        $expectedKey = hash_hmac('sha256', $deviceId, $accessKey);
+        if (!hash_equals($expectedKey, $providedKey)) {
             return false;
         }
 
@@ -554,15 +559,18 @@ final class PortalService
 
     public static function rewriteM3uIndex($body, $host, $slug, $sourceUrl = '')
     {
+        $base = self::publicBaseUrl($host, $slug);
         $lines = preg_split('/\r\n|\n|\r/', (string) $body);
         $output = array();
+        $index = 0;
         foreach ($lines as $line) {
             $trimmed = trim($line);
             if ($trimmed === '' || $trimmed[0] === '#') {
                 $output[] = $line;
                 continue;
             }
-            $output[] = self::resolveRelativeUrl($trimmed, $sourceUrl);
+            $index++;
+            $output[] = $base . '/' . $index . '/1';
         }
         return implode("\n", $output);
     }
