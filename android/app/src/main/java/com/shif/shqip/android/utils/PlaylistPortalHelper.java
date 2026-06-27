@@ -48,7 +48,21 @@ public final class PlaylistPortalHelper {
         return false;
     }
 
+    public static boolean isPortalStreamEndpoint(String urlString) {
+        if (TextUtils.isEmpty(urlString)) {
+            return false;
+        }
+        String lower = urlString.toLowerCase(Locale.US);
+        if (isPortalUrl(urlString) && (lower.contains("/r/") || lower.contains("/s/"))) {
+            return true;
+        }
+        return lower.contains(".m3u8") || lower.contains(".m3u") || lower.contains("/hls/");
+    }
+
     public static String resolvePortalUrl(String urlString, SharedPref sharedPref) {
+        if (sharedPref != null && sharedPref.isPortalSessionActive()) {
+            return PUBLIC_PORTAL_URL;
+        }
         if (!isPortalUrl(urlString)) {
             return urlString == null ? "" : urlString.trim();
         }

@@ -39,6 +39,7 @@ import com.shif.shqip.android.utils.EpgHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
+import com.shif.shqip.android.utils.PlaylistPortalHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import com.google.android.exoplayer2.ExoPlayer;
@@ -265,6 +266,9 @@ public class ActivityMainV2 extends AppCompatActivity {
                         || !TextUtils.equals(heroPreviewChannel.channel_id, channel.channel_id)) {
                     return;
                 }
+                if (TextUtils.isEmpty(playbackUrl)) {
+                    return;
+                }
                 startHeroPreviewPlayer(channel, playbackUrl);
             });
         });
@@ -286,6 +290,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         int type = Util.inferContentType(uri);
         String lowerUrl = playbackUrl.toLowerCase(Locale.US);
         if (type == com.google.android.exoplayer2.C.TYPE_HLS
+                || PlaylistPortalHelper.isPortalStreamEndpoint(playbackUrl)
                 || lowerUrl.contains(".m3u8")
                 || lowerUrl.contains(".m3u")) {
             mediaSource = new HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri));

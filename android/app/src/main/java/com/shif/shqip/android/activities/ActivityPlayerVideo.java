@@ -40,6 +40,7 @@ import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
+import com.shif.shqip.android.utils.PlaylistPortalHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.TrackSelectionDialog;
 import com.google.android.exoplayer2.C;
@@ -158,7 +159,13 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         new Thread(() -> {
             PlaylistGuardSession.refreshBlocking(sharedPref);
             video_url = PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, video_url);
-            runOnUiThread(this::initializePlayer);
+            runOnUiThread(() -> {
+                if (TextUtils.isEmpty(video_url)) {
+                    errorDialog();
+                    return;
+                }
+                initializePlayer();
+            });
         }).start();
     }
 
@@ -325,9 +332,13 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @SuppressLint("SwitchIntDef")
     private MediaSource buildMediaSource(Uri uri) {
         MediaItem mMediaItem = MediaItem.fromUri(Uri.parse(String.valueOf(uri)));
+        String url = uri.toString();
         int type = Util.inferContentType(uri);
-        String url = uri.toString().toLowerCase(Locale.US);
-        if (type == C.TYPE_OTHER && (url.contains(".m3u8") || url.contains(".m3u") || url.contains("/hls/"))) {
+        if (type == C.TYPE_OTHER && PlaylistPortalHelper.isPortalStreamEndpoint(url)) {
+            type = C.TYPE_HLS;
+        }
+        String lowerUrl = url.toLowerCase(Locale.US);
+        if (type == C.TYPE_OTHER && (lowerUrl.contains(".m3u8") || lowerUrl.contains(".m3u") || lowerUrl.contains("/hls/"))) {
             type = C.TYPE_HLS;
         }
         switch (type) {
@@ -450,6 +461,11 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         new Thread(() -> {
             String resolvedUrl = PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, video_url);
             runOnUiThread(() -> {
+                if (TextUtils.isEmpty(resolvedUrl)) {
+                    progressBar.setVisibility(View.GONE);
+                    errorDialog();
+                    return;
+                }
                 video_url = resolvedUrl;
                 dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(
                         ActivityPlayerVideo.this, sharedPref, video_url, user_agent);

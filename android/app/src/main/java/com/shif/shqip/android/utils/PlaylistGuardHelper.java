@@ -191,10 +191,13 @@ public final class PlaylistGuardHelper {
     }
 
     public static String resolvePlaybackUrlSafe(SharedPref sharedPref, String urlString) {
-        if (sharedPref != null
-                && sharedPref.isPortalSessionActive()
-                && !TextUtils.isEmpty(urlString)
-                && !PlaylistPortalHelper.isPortalUrl(urlString)) {
+        if (TextUtils.isEmpty(urlString)) {
+            return urlString;
+        }
+        if (sharedPref != null && sharedPref.isPortalSessionActive()) {
+            if (PlaylistPortalHelper.isPortalStreamEndpoint(urlString)) {
+                return urlString;
+            }
             return "";
         }
         try {

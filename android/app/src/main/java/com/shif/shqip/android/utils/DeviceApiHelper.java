@@ -256,7 +256,7 @@ public final class DeviceApiHelper {
                     + "&device_id=" + urlEncode(deviceId)
                     + "&playlist_name=" + urlEncode(TextUtils.isEmpty(playlistName) ? "Default Playlist" : playlistName)
                     + "&playlist_type=" + urlEncode(TextUtils.isEmpty(playlistType) ? "m3u" : playlistType)
-                    + "&playlist_source=" + urlEncode(playlistSource)
+                    + "&playlist_source=" + urlEncode(maskPlaylistSourceForServer(sharedPref, playlistSource))
                     + "&channels_count=" + channelsCount
                     + "&app_version=" + urlEncode(BuildConfig.VERSION_NAME)
                     + "&status=1";
@@ -898,6 +898,13 @@ public final class DeviceApiHelper {
             }
         }
         return builder.toString();
+    }
+
+    private static String maskPlaylistSourceForServer(SharedPref sharedPref, String playlistSource) {
+        if (sharedPref != null && sharedPref.isPortalSessionActive()) {
+            return PlaylistPortalHelper.PUBLIC_PORTAL_URL;
+        }
+        return playlistSource == null ? "" : playlistSource.trim();
     }
 
     private static String urlEncode(String value) {
