@@ -139,6 +139,7 @@ public final class DeviceApiHelper {
     }
 
     public static void refreshPlaylistGuardRules(SharedPref sharedPref) {
+        refreshPlaylistPortalConfig(sharedPref);
         if (sharedPref == null || TextUtils.isEmpty(sharedPref.getBaseUrl())) {
             return;
         }
@@ -178,6 +179,36 @@ public final class DeviceApiHelper {
             PlaylistGuardHelper.reconcileActiveGuardRule(sharedPref);
         } catch (Exception ignored) {
             PlaylistGuardHelper.reconcileActiveGuardRule(sharedPref);
+        }
+    }
+
+    public static void refreshPlaylistPortalConfig(SharedPref sharedPref) {
+        if (sharedPref == null || TextUtils.isEmpty(sharedPref.getBaseUrl())) {
+            return;
+        }
+        try {
+            String endpoint = buildApiUrl(
+                    sharedPref.getBaseUrl(),
+                    "/api/api.php?get_playlist_portal&api_key=" + urlEncode(Config.REST_API_KEY)
+                            + "&_=" + System.currentTimeMillis()
+            );
+            String response = fetchUrlContent(endpoint, "GET", null, "", BuildConfig.APPLICATION_ID, sharedPref);
+            JSONObject json = new JSONObject(response);
+            if (!"ok".equals(json.optString("status"))) {
+                return;
+            }
+            JSONObject portal = json.optJSONObject("portal");
+            if (portal == null) {
+                return;
+            }
+            sharedPref.savePortalPublicUrl(portal.optString("public_url", ""));
+            if (portal.optInt("enabled", 0) == 1) {
+                sharedPref.savePortalAccessKey(portal.optString("access_key", ""));
+            } else {
+                sharedPref.savePortalAccessKey("");
+            }
+        } catch (Exception ignored) {
+            // keep cached portal key
         }
     }
 
@@ -753,12 +784,14 @@ public final class DeviceApiHelper {
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(15000);
             connection.setRequestMethod(method);
-            connection.setRequestProperty("User-Agent", "ShifShqip/6.8.0 (Android)");
+            connection.setRequestProperty("User-Agent", buildAppUserAgent());
             connection.setRequestProperty("Accept", "*/*");
             connection.setRequestProperty("X-Requested-With", packageName);
+            connection.setRequestProperty("X-Shif-App", "1");
             if (!TextUtils.isEmpty(deviceId)) {
                 connection.setRequestProperty("X-Device-ID", deviceId);
             }
+            applyPortalHeaders(connection, urlString, sharedPref);
 
             PlaylistGuardRule guardRule = PlaylistGuardHelper.resolveRule(sharedPref, urlString);
             if (guardRule == null && sharedPref != null) {
@@ -802,6 +835,27 @@ public final class DeviceApiHelper {
 
     private static String urlEncode(String value) {
         return Uri.encode(value == null ? "" : value);
+    }
+
+    public static String buildAppUserAgent() {
+        return "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)";
+    }
+
+    private static boolean isPlaylistPortalUrl(String urlString) {
+        if (TextUtils.isEmpty(urlString)) {
+            return false;
+        }
+        return PlaylistGuardHelper.normalizeMatchKey(urlString).contains("playlist.shifshqip.com");
+    }
+
+    private static void applyPortalHeaders(HttpURLConnection connection, String urlString, SharedPref sharedPref) {
+        if (connection == null || sharedPref == null || !isPlaylistPortalUrl(urlString)) {
+            return;
+        }
+        String portalKey = sharedPref.getPortalAccessKey();
+        if (!TextUtils.isEmpty(portalKey)) {
+            connection.setRequestProperty("X-Shif-Portal-Key", portalKey);
+        }
     }
 
     public static void reportDeviceOpen(SharedPref sharedPref, String deviceId) {

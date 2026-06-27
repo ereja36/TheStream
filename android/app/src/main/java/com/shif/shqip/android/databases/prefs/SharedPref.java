@@ -37,6 +37,8 @@ public class SharedPref {
     private static final String KEY_USER_PLAYLIST_BACKUP_NAME = "user_playlist_backup_name";
     private static final String KEY_GLOBAL_PLAYLIST_ACTIVE = "global_playlist_active";
     private static final String KEY_HIDE_PLAYLIST_SOURCE = "hide_playlist_source";
+    private static final String KEY_PORTAL_ACCESS_KEY = "portal_access_key";
+    private static final String KEY_PORTAL_PUBLIC_URL = "portal_public_url";
 
     Context context;
     SharedPreferences sharedPreferences;
@@ -390,6 +392,24 @@ public class SharedPref {
 
     public boolean shouldHidePlaylistSource() {
         return sharedPreferences.getBoolean(KEY_HIDE_PLAYLIST_SOURCE, false);
+    }
+
+    public void savePortalAccessKey(String accessKey) {
+        editor.putString(KEY_PORTAL_ACCESS_KEY, accessKey == null ? "" : accessKey.trim());
+        editor.apply();
+    }
+
+    public String getPortalAccessKey() {
+        return sharedPreferences.getString(KEY_PORTAL_ACCESS_KEY, "");
+    }
+
+    public void savePortalPublicUrl(String publicUrl) {
+        editor.putString(KEY_PORTAL_PUBLIC_URL, publicUrl == null ? "" : publicUrl.trim());
+        editor.apply();
+    }
+
+    public String getPortalPublicUrl() {
+        return sharedPreferences.getString(KEY_PORTAL_PUBLIC_URL, "");
     }
 
     public boolean hasUserPlaylistBackup() {

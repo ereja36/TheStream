@@ -3,6 +3,7 @@ package com.shif.shqip.android.utils;
 import android.content.Context;
 import android.text.TextUtils;
 
+import com.shif.shqip.android.BuildConfig;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.PlaylistGuardRule;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
@@ -26,7 +27,7 @@ import java.util.regex.Pattern;
 
 public final class PlaylistGuardHelper {
 
-    private static final String DEFAULT_USER_AGENT = "ShifShqip/6.8.0 (Android)";
+    private static final String DEFAULT_USER_AGENT = "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)";
 
     private static final Pattern REDIRECT_URL_PATTERN = Pattern.compile("https?://[^\\s\"'<>]+", Pattern.CASE_INSENSITIVE);
     private static final Pattern RELATIVE_REDIRECT_PATTERN = Pattern.compile("(/[^\\s\"'<>]+)", Pattern.CASE_INSENSITIVE);
@@ -141,8 +142,11 @@ public final class PlaylistGuardHelper {
             connection.setRequestMethod("GET");
             connection.setRequestProperty("Accept", "*/*");
             connection.setRequestProperty("User-Agent", resolveUserAgent(rule, "default"));
+            connection.setRequestProperty("X-Requested-With", BuildConfig.APPLICATION_ID);
+            connection.setRequestProperty("X-Shif-App", "1");
             applyRuleHeaders(connection, rule);
             applyCollectFallbackHeaders(connection, urlString, rule);
+            applyPortalHeaders(connection, sharedPref, urlString);
 
             int responseCode = connection.getResponseCode();
             String finalUrl = connection.getURL().toString();
@@ -293,6 +297,8 @@ public final class PlaylistGuardHelper {
         PlaylistGuardRule rule = resolveRule(sharedPref, requestUrl);
         String userAgent = resolveUserAgent(rule, channelUserAgent);
         Map<String, String> headers = buildRequestHeaders(rule);
+        headers.put("X-Shif-App", "1");
+        applyPortalHeaderMap(headers, sharedPref, requestUrl);
 
         DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
                 .setAllowCrossProtocolRedirects(true)
@@ -608,6 +614,32 @@ public final class PlaylistGuardHelper {
             return;
         }
         connection.setRequestProperty("Referer", "https://shifher-15810060fed0.herokuapp.com/");
+    }
+
+    private static void applyPortalHeaders(HttpURLConnection connection, SharedPref sharedPref, String urlString) {
+        if (connection == null || sharedPref == null || TextUtils.isEmpty(urlString)) {
+            return;
+        }
+        if (!normalizeMatchKey(urlString).contains("playlist.shifshqip.com")) {
+            return;
+        }
+        String portalKey = sharedPref.getPortalAccessKey();
+        if (!TextUtils.isEmpty(portalKey)) {
+            connection.setRequestProperty("X-Shif-Portal-Key", portalKey);
+        }
+    }
+
+    private static void applyPortalHeaderMap(Map<String, String> headers, SharedPref sharedPref, String urlString) {
+        if (headers == null || sharedPref == null || TextUtils.isEmpty(urlString)) {
+            return;
+        }
+        if (!normalizeMatchKey(urlString).contains("playlist.shifshqip.com")) {
+            return;
+        }
+        String portalKey = sharedPref.getPortalAccessKey();
+        if (!TextUtils.isEmpty(portalKey)) {
+            headers.put("X-Shif-Portal-Key", portalKey);
+        }
     }
 
     private static boolean isLikelyPlaylistUrl(String url) {

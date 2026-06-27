@@ -1100,6 +1100,57 @@ require_once("Rest.inc.php");
 			$this->response($this->json($resp), 200);
 		}
 
+		public function get_playlist_portal() {
+
+			include "../includes/config.php";
+			$setting_qry = "SELECT * FROM tbl_settings WHERE id = '1'";
+			$setting_result = mysqli_query($connect, $setting_qry);
+			$settings_row = mysqli_fetch_assoc($setting_result);
+			$api_key = $settings_row['api_key'];
+
+			if ($this->get_request_method() != "GET") $this->response('', 406);
+
+			if ($this->validateResourceAccess($this->retrieveCurrentToken())) {
+				$access_key_received = isset($_GET['api_key']) ? $_GET['api_key'] : '';
+				if ($access_key_received != $api_key) {
+					$this->responseInvalidApiKey();
+					return;
+				}
+
+				header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+				header('Pragma: no-cache');
+				header('Expires: 0');
+
+				$portal = array(
+					'enabled' => 0,
+					'portal_slug' => 'shifshqip',
+					'portal_name' => 'Shif Shqip',
+					'public_url' => '',
+					'access_key' => ''
+				);
+
+				$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_playlist_portal'");
+				if ($tableCheck && $tableCheck->num_rows > 0) {
+					$result = $this->mysqli->query("SELECT portal_slug, portal_name, access_key, status FROM tbl_playlist_portal ORDER BY id ASC LIMIT 1");
+					if ($result && ($row = $result->fetch_assoc())) {
+						$slug = isset($row['portal_slug']) ? (string) $row['portal_slug'] : 'shifshqip';
+						$portal['portal_slug'] = $slug;
+						$portal['portal_name'] = isset($row['portal_name']) ? (string) $row['portal_name'] : 'Shif Shqip';
+						$portal['enabled'] = isset($row['status']) && (int) $row['status'] === 1 ? 1 : 0;
+						$portal['public_url'] = 'https://playlist.shifshqip.com/k1/app-measurement/collect/' . rawurlencode($slug);
+						if ($portal['enabled'] === 1) {
+							$portal['access_key'] = isset($row['access_key']) ? (string) $row['access_key'] : '';
+						}
+					}
+				}
+
+				$respon = array('status' => 'ok', 'portal' => $portal);
+				$this->response(json_encode($respon), 200);
+			} else {
+				$this->responseInvalidParam();
+			}
+		}
+
 		public function get_playlist_guard() {
 
 			include "../includes/config.php";
@@ -1391,6 +1442,8 @@ require_once("Rest.inc.php");
 		$api->get_startup_popup();
 	} else if (isset($_GET['get_playlist_guard'])) {
 		$api->get_playlist_guard();
+	} else if (isset($_GET['get_playlist_portal'])) {
+		$api->get_playlist_portal();
 	} else if (isset($_GET['report_device_open'])) {
 		$api->report_device_open();
 	} else if (isset($_GET['get_inbox_notifications'])) {

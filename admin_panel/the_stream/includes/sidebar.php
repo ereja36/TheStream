@@ -111,6 +111,13 @@
                         </a>
                     </li>
 
+                    <li class="<?php if (strpos($page, 'playlist-portal') !== false) {echo 'active';} else { echo 'noactive'; }?>">
+                        <a href="playlist-portal.php">
+                            <i class="material-icons">link</i>
+                            <span><?php echo $menu_playlist_portal; ?></span>
+                        </a>
+                    </li>
+
                     <li class="<?php if (strpos($page, 'playlist-guard') !== false) {echo 'active';} else { echo 'noactive'; }?>">
                         <a href="playlist-guard.php">
                             <i class="material-icons">security</i>
