@@ -416,7 +416,7 @@ public class SharedPref {
     public void savePortalSessionToken(String sessionToken) {
         editor.putString(KEY_PORTAL_SESSION_TOKEN, sessionToken == null ? "" : sessionToken.trim());
         editor.remove(KEY_PORTAL_ACCESS_KEY);
-        editor.apply();
+        editor.commit();
     }
 
     public String getPortalSessionToken() {

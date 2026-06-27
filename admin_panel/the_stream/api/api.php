@@ -1383,9 +1383,18 @@ require_once("Rest.inc.php");
 				  KEY `expires_at` (`expires_at`)
 				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
 			);
+			$deviceEsc = $this->real_escape($deviceId);
+			$existing = $this->mysqli->query(
+				"SELECT session_token FROM tbl_portal_sessions WHERE device_id = '$deviceEsc' AND expires_at > DATE_ADD(NOW(), INTERVAL 1 HOUR) LIMIT 1"
+			);
+			if ($existing && ($row = $existing->fetch_assoc())) {
+				$token = isset($row['session_token']) ? (string) $row['session_token'] : '';
+				if ($token !== '') {
+					return $token;
+				}
+			}
 			$token = bin2hex(random_bytes(32));
 			$expiresAt = date('Y-m-d H:i:s', time() + (7 * 86400));
-			$deviceEsc = $this->real_escape($deviceId);
 			$tokenEsc = $this->real_escape($token);
 			$expiresEsc = $this->real_escape($expiresAt);
 			$this->mysqli->query(

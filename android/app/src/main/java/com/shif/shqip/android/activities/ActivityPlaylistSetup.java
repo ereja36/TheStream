@@ -593,7 +593,6 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
         if (channelsToSave.isEmpty() && channels != null && !channels.isEmpty()) {
             channelsToSave = new ArrayList<>(channels);
             resequenceChannelIds(channelsToSave);
-            sharedPref.savePlaylistChannels(channelsToSave);
         }
 
         if (channelsToSave.isEmpty()) {
@@ -601,6 +600,7 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
             return;
         }
 
+        sharedPref.savePlaylistChannels(channelsToSave);
         sharedPref.savePlaylistUrl(playlistSource);
         runOnUiThread(() -> {
             showToast(getString(R.string.playlist_saved));

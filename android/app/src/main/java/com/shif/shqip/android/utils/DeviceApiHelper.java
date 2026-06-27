@@ -212,11 +212,13 @@ public final class DeviceApiHelper {
             if (portal.optInt("enabled", 0) == 1) {
                 String sessionToken = portal.optString("session_token", "");
                 String previousToken = sharedPref.getPortalSessionToken();
-                if (!TextUtils.isEmpty(sessionToken) && !sessionToken.equals(previousToken)) {
-                    sharedPref.clearPlaylistChannels();
-                }
                 sharedPref.savePortalSessionToken(sessionToken);
                 sharedPref.clearPortalStreamConfig();
+                if (!TextUtils.isEmpty(sessionToken)
+                        && !TextUtils.isEmpty(previousToken)
+                        && !sessionToken.equals(previousToken)) {
+                    sharedPref.clearPlaylistChannels();
+                }
             } else {
                 sharedPref.savePortalSessionToken("");
                 sharedPref.clearPortalStreamConfig();
@@ -794,6 +796,14 @@ public final class DeviceApiHelper {
         HttpURLConnection connection = null;
         try {
             String resolvedUrl = PlaylistPortalHelper.resolvePortalUrl(urlString, sharedPref);
+            if (PlaylistPortalHelper.isPortalUrl(resolvedUrl) && sharedPref != null) {
+                if (TextUtils.isEmpty(sharedPref.getPortalSessionToken())) {
+                    refreshPlaylistPortalConfig(sharedPref);
+                }
+                if (TextUtils.isEmpty(deviceId)) {
+                    deviceId = getLocalDeviceId(sharedPref.getContext());
+                }
+            }
             URL url = new URL(resolvedUrl);
             connection = (HttpURLConnection) url.openConnection();
             connection.setInstanceFollowRedirects(true);
@@ -833,9 +843,16 @@ public final class DeviceApiHelper {
                 throw new IOException("HTTP " + responseCode);
             }
             String payloadHeader = connection.getHeaderField("X-Shif-Payload");
-            String body = readAll(connection.getInputStream());
+            String body = readResponseBody(connection);
             if ("enc".equalsIgnoreCase(payloadHeader) && sharedPref != null) {
                 String sessionToken = sharedPref.getPortalSessionToken();
+                if (TextUtils.isEmpty(sessionToken)) {
+                    refreshPlaylistPortalConfig(sharedPref);
+                    sessionToken = sharedPref.getPortalSessionToken();
+                }
+                if (TextUtils.isEmpty(deviceId)) {
+                    deviceId = getLocalDeviceId(sharedPref.getContext());
+                }
                 String playlistKey = PlaylistPortalHelper.derivePlaylistKey(deviceId, sessionToken);
                 String decrypted = PlaylistPortalHelper.decryptPayload(body, playlistKey);
                 if (!TextUtils.isEmpty(decrypted)) {
@@ -848,6 +865,28 @@ public final class DeviceApiHelper {
                 connection.disconnect();
             }
         }
+    }
+
+    private static String readResponseBody(HttpURLConnection connection) throws IOException {
+        InputStream inputStream = connection.getInputStream();
+        if (inputStream == null) {
+            return "";
+        }
+        String payloadHeader = connection.getHeaderField("X-Shif-Payload");
+        if ("enc".equalsIgnoreCase(payloadHeader)) {
+            return new String(readAllBytes(inputStream), StandardCharsets.UTF_8).trim();
+        }
+        return readAll(inputStream);
+    }
+
+    private static byte[] readAllBytes(InputStream inputStream) throws IOException {
+        byte[] buffer = new byte[8192];
+        int read;
+        java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
+        while ((read = inputStream.read(buffer)) != -1) {
+            outputStream.write(buffer, 0, read);
+        }
+        return outputStream.toByteArray();
     }
 
     private static String readAll(InputStream inputStream) throws IOException {
