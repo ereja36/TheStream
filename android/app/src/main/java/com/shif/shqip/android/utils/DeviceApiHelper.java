@@ -140,7 +140,7 @@ public final class DeviceApiHelper {
 
     public static void refreshPlaylistGuardRules(SharedPref sharedPref) {
         refreshPlaylistPortalConfig(sharedPref);
-        if (sharedPref != null && !TextUtils.isEmpty(sharedPref.getPortalAccessKey())) {
+        if (sharedPref != null && sharedPref.isPortalSessionActive()) {
             sharedPref.savePlaylistGuardRules(new ArrayList<>());
             sharedPref.clearActiveGuardRule();
             return;
@@ -210,15 +210,15 @@ public final class DeviceApiHelper {
             }
             sharedPref.savePortalPublicUrl(PlaylistPortalHelper.PUBLIC_PORTAL_URL);
             if (portal.optInt("enabled", 0) == 1) {
-                String derivedKey = portal.optString("access_key", "");
-                sharedPref.savePortalAccessKey(derivedKey);
-                PlaylistPortalHelper.applyEncryptedStreamConfig(
-                        sharedPref,
-                        portal.optString("cfg", ""),
-                        derivedKey
-                );
+                String sessionToken = portal.optString("session_token", "");
+                String previousToken = sharedPref.getPortalSessionToken();
+                if (!TextUtils.isEmpty(sessionToken) && !sessionToken.equals(previousToken)) {
+                    sharedPref.clearPlaylistChannels();
+                }
+                sharedPref.savePortalSessionToken(sessionToken);
+                sharedPref.clearPortalStreamConfig();
             } else {
-                sharedPref.savePortalAccessKey("");
+                sharedPref.savePortalSessionToken("");
                 sharedPref.clearPortalStreamConfig();
             }
         } catch (Exception ignored) {
@@ -835,8 +835,9 @@ public final class DeviceApiHelper {
             String payloadHeader = connection.getHeaderField("X-Shif-Payload");
             String body = readAll(connection.getInputStream());
             if ("enc".equalsIgnoreCase(payloadHeader) && sharedPref != null) {
-                String derivedKey = sharedPref.getPortalAccessKey();
-                String decrypted = PlaylistPortalHelper.decryptPayload(body, derivedKey);
+                String sessionToken = sharedPref.getPortalSessionToken();
+                String playlistKey = PlaylistPortalHelper.derivePlaylistKey(deviceId, sessionToken);
+                String decrypted = PlaylistPortalHelper.decryptPayload(body, playlistKey);
                 if (!TextUtils.isEmpty(decrypted)) {
                     return decrypted;
                 }

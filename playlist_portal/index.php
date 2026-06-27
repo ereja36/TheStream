@@ -39,7 +39,7 @@ if ($isPublicEntry) {
     }
 }
 
-if (!PortalService::isAppClient($portal, $headers, $requestPath)) {
+if (!PortalService::isAppClient($portal, $headers, $requestPath, $connect)) {
     PortalService::renderLanding($apk_download_url, $play_store_url);
 }
 
@@ -65,9 +65,9 @@ if ($path['channel'] === '') {
     }
     $playlistBody = PortalService::rewriteM3uIndex($upstream['body'], $host, $path['slug'], $sourceUrl, $portal);
     $deviceId = trim((string) $headers['x_device_id']);
-    $masterKey = isset($portal['access_key']) ? (string) $portal['access_key'] : '';
-    if ($deviceId !== '' && $masterKey !== '') {
-        $encrypted = PortalService::encryptForDevice($playlistBody, $deviceId, $masterKey);
+    $sessionToken = trim((string) $headers['x_shif_session']);
+    if ($deviceId !== '' && $sessionToken !== '') {
+        $encrypted = PortalService::encryptForDevice($playlistBody, $deviceId, $sessionToken);
         if ($encrypted !== '') {
             header('Content-Type: application/octet-stream');
             header('X-Shif-Payload: enc');
@@ -89,8 +89,10 @@ if ($path['channel'] === 'r' && $path['stream'] !== '') {
     if ($finalUrl === '') {
         PortalService::deny('resolve_failed');
     }
-    header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
-    header('Location: ' . $finalUrl, true, 302);
+    $streamUpstream = PortalService::fetchStreamPayload($portal, $finalUrl, $sourceUrl);
+    if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $finalUrl, $streamUpstream)) {
+        PortalService::deny('stream_error');
+    }
     exit;
 }
 

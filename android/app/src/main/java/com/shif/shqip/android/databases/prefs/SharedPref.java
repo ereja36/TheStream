@@ -38,6 +38,7 @@ public class SharedPref {
     private static final String KEY_GLOBAL_PLAYLIST_ACTIVE = "global_playlist_active";
     private static final String KEY_HIDE_PLAYLIST_SOURCE = "hide_playlist_source";
     private static final String KEY_PORTAL_ACCESS_KEY = "portal_access_key";
+    private static final String KEY_PORTAL_SESSION_TOKEN = "portal_session_token";
     private static final String KEY_PORTAL_PUBLIC_URL = "portal_public_url";
     private static final String KEY_PORTAL_STREAM_HOST = "portal_stream_host";
     private static final String KEY_PORTAL_STREAM_USER_AGENT = "portal_stream_user_agent";
@@ -412,6 +413,20 @@ public class SharedPref {
         return sharedPreferences.getString(KEY_PORTAL_ACCESS_KEY, "");
     }
 
+    public void savePortalSessionToken(String sessionToken) {
+        editor.putString(KEY_PORTAL_SESSION_TOKEN, sessionToken == null ? "" : sessionToken.trim());
+        editor.remove(KEY_PORTAL_ACCESS_KEY);
+        editor.apply();
+    }
+
+    public String getPortalSessionToken() {
+        return sharedPreferences.getString(KEY_PORTAL_SESSION_TOKEN, "");
+    }
+
+    public boolean isPortalSessionActive() {
+        return !TextUtils.isEmpty(getPortalSessionToken());
+    }
+
     public void savePortalPublicUrl(String publicUrl) {
         editor.putString(KEY_PORTAL_PUBLIC_URL, publicUrl == null ? "" : publicUrl.trim());
         editor.apply();
@@ -440,7 +455,7 @@ public class SharedPref {
     }
 
     public boolean isPortalStreamActive() {
-        return !TextUtils.isEmpty(getPortalAccessKey()) && !TextUtils.isEmpty(getPortalStreamHost());
+        return false;
     }
 
     public String getPortalStreamHost() {

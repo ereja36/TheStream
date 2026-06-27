@@ -33,7 +33,7 @@ public final class PlaylistPortalHelper {
         if (TextUtils.isEmpty(urlString)) {
             return false;
         }
-        return PlaylistGuardHelper.normalizeMatchKey(urlString).contains(PORTAL_HOST);
+        return hostMatches(urlString, PORTAL_HOST);
     }
 
     public static boolean isPortalResolveUrl(String urlString) {
@@ -44,6 +44,10 @@ public final class PlaylistPortalHelper {
         return lower.contains("/app-measurement/collect/") && lower.contains("/r/");
     }
 
+    public static boolean isPortalStreamUrl(String urlString, SharedPref sharedPref) {
+        return false;
+    }
+
     public static String resolvePortalUrl(String urlString, SharedPref sharedPref) {
         if (!isPortalUrl(urlString)) {
             return urlString == null ? "" : urlString.trim();
@@ -51,26 +55,8 @@ public final class PlaylistPortalHelper {
         return PUBLIC_PORTAL_URL;
     }
 
-    public static boolean isPortalStreamUrl(String urlString, SharedPref sharedPref) {
-        if (sharedPref == null || TextUtils.isEmpty(urlString) || !sharedPref.isPortalStreamActive()) {
-            return false;
-        }
-        String host = sharedPref.getPortalStreamHost();
-        return !TextUtils.isEmpty(host)
-                && PlaylistGuardHelper.normalizeMatchKey(urlString).contains(PlaylistGuardHelper.normalizeMatchKey(host));
-    }
-
     public static PlaylistGuardRule buildPortalStreamRule(SharedPref sharedPref) {
-        if (sharedPref == null || !sharedPref.isPortalStreamActive()) {
-            return null;
-        }
-        PlaylistGuardRule rule = new PlaylistGuardRule();
-        rule.url_pattern = sharedPref.getPortalStreamHost();
-        rule.user_agent = sharedPref.getPortalStreamUserAgent();
-        rule.referer = sharedPref.getPortalStreamReferer();
-        rule.origin = sharedPref.getPortalStreamOrigin();
-        rule.cookie = sharedPref.getPortalStreamCookie();
-        return rule;
+        return null;
     }
 
     public static void applyPortalHeaders(
@@ -82,14 +68,12 @@ public final class PlaylistPortalHelper {
         if (connection == null || sharedPref == null || !isPortalUrl(urlString)) {
             return;
         }
-        String portalKey = sharedPref.getPortalAccessKey();
-        if (TextUtils.isEmpty(portalKey) || TextUtils.isEmpty(deviceId)) {
+        String sessionToken = sharedPref.getPortalSessionToken();
+        if (TextUtils.isEmpty(sessionToken) || TextUtils.isEmpty(deviceId)) {
             return;
         }
-        connection.setRequestProperty("X-Shif-Portal-Key", portalKey);
-        if (!TextUtils.isEmpty(deviceId)) {
-            connection.setRequestProperty("X-Device-ID", deviceId);
-        }
+        connection.setRequestProperty("X-Shif-Session", sessionToken);
+        connection.setRequestProperty("X-Device-ID", deviceId);
     }
 
     public static java.util.Map<String, String> buildPortalHeaders(
@@ -102,15 +86,31 @@ public final class PlaylistPortalHelper {
         if (!isPortalUrl(requestUrl) || sharedPref == null || TextUtils.isEmpty(deviceId)) {
             return headers;
         }
-        String portalKey = sharedPref.getPortalAccessKey();
-        if (TextUtils.isEmpty(portalKey)) {
+        String sessionToken = sharedPref.getPortalSessionToken();
+        if (TextUtils.isEmpty(sessionToken)) {
             return headers;
         }
-        headers.put("X-Shif-Portal-Key", portalKey);
-        if (!TextUtils.isEmpty(deviceId)) {
-            headers.put("X-Device-ID", deviceId);
-        }
+        headers.put("X-Shif-Session", sessionToken);
+        headers.put("X-Device-ID", deviceId);
         return headers;
+    }
+
+    public static String derivePlaylistKey(String deviceId, String sessionToken) {
+        if (TextUtils.isEmpty(deviceId) || TextUtils.isEmpty(sessionToken)) {
+            return "";
+        }
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(sessionToken.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] digest = mac.doFinal(deviceId.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte value : digest) {
+                builder.append(String.format(Locale.US, "%02x", value));
+            }
+            return builder.toString();
+        } catch (Exception ignored) {
+            return "";
+        }
     }
 
     public static String decryptPayload(String encoded, String derivedAccessKey) {
@@ -138,25 +138,22 @@ public final class PlaylistPortalHelper {
     }
 
     public static void applyEncryptedStreamConfig(SharedPref sharedPref, String cfg, String derivedAccessKey) {
-        if (sharedPref == null || TextUtils.isEmpty(cfg) || TextUtils.isEmpty(derivedAccessKey)) {
-            return;
-        }
-        try {
-            String jsonText = decryptPayload(cfg, derivedAccessKey);
-            if (TextUtils.isEmpty(jsonText)) {
-                sharedPref.clearPortalStreamConfig();
-                return;
-            }
-            JSONObject json = new JSONObject(jsonText);
-            sharedPref.savePortalStreamConfig(
-                    json.optString("host", ""),
-                    json.optString("user_agent", ""),
-                    json.optString("referer", ""),
-                    json.optString("origin", ""),
-                    json.optString("cookie", "")
-            );
-        } catch (Exception ignored) {
+        if (sharedPref != null) {
             sharedPref.clearPortalStreamConfig();
+        }
+    }
+
+    private static boolean hostMatches(String urlString, String expectedHost) {
+        try {
+            URL url = new URL(urlString);
+            String host = url.getHost();
+            if (TextUtils.isEmpty(host) || TextUtils.isEmpty(expectedHost)) {
+                return false;
+            }
+            return host.equalsIgnoreCase(expectedHost);
+        } catch (Exception ignored) {
+            String normalized = PlaylistGuardHelper.normalizeMatchKey(urlString);
+            return !TextUtils.isEmpty(normalized) && normalized.startsWith(expectedHost.toLowerCase(Locale.US));
         }
     }
 

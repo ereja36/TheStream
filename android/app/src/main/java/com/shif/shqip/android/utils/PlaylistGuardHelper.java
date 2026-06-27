@@ -191,6 +191,12 @@ public final class PlaylistGuardHelper {
     }
 
     public static String resolvePlaybackUrlSafe(SharedPref sharedPref, String urlString) {
+        if (sharedPref != null
+                && sharedPref.isPortalSessionActive()
+                && !TextUtils.isEmpty(urlString)
+                && !PlaylistPortalHelper.isPortalUrl(urlString)) {
+            return "";
+        }
         try {
             return resolvePlaybackUrl(sharedPref, urlString);
         } catch (Exception ignored) {
@@ -468,9 +474,6 @@ public final class PlaylistGuardHelper {
     private static boolean needsPlaybackResolution(String url, PlaylistGuardRule rule) {
         if (TextUtils.isEmpty(url)) {
             return false;
-        }
-        if (PlaylistPortalHelper.isPortalResolveUrl(url)) {
-            return true;
         }
         if (PlaylistPortalHelper.isPortalUrl(url)) {
             return false;

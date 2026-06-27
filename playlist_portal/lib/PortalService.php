@@ -55,6 +55,7 @@ final class PortalService
             'accept' => isset($_SERVER['HTTP_ACCEPT']) ? $_SERVER['HTTP_ACCEPT'] : '',
             'x_requested_with' => isset($_SERVER['HTTP_X_REQUESTED_WITH']) ? $_SERVER['HTTP_X_REQUESTED_WITH'] : '',
             'x_shif_portal_key' => isset($_SERVER['HTTP_X_SHIF_PORTAL_KEY']) ? $_SERVER['HTTP_X_SHIF_PORTAL_KEY'] : '',
+            'x_shif_session' => isset($_SERVER['HTTP_X_SHIF_SESSION']) ? $_SERVER['HTTP_X_SHIF_SESSION'] : '',
             'x_shif_app' => isset($_SERVER['HTTP_X_SHIF_APP']) ? $_SERVER['HTTP_X_SHIF_APP'] : '',
             'x_device_id' => isset($_SERVER['HTTP_X_DEVICE_ID']) ? $_SERVER['HTTP_X_DEVICE_ID'] : '',
             'x_shif_timestamp' => isset($_SERVER['HTTP_X_SHIF_TIMESTAMP']) ? $_SERVER['HTTP_X_SHIF_TIMESTAMP'] : '',
@@ -80,7 +81,44 @@ final class PortalService
         return false;
     }
 
-    public static function isAppClient($portal, $headers, $requestPath = '')
+    public static function validateSession($connect, $deviceId, $sessionToken)
+    {
+        $deviceId = trim((string) $deviceId);
+        $sessionToken = trim((string) $sessionToken);
+        if ($connect === null || strlen($deviceId) < 8 || strlen($sessionToken) < 32) {
+            return false;
+        }
+        self::ensureSessionTable($connect);
+        $deviceEsc = $connect->real_escape_string($deviceId);
+        $tokenEsc = $connect->real_escape_string($sessionToken);
+        $result = $connect->query(
+            "SELECT id FROM tbl_portal_sessions WHERE device_id = '$deviceEsc' AND session_token = '$tokenEsc' AND expires_at > NOW() LIMIT 1"
+        );
+        return $result && $result->num_rows > 0;
+    }
+
+    public static function ensureSessionTable($connect)
+    {
+        if ($connect === null) {
+            return;
+        }
+        $connect->query(
+            "CREATE TABLE IF NOT EXISTS `tbl_portal_sessions` (
+              `id` int(11) NOT NULL AUTO_INCREMENT,
+              `device_id` varchar(128) NOT NULL,
+              `session_token` varchar(128) NOT NULL,
+              `expires_at` datetime NOT NULL,
+              `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              PRIMARY KEY (`id`),
+              UNIQUE KEY `device_id` (`device_id`),
+              KEY `session_token` (`session_token`),
+              KEY `expires_at` (`expires_at`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        );
+    }
+
+    public static function isAppClient($portal, $headers, $requestPath = '', $connect = null)
     {
         if ((int) $portal['status'] !== 1) {
             return false;
@@ -109,17 +147,12 @@ final class PortalService
             return false;
         }
 
-        $accessKey = isset($portal['access_key']) ? (string) $portal['access_key'] : '';
-        $providedKey = (string) $headers['x_shif_portal_key'];
-        if ($accessKey === '' || $providedKey === '') {
-            return false;
-        }
-        $expectedKey = hash_hmac('sha256', $deviceId, $accessKey);
-        if (!hash_equals($expectedKey, $providedKey)) {
-            return false;
+        $sessionToken = trim((string) $headers['x_shif_session']);
+        if ($sessionToken !== '' && $connect !== null) {
+            return self::validateSession($connect, $deviceId, $sessionToken);
         }
 
-        return true;
+        return false;
     }
 
     private static function currentRequestPath()
