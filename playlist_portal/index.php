@@ -49,6 +49,7 @@ if ((int) $portal['status'] !== 1 || trim($portal['source_url']) === '') {
 
 $sourceUrl = trim($portal['source_url']);
 $host = $portal_public_host;
+$accessKey = isset($portal['access_key']) ? (string) $portal['access_key'] : '';
 
 if ($path['channel'] === '') {
     $upstream = PortalService::fetchUpstream($portal, $sourceUrl);
@@ -67,38 +68,62 @@ if ($path['channel'] === '') {
     exit;
 }
 
+if ($path['channel'] === 's' && $path['stream'] !== '') {
+    $proxyTarget = PortalService::unsealUrl($path['stream'], $accessKey);
+    if ($proxyTarget === '' || !preg_match('#^https?://#i', $proxyTarget)) {
+        PortalService::deny('invalid_proxy');
+    }
+    $proxyUpstream = PortalService::fetchStreamPayload($portal, $proxyTarget, $sourceUrl);
+    if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $proxyTarget, $proxyUpstream)) {
+        PortalService::deny('proxy_error');
+    }
+    exit;
+}
+
 if ($path['channel'] === 'x' && $path['stream'] !== '') {
     $proxyTarget = PortalService::decodeProxyTarget($path['stream']);
     if ($proxyTarget === '' || !preg_match('#^https?://#i', $proxyTarget)) {
         PortalService::deny('invalid_proxy');
     }
-    $proxyUpstream = PortalService::fetchUpstream($portal, $proxyTarget);
-    if (!$proxyUpstream['ok']) {
+    $proxyUpstream = PortalService::fetchStreamPayload($portal, $proxyTarget, $sourceUrl);
+    if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $proxyTarget, $proxyUpstream)) {
         PortalService::deny('proxy_error');
     }
-    header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
-    $proxyType = PortalService::detectSourceType($proxyUpstream['body']);
-    if ($proxyType === 'json') {
-        $proxyJson = json_decode($proxyUpstream['body'], true);
-        if (is_array($proxyJson) && isset($proxyJson['stream_url']) && $proxyJson['stream_url'] !== '') {
-            $proxyUpstream = PortalService::fetchUpstream($portal, $proxyJson['stream_url']);
-            if (!$proxyUpstream['ok']) {
-                PortalService::deny('proxy_error');
-            }
-        }
-    }
-    if (stripos($proxyUpstream['body'], '#EXTM3U') !== false) {
-        header('Content-Type: application/vnd.apple.mpegurl; charset=utf-8');
-    } else {
-        header('Content-Type: application/octet-stream');
-    }
-    echo $proxyUpstream['body'];
     exit;
 }
 
 $indexUpstream = PortalService::fetchUpstream($portal, $sourceUrl);
 if (!$indexUpstream['ok']) {
     PortalService::deny('upstream_error');
+}
+
+$m3uEntry = PortalService::findM3uEntry($indexUpstream['body'], $sourceUrl, $path['channel']);
+if ($m3uEntry !== null) {
+    if ($path['stream'] === '') {
+        $base = PortalService::publicBaseUrl($host, $path['slug']);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+        echo json_encode(array(
+            'ok' => true,
+            'endpoint' => '/app-measurement/collect/:id/:slug',
+            'playlist_id' => $path['slug'],
+            'slug' => (string) $m3uEntry['index'],
+            'stream_url' => $base . '/' . $m3uEntry['index'] . '/1',
+            'stream_url_relative' => '/k1/app-measurement/collect/' . rawurlencode($path['slug']) . '/' . $m3uEntry['index'] . '/1',
+            'content_type' => 'application/vnd.apple.mpegurl'
+        ), JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    $upstreamStream = PortalService::resolveStreamUrl($portal, $m3uEntry['url'], $sourceUrl);
+    if ($upstreamStream === '') {
+        PortalService::deny('stream_not_found');
+    }
+    $streamUpstream = PortalService::fetchStreamPayload($portal, $upstreamStream, $sourceUrl);
+    if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $sourceUrl, $streamUpstream)) {
+        PortalService::deny('stream_error');
+    }
+    exit;
 }
 
 $channelResponse = PortalService::buildJsonChannelResponse(
@@ -119,33 +144,11 @@ if ($path['stream'] !== '') {
     if ($upstreamStream === '') {
         PortalService::deny('stream_not_found');
     }
-    if (strpos($upstreamStream, 'http') !== 0) {
-        $parts = parse_url($sourceUrl);
-        $scheme = isset($parts['scheme']) ? $parts['scheme'] : 'https';
-        $hostPart = isset($parts['host']) ? $parts['host'] : '';
-        $upstreamStream = $scheme . '://' . $hostPart . $upstreamStream;
-    }
-    $streamUpstream = PortalService::fetchUpstream($portal, $upstreamStream);
-    if (!$streamUpstream['ok']) {
+    $upstreamStream = PortalService::resolveStreamUrl($portal, $upstreamStream, $sourceUrl);
+    $streamUpstream = PortalService::fetchStreamPayload($portal, $upstreamStream, $sourceUrl);
+    if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $sourceUrl, $streamUpstream)) {
         PortalService::deny('stream_error');
     }
-    header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
-    $streamType = PortalService::detectSourceType($streamUpstream['body']);
-    if ($streamType === 'json') {
-        $streamJson = json_decode($streamUpstream['body'], true);
-        if (is_array($streamJson) && isset($streamJson['stream_url'])) {
-            $streamUpstream = PortalService::fetchUpstream($portal, $streamJson['stream_url']);
-            if (!$streamUpstream['ok']) {
-                PortalService::deny('stream_error');
-            }
-        }
-    }
-    if (stripos($streamUpstream['body'], '#EXTM3U') !== false) {
-        header('Content-Type: application/vnd.apple.mpegurl; charset=utf-8');
-    } else {
-        header('Content-Type: application/octet-stream');
-    }
-    echo $streamUpstream['body'];
     exit;
 }
 

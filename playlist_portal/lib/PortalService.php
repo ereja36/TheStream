@@ -10,6 +10,13 @@ final class PortalService
         if ($path === false || $path === null) {
             $path = $uri;
         }
+        if (preg_match('#/k1/app-measurement/collect/([^/]+)/s/([^/]+)/?$#', $path, $sealedMatches)) {
+            return array(
+                'slug' => $sealedMatches[1],
+                'channel' => 's',
+                'stream' => $sealedMatches[2]
+            );
+        }
         if (preg_match('#/k1/app-measurement/collect/([^/]+)/x/([^/]+)/?$#', $path, $proxyMatches)) {
             return array(
                 'slug' => $proxyMatches[1],
@@ -147,22 +154,38 @@ final class PortalService
         return 'https://' . $host . '/k1/app-measurement/collect/' . rawurlencode($slug);
     }
 
-    public static function fetchUpstream($portal, $url)
+    public static function fetchUpstream($portal, $url, $depth = 0)
     {
+        if ($depth > 5) {
+            return array('ok' => false, 'status' => 0, 'error' => 'redirect_limit');
+        }
+
+        $referer = !empty($portal['outbound_referer']) ? $portal['outbound_referer'] : '';
+        if ($referer === '' && !empty($portal['source_url'])) {
+            $referer = $portal['source_url'];
+        }
+
+        $redirectLocation = '';
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($handle, $headerLine) use (&$redirectLocation) {
+            if (preg_match('/^Location:\s*(.+)$/i', trim($headerLine), $matches)) {
+                $redirectLocation = trim($matches[1]);
+            }
+            return strlen($headerLine);
+        });
 
         $headers = array('Accept: */*');
         if (!empty($portal['outbound_user_agent'])) {
             curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
         }
-        if (!empty($portal['outbound_referer'])) {
-            $headers[] = 'Referer: ' . $portal['outbound_referer'];
+        if ($referer !== '') {
+            $headers[] = 'Referer: ' . $referer;
         }
         if (!empty($portal['outbound_origin'])) {
             $headers[] = 'Origin: ' . $portal['outbound_origin'];
@@ -188,9 +211,33 @@ final class PortalService
         $error = curl_error($ch);
         curl_close($ch);
 
-        if ($body === false || $status < 200 || $status >= 300) {
+        if ($body === false) {
             return array('ok' => false, 'status' => $status, 'error' => $error !== '' ? $error : 'upstream_failed');
         }
+
+        if ($status >= 300 && $status < 400) {
+            $nextUrl = $redirectLocation;
+            if ($nextUrl === '' && preg_match('#Redirecting to\s+(/[^\s"\'<>]+)#i', (string) $body, $matches)) {
+                $nextUrl = $matches[1];
+            }
+            if ($nextUrl !== '') {
+                $nextUrl = self::resolveRelativeUrl($nextUrl, $url);
+                return self::fetchUpstream($portal, $nextUrl, $depth + 1);
+            }
+            return array('ok' => false, 'status' => $status, 'error' => 'redirect_missing');
+        }
+
+        if ($status < 200 || $status >= 300) {
+            return array('ok' => false, 'status' => $status, 'error' => $error !== '' ? $error : 'upstream_failed');
+        }
+
+        if (preg_match('#Redirecting to\s+(/[^\s"\'<>]+)#i', (string) $body, $matches)) {
+            $nextUrl = self::resolveRelativeUrl($matches[1], $url);
+            if ($nextUrl !== '') {
+                return self::fetchUpstream($portal, $nextUrl, $depth + 1);
+            }
+        }
+
         return array('ok' => true, 'body' => $body, 'content_type' => $contentType);
     }
 
@@ -301,6 +348,174 @@ final class PortalService
         return $response;
     }
 
+    public static function sealUrl($url, $key)
+    {
+        if ($url === '' || $key === '') {
+            return '';
+        }
+        $material = hash('sha256', (string) $key, true);
+        $iv = random_bytes(16);
+        $encrypted = openssl_encrypt((string) $url, 'AES-256-CBC', $material, OPENSSL_RAW_DATA, $iv);
+        if ($encrypted === false) {
+            return '';
+        }
+        return rtrim(strtr(base64_encode($iv . $encrypted), '+/', '-_'), '=');
+    }
+
+    public static function unsealUrl($token, $key)
+    {
+        if ($token === '' || $key === '') {
+            return '';
+        }
+        $normalized = strtr($token, '-_', '+/');
+        $padding = strlen($normalized) % 4;
+        if ($padding > 0) {
+            $normalized .= str_repeat('=', 4 - $padding);
+        }
+        $raw = base64_decode($normalized, true);
+        if ($raw === false || strlen($raw) < 17) {
+            return '';
+        }
+        $iv = substr($raw, 0, 16);
+        $encrypted = substr($raw, 16);
+        $material = hash('sha256', (string) $key, true);
+        $url = openssl_decrypt($encrypted, 'AES-256-CBC', $material, OPENSSL_RAW_DATA, $iv);
+        return $url === false ? '' : $url;
+    }
+
+    public static function resolveRelativeUrl($target, $baseUrl)
+    {
+        $target = trim((string) $target);
+        if ($target === '') {
+            return '';
+        }
+        if (preg_match('#^https?://#i', $target)) {
+            return $target;
+        }
+        if ($baseUrl === '') {
+            return $target;
+        }
+        $parts = parse_url($baseUrl);
+        if ($parts === false || !isset($parts['scheme'], $parts['host'])) {
+            return $target;
+        }
+        $prefix = $parts['scheme'] . '://' . $parts['host'];
+        if (isset($parts['port'])) {
+            $prefix .= ':' . $parts['port'];
+        }
+        if (strpos($target, '/') === 0) {
+            return $prefix . $target;
+        }
+        $dir = isset($parts['path']) ? rtrim(dirname($parts['path']), '/\\') : '';
+        return $prefix . ($dir !== '' ? $dir . '/' : '/') . $target;
+    }
+
+    public static function parseM3uEntries($body, $sourceUrl = '')
+    {
+        $entries = array();
+        $lines = preg_split('/\r\n|\n|\r/', (string) $body);
+        $pendingName = '';
+        $index = 0;
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                continue;
+            }
+            if ($trimmed[0] === '#') {
+                if (stripos($trimmed, '#EXTINF') === 0 && preg_match('/,(.*)$/', $trimmed, $matches)) {
+                    $pendingName = trim($matches[1]);
+                }
+                continue;
+            }
+            $index++;
+            $entries[] = array(
+                'index' => $index,
+                'slug' => (string) $index,
+                'name_slug' => self::slugify($pendingName),
+                'name' => $pendingName,
+                'url' => self::resolveRelativeUrl($trimmed, $sourceUrl)
+            );
+            $pendingName = '';
+        }
+        return $entries;
+    }
+
+    public static function findM3uEntry($body, $sourceUrl, $channelSlug)
+    {
+        $channelSlug = trim((string) $channelSlug);
+        if ($channelSlug === '') {
+            return null;
+        }
+        foreach (self::parseM3uEntries($body, $sourceUrl) as $entry) {
+            if ((string) $entry['index'] === $channelSlug
+                || (string) $entry['slug'] === $channelSlug
+                || ($entry['name_slug'] !== '' && $entry['name_slug'] === $channelSlug)) {
+                return $entry;
+            }
+        }
+        return null;
+    }
+
+    public static function resolveStreamUrl($portal, $streamUrl, $sourceUrl = '')
+    {
+        $resolved = self::resolveRelativeUrl($streamUrl, $sourceUrl);
+        if ($resolved === '' || preg_match('#^https?://#i', $resolved)) {
+            return $resolved;
+        }
+        return self::resolveRelativeUrl($resolved, isset($portal['source_url']) ? $portal['source_url'] : $sourceUrl);
+    }
+
+    public static function fetchStreamPayload($portal, $url, $sourceUrl = '', $depth = 0)
+    {
+        if ($depth > 4) {
+            return array('ok' => false, 'status' => 0, 'error' => 'stream_depth');
+        }
+        $upstream = self::fetchUpstream($portal, $url);
+        if (!$upstream['ok']) {
+            return $upstream;
+        }
+        if (self::detectSourceType($upstream['body']) !== 'json') {
+            return $upstream;
+        }
+        $json = json_decode($upstream['body'], true);
+        if (!is_array($json)) {
+            return $upstream;
+        }
+        $nextUrl = '';
+        if (!empty($json['stream_url'])) {
+            $nextUrl = $json['stream_url'];
+        } elseif (!empty($json['stream_url_relative'])) {
+            $nextUrl = $json['stream_url_relative'];
+        }
+        if ($nextUrl === '') {
+            return $upstream;
+        }
+        $resolved = self::resolveStreamUrl($portal, $nextUrl, $sourceUrl !== '' ? $sourceUrl : $url);
+        return self::fetchStreamPayload($portal, $resolved, $sourceUrl, $depth + 1);
+    }
+
+    public static function outputStreamBody($portal, $host, $slug, $sourceUrl, $upstream)
+    {
+        if (!$upstream['ok']) {
+            return false;
+        }
+        header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+        $body = $upstream['body'];
+        if (stripos($body, '#EXTM3U') !== false) {
+            header('Content-Type: application/vnd.apple.mpegurl; charset=utf-8');
+            echo self::rewriteM3uStream($body, $host, $slug, $sourceUrl, $portal);
+            return true;
+        }
+        $contentType = isset($upstream['content_type']) ? trim((string) $upstream['content_type']) : '';
+        if ($contentType !== '') {
+            header('Content-Type: ' . $contentType);
+        } else {
+            header('Content-Type: application/octet-stream');
+        }
+        echo $body;
+        return true;
+    }
+
     public static function encodeProxyTarget($url)
     {
         return rtrim(strtr(base64_encode((string) $url), '+/', '-_'), '=');
@@ -320,10 +535,11 @@ final class PortalService
         return $decoded === false ? '' : $decoded;
     }
 
-    public static function rewriteM3uIndex($body, $host, $slug, $sourceUrl = '')
+    public static function rewriteM3uStream($body, $host, $slug, $baseUrl, $portal)
     {
         $base = self::publicBaseUrl($host, $slug);
-        $lines = preg_split('/\r\n|\n|\r/', $body);
+        $accessKey = isset($portal['access_key']) ? (string) $portal['access_key'] : '';
+        $lines = preg_split('/\r\n|\n|\r/', (string) $body);
         $output = array();
         foreach ($lines as $line) {
             $trimmed = trim($line);
@@ -331,27 +547,31 @@ final class PortalService
                 $output[] = $line;
                 continue;
             }
-            $target = $trimmed;
-            if (!preg_match('#^https?://#i', $target) && $sourceUrl !== '') {
-                $parts = parse_url($sourceUrl);
-                if ($parts !== false && isset($parts['scheme'], $parts['host'])) {
-                    $prefix = $parts['scheme'] . '://' . $parts['host'];
-                    if (isset($parts['port'])) {
-                        $prefix .= ':' . $parts['port'];
-                    }
-                    if (strpos($target, '/') === 0) {
-                        $target = $prefix . $target;
-                    } else {
-                        $dir = isset($parts['path']) ? rtrim(dirname($parts['path']), '/\\') : '';
-                        $target = $prefix . ($dir !== '' ? $dir . '/' : '/') . $target;
-                    }
-                }
-            }
-            if (preg_match('#^https?://#i', $target)) {
-                $output[] = $base . '/x/' . self::encodeProxyTarget($target);
+            $target = self::resolveRelativeUrl($trimmed, $baseUrl);
+            if ($target !== '' && preg_match('#^https?://#i', $target)) {
+                $sealed = self::sealUrl($target, $accessKey);
+                $output[] = $sealed !== '' ? $base . '/s/' . $sealed : $line;
             } else {
                 $output[] = $line;
             }
+        }
+        return implode("\n", $output);
+    }
+
+    public static function rewriteM3uIndex($body, $host, $slug, $sourceUrl = '')
+    {
+        $base = self::publicBaseUrl($host, $slug);
+        $lines = preg_split('/\r\n|\n|\r/', (string) $body);
+        $output = array();
+        $index = 0;
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || $trimmed[0] === '#') {
+                $output[] = $line;
+                continue;
+            }
+            $index++;
+            $output[] = $base . '/' . $index . '/1';
         }
         return implode("\n", $output);
     }

@@ -1175,7 +1175,15 @@ require_once("Rest.inc.php");
 				$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_playlist_guard'");
 				$rules = array();
 				$updatedAt = '';
-				if ($tableCheck && $tableCheck->num_rows > 0) {
+				$portalEnabled = false;
+				$portalTableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_playlist_portal'");
+				if ($portalTableCheck && $portalTableCheck->num_rows > 0) {
+					$portalResult = $this->mysqli->query("SELECT status FROM tbl_playlist_portal WHERE status = 1 ORDER BY id ASC LIMIT 1");
+					if ($portalResult && $portalResult->num_rows > 0) {
+						$portalEnabled = true;
+					}
+				}
+				if ($tableCheck && $tableCheck->num_rows > 0 && !$portalEnabled) {
 					$streamColumnCheck = $this->mysqli->query("SHOW COLUMNS FROM tbl_playlist_guard LIKE 'stream_url_pattern'");
 					$hasStreamPattern = $streamColumnCheck && $streamColumnCheck->num_rows > 0;
 					$selectFields = $hasStreamPattern

@@ -303,9 +303,12 @@ public final class PlaylistGuardHelper {
     public static DefaultDataSource.Factory createDataSourceFactory(Context context, SharedPref sharedPref, String requestUrl, String channelUserAgent) {
         boolean portalRequest = PlaylistPortalHelper.isPortalUrl(requestUrl);
         PlaylistGuardRule rule = portalRequest ? null : resolveRule(sharedPref, requestUrl);
-        String userAgent = resolveUserAgent(rule, channelUserAgent);
+        String userAgent = portalRequest
+                ? "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)"
+                : resolveUserAgent(rule, channelUserAgent);
         Map<String, String> headers = portalRequest ? new HashMap<>() : buildRequestHeaders(rule);
         headers.put("X-Shif-App", "1");
+        headers.put("X-Requested-With", BuildConfig.APPLICATION_ID);
         if (context != null && portalRequest) {
             headers.putAll(PlaylistPortalHelper.buildPortalHeaders(
                     requestUrl,

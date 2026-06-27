@@ -140,6 +140,11 @@ public final class DeviceApiHelper {
 
     public static void refreshPlaylistGuardRules(SharedPref sharedPref) {
         refreshPlaylistPortalConfig(sharedPref);
+        if (sharedPref != null && !TextUtils.isEmpty(sharedPref.getPortalAccessKey())) {
+            sharedPref.savePlaylistGuardRules(new ArrayList<>());
+            sharedPref.clearActiveGuardRule();
+            return;
+        }
         if (sharedPref == null || TextUtils.isEmpty(sharedPref.getBaseUrl())) {
             return;
         }
