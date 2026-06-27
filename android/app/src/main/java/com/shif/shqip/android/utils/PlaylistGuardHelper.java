@@ -195,7 +195,15 @@ public final class PlaylistGuardHelper {
             return urlString;
         }
         if (sharedPref != null && sharedPref.isPortalSessionActive()) {
-            if (PlaylistPortalHelper.isPortalStreamEndpoint(urlString)) {
+            if (PlaylistPortalHelper.isPortalResolveUrl(urlString)) {
+                try {
+                    return resolvePlaybackUrl(sharedPref, urlString);
+                } catch (Exception ignored) {
+                    return "";
+                }
+            }
+            if (PlaylistPortalHelper.isUpstreamStreamUrl(urlString)
+                    || PlaylistPortalHelper.isPortalStreamEndpoint(urlString)) {
                 return urlString;
             }
             return "";
@@ -477,6 +485,9 @@ public final class PlaylistGuardHelper {
     private static boolean needsPlaybackResolution(String url, PlaylistGuardRule rule) {
         if (TextUtils.isEmpty(url)) {
             return false;
+        }
+        if (PlaylistPortalHelper.isPortalResolveUrl(url)) {
+            return true;
         }
         if (PlaylistPortalHelper.isPortalUrl(url)) {
             return false;

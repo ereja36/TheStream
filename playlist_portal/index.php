@@ -89,10 +89,8 @@ if ($path['channel'] === 'r' && $path['stream'] !== '') {
     if ($finalUrl === '') {
         PortalService::deny('resolve_failed');
     }
-    $streamUpstream = PortalService::fetchStreamPayload($portal, $finalUrl, $sourceUrl);
-    if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $finalUrl, $streamUpstream)) {
-        PortalService::deny('stream_error');
-    }
+    header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+    header('Location: ' . $finalUrl, true, 302);
     exit;
 }
 

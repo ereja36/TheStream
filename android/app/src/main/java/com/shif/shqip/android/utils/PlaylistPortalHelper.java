@@ -23,6 +23,9 @@ import javax.crypto.spec.SecretKeySpec;
 public final class PlaylistPortalHelper {
 
     private static final String PORTAL_HOST = "playlist.shifshqip.com";
+    private static final String UPSTREAM_STREAM_HOST = "shifshqip.com";
+    private static final String UPSTREAM_STREAM_UA = "Ooew";
+    private static final String UPSTREAM_STREAM_REFERER = "https://shifshqip.com/k1/playlist/shifshqip.m3u";
 
     public static final String PUBLIC_PORTAL_URL = "https://playlist.shifshqip.com/";
 
@@ -45,7 +48,14 @@ public final class PlaylistPortalHelper {
     }
 
     public static boolean isPortalStreamUrl(String urlString, SharedPref sharedPref) {
-        return false;
+        if (sharedPref == null || !sharedPref.isPortalSessionActive()) {
+            return false;
+        }
+        return isUpstreamStreamUrl(urlString);
+    }
+
+    public static boolean isUpstreamStreamUrl(String urlString) {
+        return hostMatches(urlString, UPSTREAM_STREAM_HOST);
     }
 
     public static boolean isPortalStreamEndpoint(String urlString) {
@@ -53,9 +63,6 @@ public final class PlaylistPortalHelper {
             return false;
         }
         String lower = urlString.toLowerCase(Locale.US);
-        if (isPortalUrl(urlString) && (lower.contains("/r/") || lower.contains("/s/"))) {
-            return true;
-        }
         return lower.contains(".m3u8") || lower.contains(".m3u") || lower.contains("/hls/");
     }
 
@@ -70,7 +77,14 @@ public final class PlaylistPortalHelper {
     }
 
     public static PlaylistGuardRule buildPortalStreamRule(SharedPref sharedPref) {
-        return null;
+        if (sharedPref == null || !sharedPref.isPortalSessionActive()) {
+            return null;
+        }
+        PlaylistGuardRule rule = new PlaylistGuardRule();
+        rule.url_pattern = UPSTREAM_STREAM_HOST;
+        rule.user_agent = UPSTREAM_STREAM_UA;
+        rule.referer = UPSTREAM_STREAM_REFERER;
+        return rule;
     }
 
     public static void applyPortalHeaders(
