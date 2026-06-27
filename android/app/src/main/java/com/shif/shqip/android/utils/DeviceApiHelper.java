@@ -845,7 +845,9 @@ public final class DeviceApiHelper {
         if (TextUtils.isEmpty(urlString)) {
             return false;
         }
-        return PlaylistGuardHelper.normalizeMatchKey(urlString).contains("playlist.shifshqip.com");
+        String key = PlaylistGuardHelper.normalizeMatchKey(urlString);
+        return key.contains("playlist.shifshqip.com")
+                || (key.contains("api.shifshqip.com") && key.contains("app-measurement/collect"));
     }
 
     private static void applyPortalHeaders(HttpURLConnection connection, String urlString, SharedPref sharedPref) {

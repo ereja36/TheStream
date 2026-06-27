@@ -620,7 +620,9 @@ public final class PlaylistGuardHelper {
         if (connection == null || sharedPref == null || TextUtils.isEmpty(urlString)) {
             return;
         }
-        if (!normalizeMatchKey(urlString).contains("playlist.shifshqip.com")) {
+        if (!normalizeMatchKey(urlString).contains("playlist.shifshqip.com")
+                && !(normalizeMatchKey(urlString).contains("api.shifshqip.com")
+                && normalizeMatchKey(urlString).contains("app-measurement/collect"))) {
             return;
         }
         String portalKey = sharedPref.getPortalAccessKey();
@@ -633,7 +635,9 @@ public final class PlaylistGuardHelper {
         if (headers == null || sharedPref == null || TextUtils.isEmpty(urlString)) {
             return;
         }
-        if (!normalizeMatchKey(urlString).contains("playlist.shifshqip.com")) {
+        if (!normalizeMatchKey(urlString).contains("playlist.shifshqip.com")
+                && !(normalizeMatchKey(urlString).contains("api.shifshqip.com")
+                && normalizeMatchKey(urlString).contains("app-measurement/collect"))) {
             return;
         }
         String portalKey = sharedPref.getPortalAccessKey();

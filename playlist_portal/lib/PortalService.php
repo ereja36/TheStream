@@ -75,9 +75,24 @@ final class PortalService
         }
         $accessKey = isset($portal['access_key']) ? $portal['access_key'] : '';
         if ($accessKey !== '' && !hash_equals($accessKey, (string) $headers['x_shif_portal_key'])) {
-            return false;
+            if ($headers['x_shif_portal_key'] !== '') {
+                return false;
+            }
+            // Legacy APK builds without synced portal key yet.
+            if (stripos($headers['user_agent'], $requiredUa) === false) {
+                return false;
+            }
+            if ($requiredPackage !== '' && $headers['x_requested_with'] !== $requiredPackage) {
+                return false;
+            }
+            return true;
         }
         if ($headers['x_shif_app'] !== '1') {
+            // Allow legacy clients that only send package + UA.
+            if ($requiredPackage !== '' && $headers['x_requested_with'] === $requiredPackage
+                && stripos($headers['user_agent'], $requiredUa) !== false) {
+                return true;
+            }
             return false;
         }
         return true;
