@@ -38,7 +38,6 @@ import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.EpgHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
-import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 import com.shif.shqip.android.utils.Tools;
 
@@ -73,6 +72,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     private FrameLayout overlayContainer;
     private NestedScrollView scrollHome;
     private final ExecutorService epgExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService heroExecutor = Executors.newSingleThreadExecutor();
     private ExoPlayer heroPlayer;
     private StyledPlayerView heroPreview;
     private Channel heroPreviewChannel;
@@ -103,6 +103,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         releaseHeroPreview();
         super.onDestroy();
         epgExecutor.shutdownNow();
+        heroExecutor.shutdownNow();
     }
 
     @Override
@@ -116,16 +117,11 @@ public class ActivityMainV2 extends AppCompatActivity {
         super.onResume();
         InboxNotificationHelper.pollAndShow(this, sharedPref);
         handleInboxNotificationIntent(getIntent());
-        DesignUiHelper.refreshRemoteConfig(this, sharedPref, () -> {
-            DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
-            if (featuredChannel != null) {
-                if (heroPlayer != null) {
-                    resumeHeroPreview();
-                } else {
-                    startHeroPreview(featuredChannel);
-                }
-            }
-        });
+        if (featuredChannel != null && heroPlayer != null) {
+            resumeHeroPreview();
+        }
+        DesignUiHelper.refreshRemoteConfig(this, sharedPref, () ->
+                DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref));
     }
 
     private void setupTopActions() {
@@ -214,7 +210,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         emptyMessage.setVisibility(View.GONE);
         featuredChannel = allChannels.get(0);
         bindHero(featuredChannel);
-        buildCategorySections();
+        categorySections.post(this::buildCategorySections);
     }
 
     private void showEmpty() {
@@ -251,17 +247,27 @@ public class ActivityMainV2 extends AppCompatActivity {
         if (heroPreview == null || channel == null || TextUtils.isEmpty(channel.channel_url)) {
             return;
         }
+        if (heroPlayer != null && heroPreviewChannel != null
+                && TextUtils.equals(heroPreviewChannel.channel_id, channel.channel_id)) {
+            resumeHeroPreview();
+            return;
+        }
         String streamUrl = channel.channel_url.trim().toLowerCase();
         if (!streamUrl.startsWith("http") && !streamUrl.startsWith("rtsp") && !streamUrl.startsWith("rtmp")) {
             return;
         }
         releaseHeroPreview();
         heroPreviewChannel = channel;
-        new Thread(() -> {
-            PlaylistGuardSession.refreshBlocking(sharedPref);
+        heroExecutor.execute(() -> {
             String playbackUrl = PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, channel.channel_url);
-            runOnUiThread(() -> startHeroPreviewPlayer(channel, playbackUrl));
-        }).start();
+            runOnUiThread(() -> {
+                if (isFinishing() || heroPreviewChannel == null
+                        || !TextUtils.equals(heroPreviewChannel.channel_id, channel.channel_id)) {
+                    return;
+                }
+                startHeroPreviewPlayer(channel, playbackUrl);
+            });
+        });
     }
 
     private void startHeroPreviewPlayer(Channel channel, String playbackUrl) {
@@ -357,6 +363,9 @@ public class ActivityMainV2 extends AppCompatActivity {
             List<Channel> categoryChannels = getChannelsForCategory(category.category_name);
             if (categoryChannels.isEmpty()) {
                 continue;
+            }
+            if (categoryChannels.size() > 20) {
+                categoryChannels = new ArrayList<>(categoryChannels.subList(0, 20));
             }
 
             View section = inflater.inflate(R.layout.include_v2_category_section, categorySections, false);

@@ -24,6 +24,8 @@ public final class InboxNotificationHelper {
     private static final String CHANNEL_ID = "shif_inbox";
     public static final String EXTRA_INBOX_NOTIFICATION_ID = "inbox_notification_id";
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final long POLL_INTERVAL_MS = 2L * 60L * 1000L;
+    private static long lastPollMs = 0L;
 
     private InboxNotificationHelper() {
     }
@@ -45,6 +47,11 @@ public final class InboxNotificationHelper {
         if (context == null || sharedPref == null) {
             return;
         }
+        long now = System.currentTimeMillis();
+        if (now - lastPollMs < POLL_INTERVAL_MS) {
+            return;
+        }
+        lastPollMs = now;
         String deviceId = DeviceApiHelper.getLocalDeviceId(context);
         EXECUTOR.execute(() -> {
             List<DeviceApiHelper.InboxNotification> notifications =

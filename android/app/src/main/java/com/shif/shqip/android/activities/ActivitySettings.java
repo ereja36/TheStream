@@ -1,14 +1,12 @@
 package com.shif.shqip.android.activities;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
-import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewStub;
+import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -30,6 +28,7 @@ public class ActivitySettings extends AppCompatActivity {
     SharedPref sharedPref;
     MaterialSwitch switchTheme;
     OnBackPressedDispatcher onBackPressedDispatcher;
+    private boolean suppressThemeCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,9 +91,29 @@ public class ActivitySettings extends AppCompatActivity {
         title.setText(R.string.title_setting_theme);
         subtitle.setText(R.string.sub_title_setting_theme);
         switchTheme.setVisibility(View.VISIBLE);
-        switchTheme.setChecked(sharedPref.getIsDarkTheme());
-        switchTheme.setOnCheckedChangeListener((buttonView, isChecked) -> applyThemeChange(isChecked));
-        tile.setOnClickListener(v -> applyThemeChange(!sharedPref.getIsDarkTheme()));
+        updateThemeSwitch(sharedPref.getIsDarkTheme());
+        switchTheme.setOnCheckedChangeListener(this::onThemeSwitchChanged);
+        tile.setOnClickListener(v -> {
+            if (switchTheme != null) {
+                switchTheme.toggle();
+            }
+        });
+    }
+
+    private void onThemeSwitchChanged(CompoundButton buttonView, boolean isChecked) {
+        if (suppressThemeCallback) {
+            return;
+        }
+        applyThemeChange(isChecked);
+    }
+
+    private void updateThemeSwitch(boolean isDarkTheme) {
+        if (switchTheme == null) {
+            return;
+        }
+        suppressThemeCallback = true;
+        switchTheme.setChecked(isDarkTheme);
+        suppressThemeCallback = false;
     }
 
     private void bindActionTile(int tileId, int iconRes, int titleRes, int subtitleRes, View.OnClickListener listener) {
@@ -110,22 +129,17 @@ public class ActivitySettings extends AppCompatActivity {
 
     private void applyThemeChange(boolean isDarkTheme) {
         if (sharedPref.getIsDarkTheme() == isDarkTheme) {
-            if (switchTheme != null) {
-                switchTheme.setChecked(isDarkTheme);
-            }
+            updateThemeSwitch(isDarkTheme);
             return;
         }
+        updateThemeSwitch(isDarkTheme);
         sharedPref.setIsDarkTheme(isDarkTheme);
         Tools.applyNightMode(isDarkTheme);
-        if (switchTheme != null) {
-            switchTheme.setChecked(isDarkTheme);
-        }
-        Tools.postDelayed(() -> {
-            Intent intent = DesignRouter.getMainActivityIntent(getApplicationContext());
-            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-            finish();
-        }, 200);
+
+        Intent intent = DesignRouter.getMainActivityIntent(this);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
+        finish();
     }
 
     public void aboutDialog() {

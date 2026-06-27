@@ -126,15 +126,17 @@ public class SharedPref {
     }
 
     public Boolean getIsDarkTheme() {
-        String designId = getDesignId();
-        boolean defaultDark = ("v2".equals(designId) || "v3".equals(designId))
-                || Config.SET_DARK_MODE_AS_DEFAULT_THEME;
-        return sharedPreferences.getBoolean("theme", defaultDark);
+        if (!sharedPreferences.contains("theme")) {
+            if ("v2".equals(getDesignId()) || "v3".equals(getDesignId())) {
+                return true;
+            }
+            return Config.SET_DARK_MODE_AS_DEFAULT_THEME;
+        }
+        return sharedPreferences.getBoolean("theme", Config.SET_DARK_MODE_AS_DEFAULT_THEME);
     }
 
     public void setIsDarkTheme(Boolean isDarkTheme) {
-        editor.putBoolean("theme", isDarkTheme);
-        editor.apply();
+        sharedPreferences.edit().putBoolean("theme", isDarkTheme).commit();
     }
 
     public void setDialogPlayerOption(boolean dialogPlayerOption) {

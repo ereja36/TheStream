@@ -23,6 +23,7 @@ import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.Tools;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -50,6 +51,7 @@ public class MyApplication extends Application {
         super.onCreate();
         mInstance = this;
         sharedPref = new SharedPref(this);
+        Tools.applyNightMode(sharedPref.getIsDarkTheme());
         adsPref = new AdsPref(this);
         try {
             initAnalytics();

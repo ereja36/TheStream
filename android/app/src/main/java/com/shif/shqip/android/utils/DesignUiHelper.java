@@ -26,6 +26,9 @@ import retrofit2.Response;
 
 public final class DesignUiHelper {
 
+    private static final long CONFIG_REFRESH_INTERVAL_MS = 5L * 60L * 1000L;
+    private static long lastConfigRefreshMs = 0L;
+
     private DesignUiHelper() {
     }
 
@@ -112,6 +115,15 @@ public final class DesignUiHelper {
     }
 
     public static void refreshRemoteConfig(AppCompatActivity activity, SharedPref sharedPref, Runnable onSameDesign) {
+        long now = System.currentTimeMillis();
+        if (now - lastConfigRefreshMs < CONFIG_REFRESH_INTERVAL_MS) {
+            if (onSameDesign != null) {
+                onSameDesign.run();
+            }
+            return;
+        }
+        lastConfigRefreshMs = now;
+
         if (TextUtils.isEmpty(sharedPref.getBaseUrl())) {
             if (onSameDesign != null) {
                 onSameDesign.run();
