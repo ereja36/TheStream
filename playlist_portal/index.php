@@ -63,7 +63,7 @@ if ($path['channel'] === '') {
         echo PortalService::rewriteJsonIndex($upstream['body'], $host, $path['slug']);
         exit;
     }
-    $playlistBody = PortalService::rewriteM3uIndex($upstream['body'], $host, $path['slug'], $sourceUrl);
+    $playlistBody = PortalService::rewriteM3uIndex($upstream['body'], $host, $path['slug'], $sourceUrl, $portal);
     $deviceId = trim((string) $headers['x_device_id']);
     $masterKey = isset($portal['access_key']) ? (string) $portal['access_key'] : '';
     if ($deviceId !== '' && $masterKey !== '') {
@@ -77,6 +77,20 @@ if ($path['channel'] === '') {
     }
     header('Content-Type: application/vnd.apple.mpegurl; charset=utf-8');
     echo $playlistBody;
+    exit;
+}
+
+if ($path['channel'] === 'r' && $path['stream'] !== '') {
+    $entryUrl = PortalService::unsealUrl($path['stream'], $accessKey);
+    if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
+        PortalService::deny('invalid_entry');
+    }
+    $finalUrl = PortalService::resolveStreamEntryUrl($portal, $entryUrl);
+    if ($finalUrl === '') {
+        PortalService::deny('resolve_failed');
+    }
+    header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+    header('Location: ' . $finalUrl, true, 302);
     exit;
 }
 

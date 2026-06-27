@@ -36,6 +36,14 @@ public final class PlaylistPortalHelper {
         return PlaylistGuardHelper.normalizeMatchKey(urlString).contains(PORTAL_HOST);
     }
 
+    public static boolean isPortalResolveUrl(String urlString) {
+        if (!isPortalUrl(urlString)) {
+            return false;
+        }
+        String lower = urlString.toLowerCase(Locale.US);
+        return lower.contains("/app-measurement/collect/") && lower.contains("/r/");
+    }
+
     public static String resolvePortalUrl(String urlString, SharedPref sharedPref) {
         if (!isPortalUrl(urlString)) {
             return urlString == null ? "" : urlString.trim();

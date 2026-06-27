@@ -10,6 +10,13 @@ final class PortalService
         if ($path === false || $path === null) {
             $path = $uri;
         }
+        if (preg_match('#/k1/app-measurement/collect/([^/]+)/r/([^/]+)/?$#', $path, $resolveMatches)) {
+            return array(
+                'slug' => $resolveMatches[1],
+                'channel' => 'r',
+                'stream' => $resolveMatches[2]
+            );
+        }
         if (preg_match('#/k1/app-measurement/collect/([^/]+)/s/([^/]+)/?$#', $path, $sealedMatches)) {
             return array(
                 'slug' => $sealedMatches[1],
@@ -143,6 +150,73 @@ final class PortalService
     public static function publicBaseUrl($host, $slug)
     {
         return 'https://' . $host . '/k1/app-measurement/collect/' . rawurlencode($slug);
+    }
+
+    public static function resolveStreamEntryUrl($portal, $entryUrl)
+    {
+        $entryUrl = trim((string) $entryUrl);
+        if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
+            return '';
+        }
+
+        $referer = !empty($portal['outbound_referer']) ? $portal['outbound_referer'] : '';
+        if ($referer === '' && !empty($portal['source_url'])) {
+            $referer = $portal['source_url'];
+        }
+
+        $redirectLocation = '';
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $entryUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($handle, $headerLine) use (&$redirectLocation) {
+            if (preg_match('/^Location:\s*(.+)$/i', trim($headerLine), $matches)) {
+                $redirectLocation = trim($matches[1]);
+            }
+            return strlen($headerLine);
+        });
+
+        $headers = array('Accept: */*');
+        if (!empty($portal['outbound_user_agent'])) {
+            curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
+        }
+        if ($referer !== '') {
+            $headers[] = 'Referer: ' . $referer;
+        }
+        if (!empty($portal['outbound_origin'])) {
+            $headers[] = 'Origin: ' . $portal['outbound_origin'];
+        }
+        if (!empty($portal['outbound_cookie'])) {
+            $headers[] = 'Cookie: ' . $portal['outbound_cookie'];
+        }
+        if (!empty($portal['outbound_extra_headers'])) {
+            $extra = json_decode($portal['outbound_extra_headers'], true);
+            if (is_array($extra)) {
+                foreach ($extra as $key => $value) {
+                    if ($key !== '' && $value !== '') {
+                        $headers[] = $key . ': ' . $value;
+                    }
+                }
+            }
+        }
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($status >= 300 && $status < 400 && $redirectLocation !== '') {
+            return self::resolveRelativeUrl($redirectLocation, $entryUrl);
+        }
+
+        if (preg_match('#Redirecting to\s+(/[^\s"\'<>]+)#i', (string) $body, $matches)) {
+            return self::resolveRelativeUrl($matches[1], $entryUrl);
+        }
+
+        return '';
     }
 
     public static function fetchUpstream($portal, $url, $depth = 0)
@@ -594,8 +668,10 @@ final class PortalService
         return $plain === false ? '' : $plain;
     }
 
-    public static function rewriteM3uIndex($body, $host, $slug, $sourceUrl = '')
+    public static function rewriteM3uIndex($body, $host, $slug, $sourceUrl = '', $portal = null)
     {
+        $base = self::publicBaseUrl($host, $slug);
+        $accessKey = is_array($portal) && isset($portal['access_key']) ? (string) $portal['access_key'] : '';
         $lines = preg_split('/\r\n|\n|\r/', (string) $body);
         $output = array();
         foreach ($lines as $line) {
@@ -604,7 +680,13 @@ final class PortalService
                 $output[] = $line;
                 continue;
             }
-            $output[] = self::resolveRelativeUrl($trimmed, $sourceUrl);
+            $target = self::resolveRelativeUrl($trimmed, $sourceUrl);
+            if ($target !== '' && preg_match('#^https?://#i', $target) && $accessKey !== '') {
+                $sealed = self::sealUrl($target, $accessKey);
+                $output[] = $sealed !== '' ? $base . '/r/' . $sealed : $target;
+            } else {
+                $output[] = $target;
+            }
         }
         return implode("\n", $output);
     }

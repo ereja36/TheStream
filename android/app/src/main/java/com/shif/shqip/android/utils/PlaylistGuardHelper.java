@@ -469,6 +469,9 @@ public final class PlaylistGuardHelper {
         if (TextUtils.isEmpty(url)) {
             return false;
         }
+        if (PlaylistPortalHelper.isPortalResolveUrl(url)) {
+            return true;
+        }
         if (PlaylistPortalHelper.isPortalUrl(url)) {
             return false;
         }
