@@ -48,12 +48,14 @@ public final class PlaylistPortalHelper {
             return;
         }
         long timestamp = System.currentTimeMillis() / 1000L;
-        String path = extractPath(urlString);
-        String signature = signRequest(portalKey, deviceId, timestamp, connection.getRequestMethod(), path);
+        String signature = signRequest(portalKey, deviceId, timestamp, connection.getRequestMethod(), "/");
 
         connection.setRequestProperty("X-Shif-Portal-Key", portalKey);
         connection.setRequestProperty("X-Shif-Timestamp", String.valueOf(timestamp));
         connection.setRequestProperty("X-Shif-Signature", signature);
+        if (!TextUtils.isEmpty(deviceId)) {
+            connection.setRequestProperty("X-Device-ID", deviceId);
+        }
     }
 
     public static java.util.Map<String, String> buildPortalHeaders(
@@ -71,11 +73,13 @@ public final class PlaylistPortalHelper {
             return headers;
         }
         long timestamp = System.currentTimeMillis() / 1000L;
-        String path = extractPath(requestUrl);
         String requestMethod = TextUtils.isEmpty(method) ? "GET" : method.toUpperCase(Locale.US);
         headers.put("X-Shif-Portal-Key", portalKey);
         headers.put("X-Shif-Timestamp", String.valueOf(timestamp));
-        headers.put("X-Shif-Signature", signRequest(portalKey, deviceId, timestamp, requestMethod, path));
+        headers.put("X-Shif-Signature", signRequest(portalKey, deviceId, timestamp, requestMethod, "/"));
+        if (!TextUtils.isEmpty(deviceId)) {
+            headers.put("X-Device-ID", deviceId);
+        }
         return headers;
     }
 

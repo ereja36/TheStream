@@ -310,10 +310,14 @@ public final class PlaylistGuardHelper {
         headers.put("X-Shif-App", "1");
         headers.put("X-Requested-With", BuildConfig.APPLICATION_ID);
         if (context != null && portalRequest) {
+            String deviceId = DeviceApiHelper.getLocalDeviceId(context);
+            if (!TextUtils.isEmpty(deviceId)) {
+                headers.put("X-Device-ID", deviceId);
+            }
             headers.putAll(PlaylistPortalHelper.buildPortalHeaders(
                     requestUrl,
                     "GET",
-                    DeviceApiHelper.getLocalDeviceId(context),
+                    deviceId,
                     sharedPref
             ));
         }

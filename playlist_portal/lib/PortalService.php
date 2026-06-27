@@ -119,9 +119,18 @@ final class PortalService
 
         $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
         $path = $requestPath !== '' ? $requestPath : self::currentRequestPath();
-        $payload = $deviceId . '|' . $timestamp . '|' . $method . '|' . $path;
-        $expected = hash_hmac('sha256', $payload, $accessKey);
-        return hash_equals($expected, $signature);
+        $pathsToCheck = array($path);
+        if ($path !== '/') {
+            $pathsToCheck[] = '/';
+        }
+        foreach ($pathsToCheck as $checkPath) {
+            $payload = $deviceId . '|' . $timestamp . '|' . $method . '|' . $checkPath;
+            $expected = hash_hmac('sha256', $payload, $accessKey);
+            if (hash_equals($expected, $signature)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static function currentRequestPath()
