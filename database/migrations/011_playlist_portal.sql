@@ -22,11 +22,11 @@ CREATE TABLE IF NOT EXISTS `tbl_playlist_portal` (
 INSERT INTO `tbl_playlist_portal` (
   `portal_slug`, `portal_name`, `source_url`, `source_type`, `access_key`,
   `required_user_agent`, `required_package`,
-  `outbound_referer`, `status`
+  `outbound_referer`, `outbound_cookie`, `outbound_extra_headers`, `status`
 )
 SELECT 'shifshqip', 'Shif Shqip', '', 'auto',
   MD5(CONCAT('shifshqip-portal-', RAND(), '-', UNIX_TIMESTAMP())),
   'ShifShqip', 'com.shif.shqip.android',
-  'https://shifher-15810060fed0.herokuapp.com/', 0
+  'https://shifher-15810060fed0.herokuapp.com/', '', '', 0
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `tbl_playlist_portal` WHERE `portal_slug` = 'shifshqip' LIMIT 1);
