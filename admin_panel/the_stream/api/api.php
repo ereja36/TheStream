@@ -1128,12 +1128,13 @@ require_once("Rest.inc.php");
 					'portal_slug' => 'shifshqip',
 					'portal_name' => 'Shif Shqip',
 					'public_url' => '',
-					'access_key' => ''
+					'access_key' => '',
+					'cfg' => ''
 				);
 
 				$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_playlist_portal'");
 				if ($tableCheck && $tableCheck->num_rows > 0) {
-					$result = $this->mysqli->query("SELECT portal_slug, portal_name, access_key, status FROM tbl_playlist_portal ORDER BY id ASC LIMIT 1");
+					$result = $this->mysqli->query("SELECT portal_slug, portal_name, access_key, status, source_url, outbound_user_agent, outbound_referer, outbound_origin, outbound_cookie FROM tbl_playlist_portal ORDER BY id ASC LIMIT 1");
 					if ($result && ($row = $result->fetch_assoc())) {
 						$slug = isset($row['portal_slug']) ? (string) $row['portal_slug'] : 'shifshqip';
 						$portal['portal_slug'] = $slug;
@@ -1144,6 +1145,29 @@ require_once("Rest.inc.php");
 							$masterKey = isset($row['access_key']) ? (string) $row['access_key'] : '';
 							if ($masterKey !== '') {
 								$portal['access_key'] = hash_hmac('sha256', $deviceId, $masterKey);
+								$streamHost = '';
+								$sourceUrl = isset($row['source_url']) ? (string) $row['source_url'] : '';
+								if ($sourceUrl !== '') {
+									$parts = parse_url($sourceUrl);
+									if (is_array($parts) && isset($parts['host'])) {
+										$streamHost = (string) $parts['host'];
+									}
+								}
+								$cfgPayload = json_encode(array(
+									'host' => $streamHost,
+									'user_agent' => isset($row['outbound_user_agent']) ? (string) $row['outbound_user_agent'] : '',
+									'referer' => isset($row['outbound_referer']) ? (string) $row['outbound_referer'] : '',
+									'origin' => isset($row['outbound_origin']) ? (string) $row['outbound_origin'] : '',
+									'cookie' => isset($row['outbound_cookie']) ? (string) $row['outbound_cookie'] : ''
+								));
+								$portalServicePath = '/var/www/shifshqip-playlist/lib/PortalService.php';
+								if (!file_exists($portalServicePath)) {
+									$portalServicePath = dirname(__DIR__, 3) . '/playlist_portal/lib/PortalService.php';
+								}
+								if (file_exists($portalServicePath)) {
+									require_once $portalServicePath;
+									$portal['cfg'] = PortalService::encryptForDevice($cfgPayload, $deviceId, $masterKey);
+								}
 							}
 						}
 					}

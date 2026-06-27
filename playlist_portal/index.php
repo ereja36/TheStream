@@ -63,8 +63,20 @@ if ($path['channel'] === '') {
         echo PortalService::rewriteJsonIndex($upstream['body'], $host, $path['slug']);
         exit;
     }
+    $playlistBody = PortalService::rewriteM3uIndex($upstream['body'], $host, $path['slug'], $sourceUrl);
+    $deviceId = trim((string) $headers['x_device_id']);
+    $masterKey = isset($portal['access_key']) ? (string) $portal['access_key'] : '';
+    if ($deviceId !== '' && $masterKey !== '') {
+        $encrypted = PortalService::encryptForDevice($playlistBody, $deviceId, $masterKey);
+        if ($encrypted !== '') {
+            header('Content-Type: application/octet-stream');
+            header('X-Shif-Payload: enc');
+            echo $encrypted;
+            exit;
+        }
+    }
     header('Content-Type: application/vnd.apple.mpegurl; charset=utf-8');
-    echo PortalService::rewriteM3uIndex($upstream['body'], $host, $path['slug'], $sourceUrl);
+    echo $playlistBody;
     exit;
 }
 

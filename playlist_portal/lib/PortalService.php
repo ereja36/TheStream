@@ -557,20 +557,54 @@ final class PortalService
         return implode("\n", $output);
     }
 
+    public static function deriveDeviceKey($deviceId, $masterKey)
+    {
+        return hash_hmac('sha256', (string) $deviceId, (string) $masterKey);
+    }
+
+    public static function encryptForDevice($plaintext, $deviceId, $masterKey)
+    {
+        if ($plaintext === '' || $deviceId === '' || $masterKey === '') {
+            return '';
+        }
+        $derived = self::deriveDeviceKey($deviceId, $masterKey);
+        $key = hash('sha256', $derived, true);
+        $iv = random_bytes(16);
+        $encrypted = openssl_encrypt((string) $plaintext, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
+        if ($encrypted === false) {
+            return '';
+        }
+        return base64_encode($iv . $encrypted);
+    }
+
+    public static function decryptForDevice($encoded, $deviceId, $masterKey)
+    {
+        if ($encoded === '' || $deviceId === '' || $masterKey === '') {
+            return '';
+        }
+        $raw = base64_decode((string) $encoded, true);
+        if ($raw === false || strlen($raw) < 17) {
+            return '';
+        }
+        $derived = self::deriveDeviceKey($deviceId, $masterKey);
+        $key = hash('sha256', $derived, true);
+        $iv = substr($raw, 0, 16);
+        $encrypted = substr($raw, 16);
+        $plain = openssl_decrypt($encrypted, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
+        return $plain === false ? '' : $plain;
+    }
+
     public static function rewriteM3uIndex($body, $host, $slug, $sourceUrl = '')
     {
-        $base = self::publicBaseUrl($host, $slug);
         $lines = preg_split('/\r\n|\n|\r/', (string) $body);
         $output = array();
-        $index = 0;
         foreach ($lines as $line) {
             $trimmed = trim($line);
             if ($trimmed === '' || $trimmed[0] === '#') {
                 $output[] = $line;
                 continue;
             }
-            $index++;
-            $output[] = $base . '/' . $index . '/1';
+            $output[] = self::resolveRelativeUrl($trimmed, $sourceUrl);
         }
         return implode("\n", $output);
     }

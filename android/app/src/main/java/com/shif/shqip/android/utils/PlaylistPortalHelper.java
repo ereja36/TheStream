@@ -2,15 +2,22 @@ package com.shif.shqip.android.utils;
 
 import android.text.TextUtils;
 
+import android.util.Base64;
+
 import com.shif.shqip.android.BuildConfig;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.PlaylistGuardRule;
 
+import org.json.JSONObject;
+
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Locale;
 
+import javax.crypto.Cipher;
 import javax.crypto.Mac;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 public final class PlaylistPortalHelper {
@@ -71,12 +78,7 @@ public final class PlaylistPortalHelper {
         if (TextUtils.isEmpty(portalKey) || TextUtils.isEmpty(deviceId)) {
             return;
         }
-        long timestamp = System.currentTimeMillis() / 1000L;
-        String signature = signRequest(portalKey, deviceId, timestamp, connection.getRequestMethod(), "/");
-
         connection.setRequestProperty("X-Shif-Portal-Key", portalKey);
-        connection.setRequestProperty("X-Shif-Timestamp", String.valueOf(timestamp));
-        connection.setRequestProperty("X-Shif-Signature", signature);
         if (!TextUtils.isEmpty(deviceId)) {
             connection.setRequestProperty("X-Device-ID", deviceId);
         }
@@ -96,15 +98,58 @@ public final class PlaylistPortalHelper {
         if (TextUtils.isEmpty(portalKey)) {
             return headers;
         }
-        long timestamp = System.currentTimeMillis() / 1000L;
-        String requestMethod = TextUtils.isEmpty(method) ? "GET" : method.toUpperCase(Locale.US);
         headers.put("X-Shif-Portal-Key", portalKey);
-        headers.put("X-Shif-Timestamp", String.valueOf(timestamp));
-        headers.put("X-Shif-Signature", signRequest(portalKey, deviceId, timestamp, requestMethod, "/"));
         if (!TextUtils.isEmpty(deviceId)) {
             headers.put("X-Device-ID", deviceId);
         }
         return headers;
+    }
+
+    public static String decryptPayload(String encoded, String derivedAccessKey) {
+        if (TextUtils.isEmpty(encoded) || TextUtils.isEmpty(derivedAccessKey)) {
+            return "";
+        }
+        try {
+            byte[] raw = Base64.decode(encoded.trim(), Base64.DEFAULT);
+            if (raw == null || raw.length < 17) {
+                return "";
+            }
+            byte[] key = MessageDigest.getInstance("SHA-256")
+                    .digest(derivedAccessKey.getBytes(StandardCharsets.UTF_8));
+            byte[] iv = new byte[16];
+            System.arraycopy(raw, 0, iv, 0, 16);
+            byte[] encrypted = new byte[raw.length - 16];
+            System.arraycopy(raw, 16, encrypted, 0, encrypted.length);
+            Cipher cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
+            byte[] plain = cipher.doFinal(encrypted);
+            return new String(plain, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    public static void applyEncryptedStreamConfig(SharedPref sharedPref, String cfg, String derivedAccessKey) {
+        if (sharedPref == null || TextUtils.isEmpty(cfg) || TextUtils.isEmpty(derivedAccessKey)) {
+            return;
+        }
+        try {
+            String jsonText = decryptPayload(cfg, derivedAccessKey);
+            if (TextUtils.isEmpty(jsonText)) {
+                sharedPref.clearPortalStreamConfig();
+                return;
+            }
+            JSONObject json = new JSONObject(jsonText);
+            sharedPref.savePortalStreamConfig(
+                    json.optString("host", ""),
+                    json.optString("user_agent", ""),
+                    json.optString("referer", ""),
+                    json.optString("origin", ""),
+                    json.optString("cookie", "")
+            );
+        } catch (Exception ignored) {
+            sharedPref.clearPortalStreamConfig();
+        }
     }
 
     private static String extractPath(String urlString) {

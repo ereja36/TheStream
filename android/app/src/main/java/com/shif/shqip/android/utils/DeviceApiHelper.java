@@ -209,11 +209,17 @@ public final class DeviceApiHelper {
                 return;
             }
             sharedPref.savePortalPublicUrl(PlaylistPortalHelper.PUBLIC_PORTAL_URL);
-            sharedPref.clearPortalStreamConfig();
             if (portal.optInt("enabled", 0) == 1) {
-                sharedPref.savePortalAccessKey(portal.optString("access_key", ""));
+                String derivedKey = portal.optString("access_key", "");
+                sharedPref.savePortalAccessKey(derivedKey);
+                PlaylistPortalHelper.applyEncryptedStreamConfig(
+                        sharedPref,
+                        portal.optString("cfg", ""),
+                        derivedKey
+                );
             } else {
                 sharedPref.savePortalAccessKey("");
+                sharedPref.clearPortalStreamConfig();
             }
         } catch (Exception ignored) {
             // keep cached portal key
@@ -826,7 +832,16 @@ public final class DeviceApiHelper {
             if (responseCode < 200 || responseCode >= 300) {
                 throw new IOException("HTTP " + responseCode);
             }
-            return readAll(connection.getInputStream());
+            String payloadHeader = connection.getHeaderField("X-Shif-Payload");
+            String body = readAll(connection.getInputStream());
+            if ("enc".equalsIgnoreCase(payloadHeader) && sharedPref != null) {
+                String derivedKey = sharedPref.getPortalAccessKey();
+                String decrypted = PlaylistPortalHelper.decryptPayload(body, derivedKey);
+                if (!TextUtils.isEmpty(decrypted)) {
+                    return decrypted;
+                }
+            }
+            return body;
         } finally {
             if (connection != null) {
                 connection.disconnect();
