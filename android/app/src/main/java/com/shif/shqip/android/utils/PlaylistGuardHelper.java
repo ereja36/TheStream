@@ -146,7 +146,14 @@ public final class PlaylistGuardHelper {
             connection.setRequestProperty("X-Shif-App", "1");
             applyRuleHeaders(connection, rule);
             applyCollectFallbackHeaders(connection, urlString, rule);
-            applyPortalHeaders(connection, sharedPref, urlString);
+            if (sharedPref != null) {
+                PlaylistPortalHelper.applyPortalHeaders(
+                        connection,
+                        urlString,
+                        DeviceApiHelper.getLocalDeviceId(sharedPref.getContext()),
+                        sharedPref
+                );
+            }
 
             int responseCode = connection.getResponseCode();
             String finalUrl = connection.getURL().toString();
@@ -298,7 +305,14 @@ public final class PlaylistGuardHelper {
         String userAgent = resolveUserAgent(rule, channelUserAgent);
         Map<String, String> headers = buildRequestHeaders(rule);
         headers.put("X-Shif-App", "1");
-        applyPortalHeaderMap(headers, sharedPref, requestUrl);
+        if (context != null) {
+            headers.putAll(PlaylistPortalHelper.buildPortalHeaders(
+                    requestUrl,
+                    "GET",
+                    DeviceApiHelper.getLocalDeviceId(context),
+                    sharedPref
+            ));
+        }
 
         DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
                 .setAllowCrossProtocolRedirects(true)
@@ -614,36 +628,6 @@ public final class PlaylistGuardHelper {
             return;
         }
         connection.setRequestProperty("Referer", "https://shifher-15810060fed0.herokuapp.com/");
-    }
-
-    private static void applyPortalHeaders(HttpURLConnection connection, SharedPref sharedPref, String urlString) {
-        if (connection == null || sharedPref == null || TextUtils.isEmpty(urlString)) {
-            return;
-        }
-        if (!normalizeMatchKey(urlString).contains("playlist.shifshqip.com")
-                && !(normalizeMatchKey(urlString).contains("api.shifshqip.com")
-                && normalizeMatchKey(urlString).contains("app-measurement/collect"))) {
-            return;
-        }
-        String portalKey = sharedPref.getPortalAccessKey();
-        if (!TextUtils.isEmpty(portalKey)) {
-            connection.setRequestProperty("X-Shif-Portal-Key", portalKey);
-        }
-    }
-
-    private static void applyPortalHeaderMap(Map<String, String> headers, SharedPref sharedPref, String urlString) {
-        if (headers == null || sharedPref == null || TextUtils.isEmpty(urlString)) {
-            return;
-        }
-        if (!normalizeMatchKey(urlString).contains("playlist.shifshqip.com")
-                && !(normalizeMatchKey(urlString).contains("api.shifshqip.com")
-                && normalizeMatchKey(urlString).contains("app-measurement/collect"))) {
-            return;
-        }
-        String portalKey = sharedPref.getPortalAccessKey();
-        if (!TextUtils.isEmpty(portalKey)) {
-            headers.put("X-Shif-Portal-Key", portalKey);
-        }
     }
 
     private static boolean isLikelyPlaylistUrl(String url) {

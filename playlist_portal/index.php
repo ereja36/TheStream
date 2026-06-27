@@ -10,25 +10,21 @@ $headers = PortalService::readHeaders();
 $path = PortalService::parsePath($_SERVER['REQUEST_URI']);
 
 if ($path === null) {
-    if (PortalService::isBrowserClient($headers)) {
-        PortalService::renderLanding($apk_download_url, $play_store_url);
-    }
-    PortalService::deny('invalid_endpoint');
+    PortalService::renderLanding($apk_download_url, $play_store_url);
+}
+
+$requestPath = isset($_SERVER['REQUEST_URI']) ? parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) : '';
+if ($requestPath === false || $requestPath === null) {
+    $requestPath = '';
 }
 
 $portal = PortalService::loadPortal($connect, $path['slug']);
 if ($portal === null) {
-    if (PortalService::isBrowserClient($headers)) {
-        PortalService::renderLanding($apk_download_url, $play_store_url);
-    }
-    PortalService::deny('playlist_not_found');
+    PortalService::renderLanding($apk_download_url, $play_store_url, '');
 }
 
-if (!PortalService::isAppClient($portal, $headers)) {
-    if (PortalService::isBrowserClient($headers)) {
-        PortalService::renderLanding($apk_download_url, $play_store_url);
-    }
-    PortalService::deny('forbidden');
+if (!PortalService::isAppClient($portal, $headers, $requestPath)) {
+    PortalService::renderLanding($apk_download_url, $play_store_url, PortalService::publicBaseUrl($portal_public_host, $path['slug']));
 }
 
 if ((int) $portal['status'] !== 1 || trim($portal['source_url']) === '') {

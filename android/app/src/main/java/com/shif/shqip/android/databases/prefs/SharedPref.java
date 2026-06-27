@@ -51,6 +51,10 @@ public class SharedPref {
         ensureDefaultTheme();
     }
 
+    public Context getContext() {
+        return context;
+    }
+
     public void ensureDefaultTheme() {
         if (!sharedPreferences.contains("theme")) {
             String designId = getDesignId();

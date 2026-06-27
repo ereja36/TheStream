@@ -791,7 +791,7 @@ public final class DeviceApiHelper {
             if (!TextUtils.isEmpty(deviceId)) {
                 connection.setRequestProperty("X-Device-ID", deviceId);
             }
-            applyPortalHeaders(connection, urlString, sharedPref);
+            PlaylistPortalHelper.applyPortalHeaders(connection, urlString, deviceId, sharedPref);
 
             PlaylistGuardRule guardRule = PlaylistGuardHelper.resolveRule(sharedPref, urlString);
             if (guardRule == null && sharedPref != null) {
@@ -839,25 +839,6 @@ public final class DeviceApiHelper {
 
     public static String buildAppUserAgent() {
         return "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)";
-    }
-
-    private static boolean isPlaylistPortalUrl(String urlString) {
-        if (TextUtils.isEmpty(urlString)) {
-            return false;
-        }
-        String key = PlaylistGuardHelper.normalizeMatchKey(urlString);
-        return key.contains("playlist.shifshqip.com")
-                || (key.contains("api.shifshqip.com") && key.contains("app-measurement/collect"));
-    }
-
-    private static void applyPortalHeaders(HttpURLConnection connection, String urlString, SharedPref sharedPref) {
-        if (connection == null || sharedPref == null || !isPlaylistPortalUrl(urlString)) {
-            return;
-        }
-        String portalKey = sharedPref.getPortalAccessKey();
-        if (!TextUtils.isEmpty(portalKey)) {
-            connection.setRequestProperty("X-Shif-Portal-Key", portalKey);
-        }
     }
 
     public static void reportDeviceOpen(SharedPref sharedPref, String deviceId) {

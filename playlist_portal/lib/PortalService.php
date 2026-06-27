@@ -2,6 +2,8 @@
 
 final class PortalService
 {
+    private const SIGNATURE_MAX_AGE_SECONDS = 300;
+
     public static function parsePath($uri)
     {
         $path = parse_url($uri, PHP_URL_PATH);
@@ -33,69 +35,85 @@ final class PortalService
             'x_requested_with' => isset($_SERVER['HTTP_X_REQUESTED_WITH']) ? $_SERVER['HTTP_X_REQUESTED_WITH'] : '',
             'x_shif_portal_key' => isset($_SERVER['HTTP_X_SHIF_PORTAL_KEY']) ? $_SERVER['HTTP_X_SHIF_PORTAL_KEY'] : '',
             'x_shif_app' => isset($_SERVER['HTTP_X_SHIF_APP']) ? $_SERVER['HTTP_X_SHIF_APP'] : '',
-            'x_device_id' => isset($_SERVER['HTTP_X_DEVICE_ID']) ? $_SERVER['HTTP_X_DEVICE_ID'] : ''
+            'x_device_id' => isset($_SERVER['HTTP_X_DEVICE_ID']) ? $_SERVER['HTTP_X_DEVICE_ID'] : '',
+            'x_shif_timestamp' => isset($_SERVER['HTTP_X_SHIF_TIMESTAMP']) ? $_SERVER['HTTP_X_SHIF_TIMESTAMP'] : '',
+            'x_shif_signature' => isset($_SERVER['HTTP_X_SHIF_SIGNATURE']) ? $_SERVER['HTTP_X_SHIF_SIGNATURE'] : ''
         );
-        if ($headers['x_shif_portal_key'] === '' && isset($_GET['k'])) {
-            $headers['x_shif_portal_key'] = (string) $_GET['k'];
-        }
         return $headers;
     }
 
     public static function isBrowserClient($headers)
     {
-        $accept = strtolower($headers['accept']);
-        $ua = $headers['user_agent'];
-        if (stripos($ua, 'ShifShqip') !== false) {
+        if (stripos($headers['user_agent'], 'ShifShqip') !== false) {
             return false;
         }
-        if (stripos($accept, 'text/html') !== false) {
+        if (stripos($headers['accept'], 'text/html') !== false) {
             return true;
         }
         $browserHints = array('Mozilla/', 'Chrome/', 'Safari/', 'Firefox/', 'Edg/');
         foreach ($browserHints as $hint) {
-            if (stripos($ua, $hint) !== false && stripos($accept, 'text/html') !== false) {
+            if (stripos($headers['user_agent'], $hint) !== false) {
                 return true;
             }
         }
         return false;
     }
 
-    public static function isAppClient($portal, $headers)
+    public static function isAppClient($portal, $headers, $requestPath = '')
     {
         if ((int) $portal['status'] !== 1) {
             return false;
         }
-        $requiredUa = isset($portal['required_user_agent']) ? $portal['required_user_agent'] : 'ShifShqip';
-        if ($requiredUa !== '' && stripos($headers['user_agent'], $requiredUa) === false) {
+
+        $requiredUa = isset($portal['required_user_agent']) && $portal['required_user_agent'] !== ''
+            ? $portal['required_user_agent']
+            : 'ShifShqip';
+        if (stripos($headers['user_agent'], $requiredUa) === false) {
             return false;
         }
-        $requiredPackage = isset($portal['required_package']) ? $portal['required_package'] : 'com.shif.shqip.android';
-        if ($requiredPackage !== '' && $headers['x_requested_with'] !== $requiredPackage) {
+
+        $requiredPackage = isset($portal['required_package']) && $portal['required_package'] !== ''
+            ? $portal['required_package']
+            : 'com.shif.shqip.android';
+        if ($headers['x_requested_with'] !== $requiredPackage) {
             return false;
         }
-        $accessKey = isset($portal['access_key']) ? $portal['access_key'] : '';
-        if ($accessKey !== '' && !hash_equals($accessKey, (string) $headers['x_shif_portal_key'])) {
-            if ($headers['x_shif_portal_key'] !== '') {
-                return false;
-            }
-            // Legacy APK builds without synced portal key yet.
-            if (stripos($headers['user_agent'], $requiredUa) === false) {
-                return false;
-            }
-            if ($requiredPackage !== '' && $headers['x_requested_with'] !== $requiredPackage) {
-                return false;
-            }
-            return true;
-        }
+
         if ($headers['x_shif_app'] !== '1') {
-            // Allow legacy clients that only send package + UA.
-            if ($requiredPackage !== '' && $headers['x_requested_with'] === $requiredPackage
-                && stripos($headers['user_agent'], $requiredUa) !== false) {
-                return true;
-            }
             return false;
         }
-        return true;
+
+        $deviceId = trim((string) $headers['x_device_id']);
+        if (strlen($deviceId) < 8) {
+            return false;
+        }
+
+        $accessKey = isset($portal['access_key']) ? (string) $portal['access_key'] : '';
+        if ($accessKey === '' || !hash_equals($accessKey, (string) $headers['x_shif_portal_key'])) {
+            return false;
+        }
+
+        $timestamp = (int) $headers['x_shif_timestamp'];
+        if ($timestamp <= 0 || abs(time() - $timestamp) > self::SIGNATURE_MAX_AGE_SECONDS) {
+            return false;
+        }
+
+        $signature = strtolower(trim((string) $headers['x_shif_signature']));
+        if ($signature === '') {
+            return false;
+        }
+
+        $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : 'GET';
+        $path = $requestPath !== '' ? $requestPath : self::currentRequestPath();
+        $payload = $deviceId . '|' . $timestamp . '|' . $method . '|' . $path;
+        $expected = hash_hmac('sha256', $payload, $accessKey);
+        return hash_equals($expected, $signature);
+    }
+
+    private static function currentRequestPath()
+    {
+        $path = isset($_SERVER['REQUEST_URI']) ? parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) : '/';
+        return $path === false || $path === null || $path === '' ? '/' : $path;
     }
 
     public static function loadPortal($connect, $slug)
@@ -338,25 +356,30 @@ final class PortalService
         exit;
     }
 
-    public static function renderLanding($apkUrl, $playStoreUrl)
+    public static function renderLanding($apkUrl, $playStoreUrl, $publicUrl = '')
     {
         http_response_code(200);
         header('Content-Type: text/html; charset=utf-8');
         header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
         $apkUrlEsc = htmlspecialchars($apkUrl, ENT_QUOTES, 'UTF-8');
         $playStoreEsc = htmlspecialchars($playStoreUrl, ENT_QUOTES, 'UTF-8');
+        $publicUrlEsc = htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8');
         echo '<!DOCTYPE html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            . '<title>Shif Shqip</title><style>'
+            . '<title>Shif Shqip — Playlist i mbrojtur</title><style>'
             . 'body{margin:0;font-family:Arial,sans-serif;background:#0f1216;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}'
-            . '.card{max-width:520px;background:#1a1f26;border-radius:20px;padding:32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}'
-            . 'h1{margin:0 0 12px;font-size:32px}.sub{color:#a8b0bc;line-height:1.6;margin-bottom:24px}'
-            . 'a.btn{display:inline-block;margin:8px;padding:14px 22px;border-radius:999px;text-decoration:none;font-weight:700}'
+            . '.card{max-width:560px;background:#1a1f26;border-radius:20px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.35)}'
+            . 'h1{margin:0 0 12px;font-size:30px;text-align:center}.sub{color:#a8b0bc;line-height:1.7;margin-bottom:20px;text-align:center}'
+            . 'ol{color:#d5dbe3;line-height:1.8;padding-left:20px;margin:0 0 24px}'
+            . '.actions{text-align:center}a.btn{display:inline-block;margin:8px;padding:14px 22px;border-radius:999px;text-decoration:none;font-weight:700}'
             . '.primary{background:#8db04b;color:#fff}.ghost{border:1px solid #3a4350;color:#fff}'
+            . '.note{margin-top:18px;padding:12px 14px;border-radius:12px;background:#12161c;color:#97a0ad;font-size:14px;line-height:1.6}'
             . '</style></head><body><div class="card">'
             . '<h1>Shif Shqip</h1>'
-            . '<p class="sub">Ky playlist është i mbrojtur dhe funksionon vetëm në aplikacionin zyrtar Shif Shqip. Shkarko app-in për të parë kanalet.</p>'
-            . '<a class="btn primary" href="' . $apkUrlEsc . '">Shkarko APK</a>'
-            . '<a class="btn ghost" href="' . $playStoreEsc . '">Google Play</a>'
+            . '<p class="sub">Ky playlist është i mbrojtur. Nuk hapet në shfletues apo playerë të tjerë IPTV — vetëm në aplikacionin zyrtar Shif Shqip.</p>'
+            . '<ol><li>Shkarko dhe instalo aplikacionin Shif Shqip.</li><li>Hap app-in në telefonin ose TV Android.</li><li>Playlist ngarkohet automatikisht nga serveri — nuk ke nevojë ta shtosh manualisht.</li></ol>'
+            . '<div class="actions"><a class="btn primary" href="' . $apkUrlEsc . '">Shkarko APK</a>'
+            . '<a class="btn ghost" href="' . $playStoreEsc . '">Google Play</a></div>'
+            . ($publicUrlEsc !== '' ? '<div class="note">URL publike e playlist-it (vetëm për app): <strong>' . $publicUrlEsc . '</strong></div>' : '')
             . '</div></body></html>';
         exit;
     }

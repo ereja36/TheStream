@@ -1137,7 +1137,7 @@ require_once("Rest.inc.php");
 						$portal['portal_slug'] = $slug;
 						$portal['portal_name'] = isset($row['portal_name']) ? (string) $row['portal_name'] : 'Shif Shqip';
 						$portal['enabled'] = isset($row['status']) && (int) $row['status'] === 1 ? 1 : 0;
-						$portal['public_url'] = 'https://api.shifshqip.com/k1/app-measurement/collect/' . rawurlencode($slug);
+						$portal['public_url'] = 'https://playlist.shifshqip.com/k1/app-measurement/collect/' . rawurlencode($slug);
 						if ($portal['enabled'] === 1) {
 							$portal['access_key'] = isset($row['access_key']) ? (string) $row['access_key'] : '';
 						}

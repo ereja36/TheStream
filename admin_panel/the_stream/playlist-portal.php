@@ -31,7 +31,7 @@ function generatePortalAccessKey() {
 }
 
 function syncPortalGuardRule($connect, $portal) {
-    $urlPattern = 'api.shifshqip.com/k1/app-measurement/collect/' . $portal['portal_slug'];
+    $urlPattern = 'playlist.shifshqip.com/k1/app-measurement/collect/' . $portal['portal_slug'];
     $ruleName = 'Playlist Portal ' . $portal['portal_slug'];
     $data = array(
         'rule_name' => $ruleName,
@@ -101,12 +101,11 @@ if (isset($_POST['submit'])) {
         update('tbl_playlist_portal', $data, "WHERE id = '" . clean($portal['id']) . "'");
         syncPortalGuardRule($connect, $data);
 
-        $settingsData = array(
-            'global_playlist_url' => 'https://api.shifshqip.com/k1/app-measurement/collect/' . $data['portal_slug']
-        );
+        $settingsData = array('global_playlist_enabled' => 0);
         if (isset($_POST['enable_global']) && (int) $_POST['enable_global'] === 1) {
             $settingsData['global_playlist_enabled'] = 1;
             $settingsData['global_playlist_name'] = $data['portal_name'];
+            $settingsData['global_playlist_url'] = 'https://playlist.shifshqip.com/k1/app-measurement/collect/' . $data['portal_slug'];
         }
         update('tbl_settings', $settingsData, "WHERE id = '1'");
 
@@ -128,7 +127,7 @@ if (isset($_POST['regenerate_key']) && validateResourceAccess($inputToken)) {
 
 $portalResult = mysqli_query($connect, "SELECT * FROM tbl_playlist_portal ORDER BY id ASC LIMIT 1");
 $portal = mysqli_fetch_assoc($portalResult);
-$publicUrl = 'https://api.shifshqip.com/k1/app-measurement/collect/' . $portal['portal_slug'];
+$publicUrl = 'https://playlist.shifshqip.com/k1/app-measurement/collect/' . $portal['portal_slug'];
 
 $settings = array('global_playlist_enabled' => 0);
 $settingsResult = mysqli_query($connect, "SELECT global_playlist_enabled FROM tbl_settings WHERE id = '1' LIMIT 1");
