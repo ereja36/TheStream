@@ -2,8 +2,6 @@ package com.shif.shqip.android.utils;
 
 import android.content.Context;
 import android.net.Uri;
-import android.os.Handler;
-import android.os.Looper;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
@@ -27,34 +25,29 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import java.util.Locale;
 
 /**
- * ExoPlayer tuned to match shifshqip.com/k1 HLS.js live settings:
- * liveSyncDurationCount: 6, maxLiveSyncPlaybackRate: 1,
- * maxBufferLength: 60, backBufferLength: 90.
- *
- * IPTV playlists expose only ~4 x 6s segments (~24s window); playback must stay
- * near the back of that window instead of chasing the live edge.
+ * ExoPlayer tuned to match shifshqip.com/k1 HLS.js live settings.
+ * Playlists expose ~4 x 6s segments (~24s); sync to the back of the window
+ * (liveSyncDurationCount: 6) and never chase the live edge.
  */
 @SuppressWarnings("deprecation")
 public final class IptvPlayerHelper {
 
-  /** HLS.js maxBufferLength: 60 */
-  private static final int LIVE_MIN_BUFFER_MS = 15_000;
-  private static final int LIVE_MAX_BUFFER_MS = 60_000;
+  /** HLS.js maxBufferLength: 60 — clamped by the ~24s live window in practice */
+  private static final int LIVE_MIN_BUFFER_MS = 6_000;
+  private static final int LIVE_MAX_BUFFER_MS = 30_000;
   private static final int BUFFER_FOR_PLAYBACK_MS = 2_000;
   private static final int BUFFER_AFTER_REBUFFER_MS = 4_000;
 
   /**
-   * HLS.js liveSyncDurationCount: 6 (~36s behind edge). With a ~24s window this
-   * maps to staying near the oldest available segment (back of the playlist).
+   * HLS.js liveSyncDurationCount: 6 — with a 4-segment window, stay near the
+   * oldest segment so ~24s of media is always ahead of the playhead.
    */
-  private static final long LIVE_TARGET_OFFSET_MS = 22_000;
+  private static final long LIVE_TARGET_OFFSET_MS = 23_000;
   private static final long LIVE_MIN_OFFSET_MS = 18_000;
-  private static final long LIVE_MAX_OFFSET_MS = 23_500;
-  private static final long LIVE_SAFE_EDGE_MS = 6_000;
+  private static final long LIVE_MAX_OFFSET_MS = 24_000;
   private static final long LIVE_SEEK_BACK_MS = 20_000;
 
   private static final int HLS_MIN_LOADABLE_RETRY_COUNT = 5;
-  private static final long OFFSET_GUARD_INTERVAL_MS = 6_000;
 
   private IptvPlayerHelper() {
   }
@@ -150,7 +143,7 @@ public final class IptvPlayerHelper {
     return MediaItem.fromUri(uri);
   }
 
-  /** Keeps live playback at the back of short HLS windows (HLS.js live-sync logic). */
+  /** One-time nudge away from the live edge on first READY (no periodic seeks). */
   public static Player.Listener createLiveOffsetListener(ExoPlayer player, String playbackUrl) {
     if (!isLiveStream(playbackUrl) || player == null) {
       return new Player.Listener() {};
@@ -158,7 +151,6 @@ public final class IptvPlayerHelper {
     return new LiveOffsetGuard(player);
   }
 
-  /** Seek target when the player falls behind the live window. */
   public static long liveRecoveryPositionMs(ExoPlayer player) {
     if (player == null) {
       return C.TIME_UNSET;
@@ -202,16 +194,7 @@ public final class IptvPlayerHelper {
   private static final class LiveOffsetGuard implements Player.Listener {
 
     private final ExoPlayer player;
-    private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean startAdjusted;
-
-    private final Runnable guardRunnable = new Runnable() {
-      @Override
-      public void run() {
-        maintainOffset();
-        handler.postDelayed(this, OFFSET_GUARD_INTERVAL_MS);
-      }
-    };
 
     LiveOffsetGuard(ExoPlayer player) {
       this.player = player;
@@ -219,45 +202,15 @@ public final class IptvPlayerHelper {
 
     @Override
     public void onPlaybackStateChanged(int state) {
-      if (state == Player.STATE_READY) {
-        if (!startAdjusted) {
-          adjustStartPosition();
-          startAdjusted = true;
+      if (state == Player.STATE_READY && !startAdjusted) {
+        long duration = player.getDuration();
+        if (duration > 0 && duration != C.TIME_UNSET) {
+          long position = player.getCurrentPosition();
+          if (duration - position < 8_000) {
+            player.seekTo(Math.max(0, duration - LIVE_SEEK_BACK_MS));
+          }
         }
-        handler.removeCallbacks(guardRunnable);
-        handler.post(guardRunnable);
-      } else if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) {
-        handler.removeCallbacks(guardRunnable);
-      }
-    }
-
-    private void adjustStartPosition() {
-      long duration = player.getDuration();
-      if (duration <= 0 || duration == C.TIME_UNSET) {
-        return;
-      }
-      long position = player.getCurrentPosition();
-      long distanceFromEdge = duration - position;
-      if (distanceFromEdge < LIVE_SAFE_EDGE_MS) {
-        player.seekTo(Math.max(0, duration - LIVE_SEEK_BACK_MS));
-      }
-    }
-
-    private void maintainOffset() {
-      if (!player.isPlaying()) {
-        return;
-      }
-      long duration = player.getDuration();
-      if (duration <= 0 || duration == C.TIME_UNSET) {
-        return;
-      }
-      long position = player.getCurrentPosition();
-      long distanceFromEdge = duration - position;
-      if (distanceFromEdge < LIVE_SAFE_EDGE_MS) {
-        long target = Math.max(0, duration - LIVE_SEEK_BACK_MS);
-        if (Math.abs(target - position) > 1_500) {
-          player.seekTo(target);
-        }
+        startAdjusted = true;
       }
     }
   }

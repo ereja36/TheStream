@@ -42,6 +42,7 @@ import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.TrackSelectionDialog;
+import com.shif.shqip.android.utils.IptvStallRecoveryHelper;
 import com.shif.shqip.android.utils.K1PlaybackHelper;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.PlaybackException;
@@ -87,6 +88,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private StyledPlayerView styledPlayerView;
     private ExoPlayer exoPlayer;
     private DefaultDataSource.Factory dataSourceFactory;
+    private IptvStallRecoveryHelper stallRecoveryHelper;
     private ProgressBar progressBar;
     boolean fullscreen = false;
     private ImageView fullscreenButton;
@@ -178,6 +180,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         styledPlayerView.requestFocus();
 
         startExoPlayback();
+        attachStallRecovery();
         attachPlayerListener();
         setupControls();
         handleOnBackPressed();
@@ -193,6 +196,34 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         exoPlayer.setPlayWhenReady(true);
     }
 
+    private void reloadLiveStream(boolean showErrorOnFailure) {
+        progressBar.setVisibility(View.VISIBLE);
+        new Thread(() -> {
+            String resolvedUrl = StreamPlaybackHelper.resolveFinalPlaybackUrl(sharedPref, sourceStreamUrl);
+            if (TextUtils.isEmpty(resolvedUrl)) {
+                resolvedUrl = sourceStreamUrl;
+            }
+            final String playbackUrl = K1PlaybackHelper.optimizePlaybackUrl(resolvedUrl);
+            runOnUiThread(() -> {
+                if (TextUtils.isEmpty(playbackUrl) || exoPlayer == null) {
+                    progressBar.setVisibility(View.GONE);
+                    if (showErrorOnFailure) {
+                        errorDialog();
+                    }
+                    return;
+                }
+                video_url = playbackUrl;
+                dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
+                        ActivityPlayerVideo.this, sharedPref, sourceStreamUrl, user_agent);
+                MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);
+                exoPlayer.stop();
+                exoPlayer.setMediaSource(mediaSource);
+                exoPlayer.prepare();
+                exoPlayer.setPlayWhenReady(true);
+            });
+        }).start();
+    }
+
     private void toggleEpgPanel() {
         if (layoutEpgInfo == null) {
             return;
@@ -205,10 +236,38 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void releasePlayers() {
+        if (stallRecoveryHelper != null) {
+            stallRecoveryHelper.release();
+            stallRecoveryHelper = null;
+        }
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;
         }
+    }
+
+    private void attachStallRecovery() {
+        if (stallRecoveryHelper != null) {
+            stallRecoveryHelper.release();
+        }
+        stallRecoveryHelper = new IptvStallRecoveryHelper(exoPlayer, video_url, new IptvStallRecoveryHelper.Callback() {
+            @Override
+            public void onStallSoftRecover(int attempt) {
+                Log.d(TAG, "stall soft recover attempt=" + attempt);
+            }
+
+            @Override
+            public void onStallHardRecover() {
+                Log.d(TAG, "stall hard recover — reloading stream");
+                if (autoRetryCount < StreamPlaybackHelper.AUTO_RETRY_MAX) {
+                    autoRetryCount++;
+                    reloadLiveStream(false);
+                } else {
+                    errorDialog();
+                }
+            }
+        });
+        exoPlayer.addListener(stallRecoveryHelper);
     }
 
     private void attachPlayerListener() {
@@ -230,6 +289,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                     case Player.STATE_READY:
                         progressBar.setVisibility(View.GONE);
                         contentLoaded = true;
+                        autoRetryCount = 0;
                         break;
                     case Player.STATE_BUFFERING:
                         if (!Config.ENABLE_LOOPING_MODE) {
@@ -483,29 +543,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             return;
         }
 
-        new Thread(() -> {
-            String resolvedUrl = StreamPlaybackHelper.resolveFinalPlaybackUrl(sharedPref, sourceStreamUrl);
-            if (TextUtils.isEmpty(resolvedUrl)) {
-                resolvedUrl = sourceStreamUrl;
-            }
-            final String playbackUrl = K1PlaybackHelper.optimizePlaybackUrl(resolvedUrl);
-            runOnUiThread(() -> {
-                if (TextUtils.isEmpty(playbackUrl)) {
-                    progressBar.setVisibility(View.GONE);
-                    if (showErrorOnFailure) {
-                        errorDialog();
-                    }
-                    return;
-                }
-                video_url = playbackUrl;
-                dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
-                        ActivityPlayerVideo.this, sharedPref, sourceStreamUrl, user_agent);
-                MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);
-                exoPlayer.setMediaSource(mediaSource);
-                exoPlayer.prepare();
-                exoPlayer.setPlayWhenReady(true);
-            });
-        }).start();
+        reloadLiveStream(showErrorOnFailure);
     }
 
     @Override

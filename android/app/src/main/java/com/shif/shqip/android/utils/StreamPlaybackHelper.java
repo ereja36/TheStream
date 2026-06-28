@@ -8,7 +8,7 @@ import android.text.TextUtils;
 
 public final class StreamPlaybackHelper {
 
-    public static final int AUTO_RETRY_MAX = 3;
+    public static final int AUTO_RETRY_MAX = 6;
     public static final int CONNECT_TIMEOUT_MS = 20_000;
     public static final int READ_TIMEOUT_MS = 60_000;
 
