@@ -115,9 +115,8 @@ public final class PortalHttpDataSource implements HttpDataSource {
 
         @Override
         public HttpDataSource createDataSource() {
-            DefaultHttpDataSource.Factory delegateFactory = new DefaultHttpDataSource.Factory()
-                    .setUserAgent(userAgent)
-                    .setAllowCrossProtocolRedirects(true);
+            DefaultHttpDataSource.Factory delegateFactory = StreamPlaybackHelper.configureHttpFactory(
+                    new DefaultHttpDataSource.Factory().setUserAgent(userAgent));
             return new PortalHttpDataSource(delegateFactory.createDataSource(), context, sharedPref);
         }
 

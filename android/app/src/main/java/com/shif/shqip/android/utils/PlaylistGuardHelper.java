@@ -336,9 +336,8 @@ public final class PlaylistGuardHelper {
         headers.put("X-Shif-App", "1");
         headers.put("X-Requested-With", BuildConfig.APPLICATION_ID);
 
-        DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
-                .setAllowCrossProtocolRedirects(true)
-                .setUserAgent(userAgent);
+        DefaultHttpDataSource.Factory httpFactory = StreamPlaybackHelper.configureHttpFactory(
+                new DefaultHttpDataSource.Factory().setUserAgent(userAgent));
         if (!headers.isEmpty()) {
             httpFactory.setDefaultRequestProperties(headers);
         }

@@ -24,8 +24,8 @@ public final class PlaylistPortalHelper {
 
     private static final String PORTAL_HOST = "playlist.shifshqip.com";
     private static final String UPSTREAM_STREAM_HOST = "shifshqip.com";
-    private static final String UPSTREAM_STREAM_UA = "Ooew";
-    private static final String UPSTREAM_STREAM_REFERER = "https://shifshqip.com/k1/playlist/shifshqip.m3u";
+    public static final String UPSTREAM_STREAM_UA = "Ooew";
+    public static final String UPSTREAM_STREAM_REFERER = "https://shifshqip.com/k1/playlist/shifshqip.m3u";
 
     public static final String PUBLIC_PORTAL_URL = "https://playlist.shifshqip.com/";
 

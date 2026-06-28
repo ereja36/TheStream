@@ -153,7 +153,8 @@ public class ActivitySplash extends AppCompatActivity {
                             app.redirect_url,
                             settings.providers,
                             settings.enable_player_epg != 0,
-                            TextUtils.isEmpty(settings.privacy_public_url) ? "https://shifshqip.com/privacy" : settings.privacy_public_url);
+                            TextUtils.isEmpty(settings.privacy_public_url) ? "https://shifshqip.com/privacy" : settings.privacy_public_url,
+                            settings.player_engine);
                     DeviceApiHelper.reportDeviceOpen(sharedPref, deviceId);
                     sharedPref.saveUser(license.item_id, license.item_name, license.buyer, license.license_type);
                     if (app.design_id != null) {

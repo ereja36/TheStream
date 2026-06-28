@@ -41,6 +41,7 @@ import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.PlaylistPortalHelper;
+import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.TrackSelectionDialog;
 import com.google.android.exoplayer2.C;
@@ -64,6 +65,7 @@ import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.ui.StyledPlayerView;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
+import com.google.android.exoplayer2.upstream.DefaultLoadErrorHandlingPolicy;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
@@ -94,6 +96,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private static final String TAG = "ActivityStreamPlayer";
     String channel_id = "";
     String video_url;
+    String sourceStreamUrl = "";
     String user_agent;
     String epgChannelId = "";
     String epgUrl = "";
@@ -113,6 +116,19 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private TextView txtEpgNext;
     private LinearLayout layoutEpgInfo;
     private final ExecutorService epgExecutor = Executors.newSingleThreadExecutor();
+    private final Handler refreshHandler = new Handler(Looper.getMainLooper());
+    private int autoRetryCount = 0;
+    private boolean destroyed = false;
+
+    private final Runnable refreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!destroyed && StreamPlaybackHelper.needsPeriodicRefresh(sourceStreamUrl)) {
+                refreshPlaybackUrl(false);
+            }
+            refreshHandler.postDelayed(this, StreamPlaybackHelper.STREAM_REFRESH_MS);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -145,6 +161,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             finish();
             return;
         }
+        sourceStreamUrl = video_url.trim();
 
         if (!channel_id.trim().isEmpty()) {
             updateView(channel_id);
@@ -158,13 +175,17 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
         new Thread(() -> {
             PlaylistGuardSession.refreshBlocking(sharedPref);
-            video_url = PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, video_url);
+            String resolved = StreamPlaybackHelper.resolveForPlayback(sharedPref, sourceStreamUrl);
             runOnUiThread(() -> {
-                if (TextUtils.isEmpty(video_url)) {
+                if (TextUtils.isEmpty(resolved)) {
                     errorDialog();
                     return;
                 }
+                video_url = resolved;
                 initializePlayer();
+                if (StreamPlaybackHelper.needsPeriodicRefresh(sourceStreamUrl)) {
+                    refreshHandler.postDelayed(refreshRunnable, StreamPlaybackHelper.STREAM_REFRESH_MS);
+                }
             });
         }).start();
     }
@@ -178,7 +199,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         Log.d(TAG, "user agent : " + PlaylistGuardHelper.resolveUserAgent(
                 PlaylistGuardHelper.resolveRule(sharedPref, video_url), user_agent));
 
-        LoadControl loadControl = new DefaultLoadControl();
+        LoadControl loadControl = StreamPlaybackHelper.createLoadControl();
         AdaptiveTrackSelection.Factory trackSelectionFactory = new AdaptiveTrackSelection.Factory();
         trackSelector = new DefaultTrackSelector(this, trackSelectionFactory);
 
@@ -239,9 +260,14 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
             @Override
             public void onPlayerError(@NonNull PlaybackException error) {
+                Log.d(TAG, "onPlayerError " + error.getMessage());
+                if (autoRetryCount < StreamPlaybackHelper.AUTO_RETRY_MAX) {
+                    autoRetryCount++;
+                    refreshPlaybackUrl(true);
+                    return;
+                }
                 exoPlayer.stop();
                 errorDialog();
-                Log.d(TAG, "onPlayerError " + error.getMessage());
             }
 
             @Override
@@ -348,6 +374,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             case C.TYPE_HLS:
                 return new HlsMediaSource.Factory(dataSourceFactory)
                         .setAllowChunklessPreparation(true)
+                        .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(8))
                         .createMediaSource(mMediaItem);
             case C.TYPE_OTHER:
                 if (video_url.contains("hls")) {
@@ -454,28 +481,59 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     public void retryLoad() {
-        if (exoPlayer == null) {
+        refreshPlaybackUrl(true);
+    }
+
+    private void refreshPlaybackUrl(boolean showErrorOnFailure) {
+        if (exoPlayer == null && !showErrorOnFailure) {
             return;
         }
         progressBar.setVisibility(View.VISIBLE);
         new Thread(() -> {
-            String resolvedUrl = PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, video_url);
+            PlaylistGuardSession.refreshBlocking(sharedPref);
+            String resolvedUrl = StreamPlaybackHelper.resolveForPlayback(sharedPref, sourceStreamUrl);
             runOnUiThread(() -> {
                 if (TextUtils.isEmpty(resolvedUrl)) {
                     progressBar.setVisibility(View.GONE);
-                    errorDialog();
+                    if (showErrorOnFailure) {
+                        errorDialog();
+                    }
                     return;
                 }
-                video_url = resolvedUrl;
-                dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(
-                        ActivityPlayerVideo.this, sharedPref, video_url, user_agent);
-                Uri uri = Uri.parse(video_url);
-                MediaSource mediaSource = buildMediaSource(uri);
-                exoPlayer.setMediaSource(mediaSource);
-                exoPlayer.prepare();
-                exoPlayer.setPlayWhenReady(true);
+                if (exoPlayer == null) {
+                    video_url = resolvedUrl;
+                    initializePlayer();
+                    return;
+                }
+                if (!resolvedUrl.equals(video_url)) {
+                    video_url = resolvedUrl;
+                    autoRetryCount = 0;
+                    dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(
+                            ActivityPlayerVideo.this, sharedPref, video_url, user_agent);
+                    Uri uri = Uri.parse(video_url);
+                    MediaSource mediaSource = buildMediaSource(uri);
+                    exoPlayer.setMediaSource(mediaSource);
+                    exoPlayer.prepare();
+                    exoPlayer.setPlayWhenReady(true);
+                } else if (showErrorOnFailure) {
+                    exoPlayer.prepare();
+                    exoPlayer.setPlayWhenReady(true);
+                }
+                progressBar.setVisibility(View.GONE);
             });
         }).start();
+    }
+
+    @Override
+    protected void onDestroy() {
+        destroyed = true;
+        refreshHandler.removeCallbacksAndMessages(null);
+        epgExecutor.shutdownNow();
+        if (exoPlayer != null) {
+            exoPlayer.release();
+            exoPlayer = null;
+        }
+        super.onDestroy();
     }
 
     private void updateView(String id) {
@@ -659,12 +717,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
     private String safeText(String value) {
         return value == null ? "" : value.trim();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        epgExecutor.shutdownNow();
     }
 
     private static class EpgProgram {
