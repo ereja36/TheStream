@@ -24,7 +24,8 @@ public final class StreamPlaybackHelper {
     }
 
     /**
-     * Returns a portal-proxied play URL. Upstream shifshqip.com is never exposed to the client.
+     * Returns a play URL. Playlist/channel entry URLs stay sealed on the portal;
+     * resolved playback goes directly to shifshqip.com channel-proxy.
      */
     public static String resolvePlaybackUrl(SharedPref sharedPref, String sourceUrl, String k1Slug) {
         if (!TextUtils.isEmpty(k1Slug)) {

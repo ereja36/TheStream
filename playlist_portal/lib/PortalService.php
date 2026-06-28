@@ -209,12 +209,13 @@ final class PortalService
     }
 
     /**
-     * Server-side k1 channel-url lookup — upstream headers stay on the portal only.
+     * Server-side k1 channel-url lookup — resolves to channel-proxy on the
+     * portal only; client streams directly from shifshqip.com afterward.
      */
     public static function resolveK1ChannelPortalUrl($portal, $host, $slug, $accessKey)
     {
         $slug = trim((string) $slug);
-        if ($slug === '' || $accessKey === '') {
+        if ($slug === '') {
             return '';
         }
         $apiUrl = 'https://shifshqip.com/k1/api/channel-url/' . rawurlencode($slug);
@@ -236,13 +237,52 @@ final class PortalService
         if ($url[0] === '/') {
             $url = 'https://shifshqip.com' . $url;
         }
-        $url = self::optimizeK1PlaybackUrl($url);
-        $sealed = self::sealUrl($url, $accessKey);
-        if ($sealed === '') {
+        return self::resolvePlaybackRedirectUrl($portal, $url);
+    }
+
+    public static function isK1ChannelProxyUrl($url)
+    {
+        $url = strtolower((string) $url);
+        return strpos($url, '/k1/channel-proxy/') !== false || strpos($url, '/k1/proxy/') !== false;
+    }
+
+    public static function isK1PlaylistEntryUrl($url)
+    {
+        $url = strtolower((string) $url);
+        return strpos($url, '/k1/playlist/') !== false;
+    }
+
+    /**
+     * Resolve playlist entry URLs to channel-proxy; pass channel-proxy through.
+     */
+    public static function resolvePlaybackRedirectUrl($portal, $url)
+    {
+        $url = trim((string) $url);
+        if ($url === '' || !preg_match('#^https?://#i', $url)) {
             return '';
         }
-        $portalSlug = is_array($portal) && isset($portal['portal_slug']) ? $portal['portal_slug'] : 'shifshqip';
-        return self::publicBaseUrl($host, $portalSlug) . '/r/' . $sealed;
+        $url = self::optimizeK1PlaybackUrl($url);
+        if (self::isK1ChannelProxyUrl($url)) {
+            return $url;
+        }
+        if (self::isK1PlaylistEntryUrl($url) || strpos(strtolower($url), '/k1/channel/') !== false) {
+            $resolved = self::resolveStreamEntryUrl($portal, $url);
+            if ($resolved !== '') {
+                return $resolved;
+            }
+        }
+        return $url;
+    }
+
+    public static function redirectToStreamUrl($finalUrl)
+    {
+        $finalUrl = trim((string) $finalUrl);
+        if ($finalUrl === '' || !preg_match('#^https?://#i', $finalUrl)) {
+            return false;
+        }
+        header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+        header('Location: ' . $finalUrl, true, 302);
+        return true;
     }
 
     public static function resolveStreamEntryUrl($portal, $entryUrl)
@@ -250,6 +290,9 @@ final class PortalService
         $entryUrl = trim((string) $entryUrl);
         if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
             return '';
+        }
+        if (self::isK1ChannelProxyUrl($entryUrl)) {
+            return self::optimizeK1PlaybackUrl($entryUrl);
         }
 
         $referer = !empty($portal['outbound_referer']) ? $portal['outbound_referer'] : '';

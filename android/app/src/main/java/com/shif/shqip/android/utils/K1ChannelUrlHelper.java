@@ -15,8 +15,8 @@ import java.net.URL;
 import java.util.Locale;
 
 /**
- * Resolves fresh play URLs via playlist portal (server-side k1 API proxy).
- * Client never calls shifshqip.com directly — no upstream Referer/UA leak.
+ * Resolves fresh play URLs via playlist portal (server-side k1 API).
+ * Portal returns channel-proxy URLs; playlist entry URLs stay sealed as /r/.
  */
 public final class K1ChannelUrlHelper {
 

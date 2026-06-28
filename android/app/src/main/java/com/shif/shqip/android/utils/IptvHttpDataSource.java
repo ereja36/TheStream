@@ -17,8 +17,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * HTTP data source for portal-proxied IPTV. All stream traffic stays on
- * playlist.shifshqip.com — upstream Referer/UA are applied server-side only.
+ * Portal playlist/auth on playlist.shifshqip.com; video streams redirect to
+ * shifshqip.com channel-proxy and play directly from the source CDN.
  */
 @SuppressWarnings("deprecation")
 public final class IptvHttpDataSource implements HttpDataSource {
@@ -50,43 +50,24 @@ public final class IptvHttpDataSource implements HttpDataSource {
         headers.put("Accept", "*/*");
         headers.put("X-Shif-App", "1");
         headers.put("X-Requested-With", BuildConfig.APPLICATION_ID);
-        headers.put("User-Agent", "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)");
 
-        if (sharedPref != null && sharedPref.isPortalSessionActive()) {
-            String deviceId = DeviceApiHelper.getLocalDeviceId(context);
-            if (!TextUtils.isEmpty(deviceId)) {
-                headers.put("X-Device-ID", deviceId);
-            }
-            if (PlaylistPortalHelper.isPortalUrl(requestUrl)) {
+        if (PlaylistPortalHelper.isPortalUrl(requestUrl)) {
+            headers.put("User-Agent", "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)");
+            if (sharedPref != null && sharedPref.isPortalSessionActive()) {
+                String deviceId = DeviceApiHelper.getLocalDeviceId(context);
+                if (!TextUtils.isEmpty(deviceId)) {
+                    headers.put("X-Device-ID", deviceId);
+                }
                 headers.putAll(PlaylistPortalHelper.buildPortalHeaders(
                         requestUrl,
                         "GET",
                         deviceId,
                         sharedPref
                 ));
-                if (PlaylistPortalHelper.isPortalResolveUrl(requestUrl)
-                        || isPortalProxyPath(requestUrl)) {
-                    headers.put("X-Shif-Stream-Proxy", "1");
-                }
             }
-            return delegate.open(dataSpec.withRequestHeaders(headers));
-        }
-
-        if (PlaylistPortalHelper.isPortalUrl(requestUrl)) {
-            String deviceId = DeviceApiHelper.getLocalDeviceId(context);
-            if (!TextUtils.isEmpty(deviceId)) {
-                headers.put("X-Device-ID", deviceId);
-            }
-            headers.putAll(PlaylistPortalHelper.buildPortalHeaders(
-                    requestUrl,
-                    "GET",
-                    deviceId,
-                    sharedPref
-            ));
         } else {
             PlaylistGuardRule rule = PlaylistGuardHelper.resolveRule(sharedPref, requestUrl);
-            String userAgent = PlaylistGuardHelper.resolveUserAgent(rule, channelUserAgent);
-            headers.put("User-Agent", userAgent);
+            headers.put("User-Agent", PlaylistGuardHelper.resolveUserAgent(rule, channelUserAgent));
             Map<String, String> ruleHeaders = PlaylistGuardHelper.buildRequestHeaders(rule);
             if (ruleHeaders != null) {
                 headers.putAll(ruleHeaders);
@@ -94,14 +75,6 @@ public final class IptvHttpDataSource implements HttpDataSource {
         }
 
         return delegate.open(dataSpec.withRequestHeaders(headers));
-    }
-
-    private static boolean isPortalProxyPath(String requestUrl) {
-        if (TextUtils.isEmpty(requestUrl)) {
-            return false;
-        }
-        String lower = requestUrl.toLowerCase();
-        return lower.contains("/collect/") && (lower.contains("/s/") || lower.contains("/x/"));
     }
 
     @Override

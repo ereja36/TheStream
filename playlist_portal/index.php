@@ -90,7 +90,7 @@ if ($path['channel'] === 'u' && $path['stream'] !== '') {
     }
     echo json_encode(array(
         'ok' => true,
-        'mode' => 'portal',
+        'mode' => 'direct',
         'url' => $playUrl
     ), JSON_UNESCAPED_SLASHES);
     exit;
@@ -101,20 +101,13 @@ if ($path['channel'] === 'r' && $path['stream'] !== '') {
     if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
         PortalService::deny('invalid_entry');
     }
-    $finalUrl = PortalService::resolveStreamEntryUrl($portal, $entryUrl);
+    $finalUrl = PortalService::resolvePlaybackRedirectUrl($portal, $entryUrl);
     if ($finalUrl === '') {
         PortalService::deny('resolve_failed');
     }
-    $proxyStream = isset($headers['x_shif_stream_proxy']) && $headers['x_shif_stream_proxy'] === '1';
-    header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
-    if ($proxyStream) {
-        $streamUpstream = PortalService::fetchStreamPayload($portal, $finalUrl, $sourceUrl);
-        if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $finalUrl, $streamUpstream)) {
-            PortalService::deny('proxy_error');
-        }
-        exit;
+    if (!PortalService::redirectToStreamUrl($finalUrl)) {
+        PortalService::deny('resolve_failed');
     }
-    header('Location: ' . $finalUrl, true, 302);
     exit;
 }
 
@@ -123,9 +116,9 @@ if ($path['channel'] === 's' && $path['stream'] !== '') {
     if ($proxyTarget === '' || !preg_match('#^https?://#i', $proxyTarget)) {
         PortalService::deny('invalid_proxy');
     }
-    $proxyUpstream = PortalService::fetchStreamPayload($portal, $proxyTarget, $sourceUrl);
-    if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $proxyTarget, $proxyUpstream)) {
-        PortalService::deny('proxy_error');
+    $finalUrl = PortalService::resolvePlaybackRedirectUrl($portal, $proxyTarget);
+    if ($finalUrl === '' || !PortalService::redirectToStreamUrl($finalUrl)) {
+        PortalService::deny('resolve_failed');
     }
     exit;
 }
@@ -135,9 +128,9 @@ if ($path['channel'] === 'x' && $path['stream'] !== '') {
     if ($proxyTarget === '' || !preg_match('#^https?://#i', $proxyTarget)) {
         PortalService::deny('invalid_proxy');
     }
-    $proxyUpstream = PortalService::fetchStreamPayload($portal, $proxyTarget, $sourceUrl);
-    if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $proxyTarget, $proxyUpstream)) {
-        PortalService::deny('proxy_error');
+    $finalUrl = PortalService::resolvePlaybackRedirectUrl($portal, $proxyTarget);
+    if ($finalUrl === '' || !PortalService::redirectToStreamUrl($finalUrl)) {
+        PortalService::deny('resolve_failed');
     }
     exit;
 }
@@ -165,12 +158,14 @@ if ($m3uEntry !== null) {
         exit;
     }
 
-    $upstreamStream = PortalService::resolveStreamUrl($portal, $m3uEntry['url'], $sourceUrl);
+    $upstreamStream = PortalService::resolvePlaybackRedirectUrl(
+        $portal,
+        PortalService::resolveStreamUrl($portal, $m3uEntry['url'], $sourceUrl)
+    );
     if ($upstreamStream === '') {
         PortalService::deny('stream_not_found');
     }
-    $streamUpstream = PortalService::fetchStreamPayload($portal, $upstreamStream, $sourceUrl);
-    if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $sourceUrl, $streamUpstream)) {
+    if (!PortalService::redirectToStreamUrl($upstreamStream)) {
         PortalService::deny('stream_error');
     }
     exit;
@@ -194,9 +189,14 @@ if ($path['stream'] !== '') {
     if ($upstreamStream === '') {
         PortalService::deny('stream_not_found');
     }
-    $upstreamStream = PortalService::resolveStreamUrl($portal, $upstreamStream, $sourceUrl);
-    $streamUpstream = PortalService::fetchStreamPayload($portal, $upstreamStream, $sourceUrl);
-    if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $sourceUrl, $streamUpstream)) {
+    $upstreamStream = PortalService::resolvePlaybackRedirectUrl(
+        $portal,
+        PortalService::resolveStreamUrl($portal, $upstreamStream, $sourceUrl)
+    );
+    if ($upstreamStream === '') {
+        PortalService::deny('stream_not_found');
+    }
+    if (!PortalService::redirectToStreamUrl($upstreamStream)) {
         PortalService::deny('stream_error');
     }
     exit;
