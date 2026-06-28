@@ -116,19 +116,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private TextView txtEpgNext;
     private LinearLayout layoutEpgInfo;
     private final ExecutorService epgExecutor = Executors.newSingleThreadExecutor();
-    private final Handler refreshHandler = new Handler(Looper.getMainLooper());
     private int autoRetryCount = 0;
     private boolean destroyed = false;
-
-    private final Runnable refreshRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (!destroyed && StreamPlaybackHelper.needsPeriodicRefresh(sourceStreamUrl)) {
-                refreshPlaybackUrl(false);
-            }
-            refreshHandler.postDelayed(this, StreamPlaybackHelper.STREAM_REFRESH_MS);
-        }
-    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -182,10 +171,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                     return;
                 }
                 video_url = resolved;
+                autoRetryCount = 0;
                 initializePlayer();
-                if (StreamPlaybackHelper.needsPeriodicRefresh(sourceStreamUrl)) {
-                    refreshHandler.postDelayed(refreshRunnable, StreamPlaybackHelper.STREAM_REFRESH_MS);
-                }
             });
         }).start();
     }
@@ -263,7 +250,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 Log.d(TAG, "onPlayerError " + error.getMessage());
                 if (autoRetryCount < StreamPlaybackHelper.AUTO_RETRY_MAX) {
                     autoRetryCount++;
-                    refreshPlaybackUrl(true);
+                    retryPlayback(false);
                     return;
                 }
                 exoPlayer.stop();
@@ -481,11 +468,11 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     public void retryLoad() {
-        refreshPlaybackUrl(true);
+        retryPlayback(true);
     }
 
-    private void refreshPlaybackUrl(boolean showErrorOnFailure) {
-        if (exoPlayer == null && !showErrorOnFailure) {
+    private void retryPlayback(boolean showErrorOnFailure) {
+        if (exoPlayer == null) {
             return;
         }
         progressBar.setVisibility(View.VISIBLE);
@@ -500,25 +487,14 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                     }
                     return;
                 }
-                if (exoPlayer == null) {
-                    video_url = resolvedUrl;
-                    initializePlayer();
-                    return;
-                }
-                if (!resolvedUrl.equals(video_url)) {
-                    video_url = resolvedUrl;
-                    autoRetryCount = 0;
-                    dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(
-                            ActivityPlayerVideo.this, sharedPref, video_url, user_agent);
-                    Uri uri = Uri.parse(video_url);
-                    MediaSource mediaSource = buildMediaSource(uri);
-                    exoPlayer.setMediaSource(mediaSource);
-                    exoPlayer.prepare();
-                    exoPlayer.setPlayWhenReady(true);
-                } else if (showErrorOnFailure) {
-                    exoPlayer.prepare();
-                    exoPlayer.setPlayWhenReady(true);
-                }
+                video_url = resolvedUrl;
+                dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(
+                        ActivityPlayerVideo.this, sharedPref, video_url, user_agent);
+                Uri uri = Uri.parse(video_url);
+                MediaSource mediaSource = buildMediaSource(uri);
+                exoPlayer.setMediaSource(mediaSource);
+                exoPlayer.prepare();
+                exoPlayer.setPlayWhenReady(true);
                 progressBar.setVisibility(View.GONE);
             });
         }).start();
@@ -527,7 +503,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         destroyed = true;
-        refreshHandler.removeCallbacksAndMessages(null);
         epgExecutor.shutdownNow();
         if (exoPlayer != null) {
             exoPlayer.release();

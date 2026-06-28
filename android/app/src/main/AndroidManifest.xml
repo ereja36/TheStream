@@ -82,10 +82,6 @@
             android:configChanges="orientation|keyboardHidden|screenSize" />
 
         <activity
-            android:name=".activities.ActivityPlayerHlsJs"
-            android:configChanges="orientation|keyboardHidden|screenSize" />
-
-        <activity
             android:name=".activities.ActivityPlayerWebView"
             android:configChanges="orientation|keyboardHidden|screenSize" />
 

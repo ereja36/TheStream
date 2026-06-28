@@ -210,7 +210,7 @@ public class SharedPref {
         return sharedPreferences.getString("application_id", "com.shif.shqip.android");
     }
 
-    public void saveCredentials(String youtube_api_key, String more_apps_url, String privacy_policy, String redirect_url, String pushNotificationProvider, boolean enablePlayerEpg, String privacyPublicUrl, String playerEngine) {
+    public void saveCredentials(String youtube_api_key, String more_apps_url, String privacy_policy, String redirect_url, String pushNotificationProvider, boolean enablePlayerEpg, String privacyPublicUrl) {
         editor.putString("youtube_api_key", youtube_api_key);
         editor.putString("more_apps_url", more_apps_url);
         editor.putString("privacy_policy", privacy_policy);
@@ -218,24 +218,7 @@ public class SharedPref {
         editor.putString("providers", pushNotificationProvider);
         editor.putBoolean("enable_player_epg", enablePlayerEpg);
         editor.putString("privacy_public_url", privacyPublicUrl);
-        editor.putString("player_engine", normalizePlayerEngine(playerEngine));
         editor.apply();
-    }
-
-    public String getPlayerEngine() {
-        return normalizePlayerEngine(sharedPreferences.getString("player_engine", "exoplayer"));
-    }
-
-    public boolean useHlsJsPlayer() {
-        return "hlsjs".equals(getPlayerEngine());
-    }
-
-    private static String normalizePlayerEngine(String value) {
-        if (value == null) {
-            return "exoplayer";
-        }
-        String normalized = value.trim().toLowerCase(java.util.Locale.US);
-        return "hlsjs".equals(normalized) ? "hlsjs" : "exoplayer";
     }
 
     public boolean isPlayerEpgEnabled() {

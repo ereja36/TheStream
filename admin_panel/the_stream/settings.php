@@ -28,7 +28,6 @@
             'youtube_api_key' => $_POST['youtube_api_key'],
             'more_apps_url' => $_POST['more_apps_url'],
             'enable_player_epg' => isset($_POST['enable_player_epg']) ? (int) $_POST['enable_player_epg'] : 0,
-            'player_engine' => isset($_POST['player_engine']) ? clean($_POST['player_engine']) : 'exoplayer',
             'privacy_public_url' => $_POST['privacy_public_url']
         );
 
@@ -164,23 +163,6 @@
                                             <input type="text" class="form-control" name="privacy_public_url" id="privacy_public_url" value="<?php echo isset($settings_row['privacy_public_url']) ? $settings_row['privacy_public_url'] : 'https://shifshqip.com/privacy'; ?>" required>
                                         </div>
                                         <div class="help-info pull-left"><font color="#337ab7">Shown in the app (e.g. https://shifshqip.com/privacy)</font></div>
-                                    </div>
-                                </div>
-
-                                <div class="col-sm-12">
-                                    <div class="form-group">
-                                        <div class="font-12"><b>Player Engine</b></div>
-                                        <select class="form-control show-tick" name="player_engine" id="player_engine">
-                                            <?php
-                                            $playerEngine = isset($settings_row['player_engine']) ? (string) $settings_row['player_engine'] : 'exoplayer';
-                                            if ($playerEngine !== 'hlsjs') {
-                                                $playerEngine = 'exoplayer';
-                                            }
-                                            ?>
-                                            <option value="exoplayer" <?php echo $playerEngine === 'exoplayer' ? 'selected="selected"' : ''; ?>>ExoPlayer (native)</option>
-                                            <option value="hlsjs" <?php echo $playerEngine === 'hlsjs' ? 'selected="selected"' : ''; ?>>HLS.js (WebView)</option>
-                                        </select>
-                                        <div class="help-info pull-left"><font color="#337ab7">HLS.js works better for live IPTV streams with expiring tokens</font></div>
                                     </div>
                                 </div>
 

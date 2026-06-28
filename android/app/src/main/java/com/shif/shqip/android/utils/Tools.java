@@ -54,7 +54,6 @@ import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.activities.ActivityChannelDetail;
 import com.shif.shqip.android.activities.ActivityNotificationDetail;
-import com.shif.shqip.android.activities.ActivityPlayerHlsJs;
 import com.shif.shqip.android.activities.ActivityPlayerWebView;
 import com.shif.shqip.android.activities.ActivityPlayerVideo;
 import com.shif.shqip.android.activities.ActivityWebView;
@@ -545,13 +544,6 @@ public class Tools {
             } else if (channel.channel_type != null && channel.channel_type.equals("EMBED")) {
                 intent = new Intent(activity, ActivityPlayerWebView.class);
                 intent.putExtra("url", channel.channel_url);
-            } else if (sharedPref.useHlsJsPlayer()) {
-                intent = new Intent(activity, ActivityPlayerHlsJs.class);
-                intent.putExtra("url", channel.channel_url);
-                intent.putExtra("user_agent", channel.user_agent);
-                intent.putExtra("epg_channel_id", channel.epg_id);
-                intent.putExtra("epg_url", channel.epg_url);
-                intent.putExtra("channel_name", channel.channel_name);
             } else {
                 intent = new Intent(activity, ActivityPlayerVideo.class);
                 intent.putExtra("url", channel.channel_url);
