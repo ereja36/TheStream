@@ -146,6 +146,7 @@
     <string name="playlist_setup_note_short">Importo kanalet nga M3U, Xtream ose skedar lokal.</string>
     <string name="playlist_managed_by_admin">Playlista juaj menaxhohet nga administratori. Burimi i listës nuk shfaqet në aplikacion.</string>
     <string name="player_epg_button">EPG</string>
+    <string name="player_rotate_sensor">Auto rotate</string>
     <string name="playlist_manage_title">Manage Playlists</string>
     <string name="playlist_manage_subtitle">Add and manage M3U and Xtream playlists</string>
 

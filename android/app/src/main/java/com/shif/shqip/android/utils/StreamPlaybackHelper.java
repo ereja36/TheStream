@@ -23,32 +23,36 @@ public final class StreamPlaybackHelper {
         return PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, sourceUrl);
     }
 
-    /** Resolve portal /r/ URLs to the final upstream link. */
-    public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl) {
-        return resolveFinalPlaybackUrl(sharedPref, sourceUrl, "");
-    }
-
-    public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl, String k1Slug) {
+    /**
+     * Returns a portal-proxied play URL. Upstream shifshqip.com is never exposed to the client.
+     */
+    public static String resolvePlaybackUrl(SharedPref sharedPref, String sourceUrl, String k1Slug) {
         if (!TextUtils.isEmpty(k1Slug)) {
-            String apiUrl = K1ChannelUrlHelper.resolvePlayableUrl(k1Slug);
-            if (!TextUtils.isEmpty(apiUrl)) {
-                return apiUrl;
+            String portalUrl = K1ChannelUrlHelper.resolvePlayableUrl(sharedPref, k1Slug);
+            if (!TextUtils.isEmpty(portalUrl)) {
+                return portalUrl;
             }
         }
         if (TextUtils.isEmpty(sourceUrl)) {
             return sourceUrl;
         }
-        String resolved;
-        if (sharedPref != null && PlaylistPortalHelper.isPortalResolveUrl(sourceUrl)) {
-            try {
-                resolved = PlaylistGuardHelper.resolvePlaybackUrl(sharedPref, sourceUrl);
-            } catch (Exception ignored) {
-                return "";
-            }
-        } else {
-            resolved = resolveForPlayback(sharedPref, sourceUrl);
+        if (sharedPref != null && sharedPref.isPortalSessionActive()
+                && PlaylistPortalHelper.isPortalResolveUrl(sourceUrl)) {
+            return sourceUrl;
         }
-        return K1PlaybackHelper.optimizePlaybackUrl(resolved);
+        if (sharedPref != null && sharedPref.isPortalSessionActive()
+                && PlaylistPortalHelper.isPortalUrl(sourceUrl)) {
+            return sourceUrl;
+        }
+        return K1PlaybackHelper.optimizePlaybackUrl(resolveForPlayback(sharedPref, sourceUrl));
+    }
+
+    public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl) {
+        return resolvePlaybackUrl(sharedPref, sourceUrl, "");
+    }
+
+    public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl, String k1Slug) {
+        return resolvePlaybackUrl(sharedPref, sourceUrl, k1Slug);
     }
 
     public static DefaultHttpDataSource.Factory configureHttpFactory(DefaultHttpDataSource.Factory factory) {

@@ -42,8 +42,8 @@ import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.TrackSelectionDialog;
+import com.shif.shqip.android.utils.IptvLiveStatsHelper;
 import com.shif.shqip.android.utils.IptvStallRecoveryHelper;
-import com.shif.shqip.android.utils.K1PlaybackHelper;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
@@ -89,8 +89,10 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private ExoPlayer exoPlayer;
     private DefaultDataSource.Factory dataSourceFactory;
     private IptvStallRecoveryHelper stallRecoveryHelper;
+    private IptvLiveStatsHelper liveStatsHelper;
     private ProgressBar progressBar;
     boolean fullscreen = false;
+    private boolean sensorRotateEnabled = false;
     private ImageView fullscreenButton;
     private long exitTime = 0;
     SharedPref sharedPref;
@@ -141,12 +143,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         }
 
         progressBar = findViewById(R.id.progress_bar);
-        layoutEpgInfo = findViewById(R.id.layout_epg_info);
-        txtEpgNow = findViewById(R.id.txt_epg_now);
-        txtEpgNext = findViewById(R.id.txt_epg_next);
         progressBar.setVisibility(View.VISIBLE);
         new Thread(() -> {
-            String resolved = StreamPlaybackHelper.resolveFinalPlaybackUrl(
+            String resolved = StreamPlaybackHelper.resolvePlaybackUrl(
                     sharedPref, sourceStreamUrl, epgChannelId);
             runOnUiThread(() -> {
                 if (TextUtils.isEmpty(resolved)) {
@@ -178,6 +177,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         exoPlayer = IptvPlayerHelper.createPlayer(this);
         styledPlayerView.setPlayer(exoPlayer);
         styledPlayerView.setUseController(true);
+        styledPlayerView.setControllerShowTimeoutMs(3500);
         styledPlayerView.requestFocus();
 
         startExoPlayback();
@@ -200,12 +200,12 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private void reloadLiveStream(boolean showErrorOnFailure) {
         progressBar.setVisibility(View.VISIBLE);
         new Thread(() -> {
-            String resolvedUrl = StreamPlaybackHelper.resolveFinalPlaybackUrl(
+            String resolvedUrl = StreamPlaybackHelper.resolvePlaybackUrl(
                     sharedPref, sourceStreamUrl, epgChannelId);
             if (TextUtils.isEmpty(resolvedUrl)) {
                 resolvedUrl = sourceStreamUrl;
             }
-            final String playbackUrl = K1PlaybackHelper.optimizePlaybackUrl(resolvedUrl);
+            final String playbackUrl = resolvedUrl;
             runOnUiThread(() -> {
                 if (TextUtils.isEmpty(playbackUrl) || exoPlayer == null) {
                     progressBar.setVisibility(View.GONE);
@@ -238,6 +238,10 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void releasePlayers() {
+        if (liveStatsHelper != null) {
+            liveStatsHelper.stop();
+            liveStatsHelper = null;
+        }
         if (stallRecoveryHelper != null) {
             stallRecoveryHelper.release();
             stallRecoveryHelper = null;
@@ -339,10 +343,26 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void setupControls() {
+        layoutEpgInfo = styledPlayerView.findViewById(R.id.layout_epg_info);
+        txtEpgNow = styledPlayerView.findViewById(R.id.txt_epg_now);
+        txtEpgNext = styledPlayerView.findViewById(R.id.txt_epg_next);
+
         if (IptvPlayerHelper.isLiveStream(video_url)) {
             View timeline = styledPlayerView.findViewById(R.id.layout_player_timeline);
             if (timeline != null) {
                 timeline.setVisibility(View.GONE);
+            }
+            TextView txtLiveStats = styledPlayerView.findViewById(R.id.txt_live_stats);
+            if (txtLiveStats != null) {
+                txtLiveStats.setVisibility(View.VISIBLE);
+                liveStatsHelper = new IptvLiveStatsHelper(exoPlayer, txtLiveStats);
+                exoPlayer.addAnalyticsListener(liveStatsHelper);
+                liveStatsHelper.start();
+            }
+            View btnRotate = styledPlayerView.findViewById(R.id.btn_rotate_sensor);
+            if (btnRotate != null) {
+                btnRotate.setVisibility(View.VISIBLE);
+                btnRotate.setOnClickListener(view -> toggleSensorRotate());
             }
         }
 
@@ -357,18 +377,26 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             }
         });
 
-        View btnEpg = findViewById(R.id.btn_epg);
+        View btnEpg = styledPlayerView.findViewById(R.id.btn_epg);
         if (sharedPref.isPlayerEpgEnabled() && !TextUtils.isEmpty(epgUrl)) {
-            btnEpg.setVisibility(View.VISIBLE);
-            btnEpg.setOnClickListener(view -> {
-                if (layoutEpgInfo.getVisibility() == View.VISIBLE) {
-                    layoutEpgInfo.setVisibility(View.GONE);
-                } else {
-                    layoutEpgInfo.setVisibility(View.VISIBLE);
-                }
-            });
+            if (btnEpg != null) {
+                btnEpg.setVisibility(View.VISIBLE);
+                btnEpg.setOnClickListener(view -> toggleEpgPanel());
+            }
         } else if (btnEpg != null) {
             btnEpg.setVisibility(View.GONE);
+        }
+    }
+
+    private void toggleSensorRotate() {
+        sensorRotateEnabled = !sensorRotateEnabled;
+        if (sensorRotateEnabled) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
+            Toast.makeText(this, R.string.player_rotate_sensor, Toast.LENGTH_SHORT).show();
+        } else if (fullscreen) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        } else {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         }
     }
 

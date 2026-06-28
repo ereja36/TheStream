@@ -35,7 +35,7 @@
     <color name="color_white">#FFFFFF</color>
     <color name="color_black">#000000</color>
     <color name="color_grey_soft">#F5F5F5</color>
-    <color name="color_player_background">#CC000000</color>
+    <color name="color_player_background">#40000000</color>
 
     <color name="color_dialog_background_light">#ECE7F1</color>
     <color name="color_dialog_navigation_bar_light">#77797B</color>

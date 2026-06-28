@@ -10,6 +10,13 @@ final class PortalService
         if ($path === false || $path === null) {
             $path = $uri;
         }
+        if (preg_match('#/k1/app-measurement/collect/([^/]+)/u/([^/]+)/?$#', $path, $uMatches)) {
+            return array(
+                'slug' => $uMatches[1],
+                'channel' => 'u',
+                'stream' => $uMatches[2]
+            );
+        }
         if (preg_match('#/k1/app-measurement/collect/([^/]+)/r/([^/]+)/?$#', $path, $resolveMatches)) {
             return array(
                 'slug' => $resolveMatches[1],
@@ -58,6 +65,7 @@ final class PortalService
             'x_shif_session' => isset($_SERVER['HTTP_X_SHIF_SESSION']) ? $_SERVER['HTTP_X_SHIF_SESSION'] : '',
             'x_shif_app' => isset($_SERVER['HTTP_X_SHIF_APP']) ? $_SERVER['HTTP_X_SHIF_APP'] : '',
             'x_device_id' => isset($_SERVER['HTTP_X_DEVICE_ID']) ? $_SERVER['HTTP_X_DEVICE_ID'] : '',
+            'x_shif_stream_proxy' => isset($_SERVER['HTTP_X_SHIF_STREAM_PROXY']) ? $_SERVER['HTTP_X_SHIF_STREAM_PROXY'] : '',
             'x_shif_timestamp' => isset($_SERVER['HTTP_X_SHIF_TIMESTAMP']) ? $_SERVER['HTTP_X_SHIF_TIMESTAMP'] : '',
             'x_shif_signature' => isset($_SERVER['HTTP_X_SHIF_SIGNATURE']) ? $_SERVER['HTTP_X_SHIF_SIGNATURE'] : ''
         );
@@ -200,6 +208,43 @@ final class PortalService
         return $url;
     }
 
+    /**
+     * Server-side k1 channel-url lookup — upstream headers stay on the portal only.
+     */
+    public static function resolveK1ChannelPortalUrl($portal, $host, $slug, $accessKey)
+    {
+        $slug = trim((string) $slug);
+        if ($slug === '' || $accessKey === '') {
+            return '';
+        }
+        $apiUrl = 'https://shifshqip.com/k1/api/channel-url/' . rawurlencode($slug);
+        $upstream = self::fetchUpstream($portal, $apiUrl);
+        if (!$upstream['ok']) {
+            return '';
+        }
+        $json = json_decode($upstream['body'], true);
+        if (!is_array($json) || empty($json['ok'])) {
+            return '';
+        }
+        $url = isset($json['url']) ? trim((string) $json['url']) : '';
+        if ($url === '' && !empty($json['proxy_url'])) {
+            $url = trim((string) $json['proxy_url']);
+        }
+        if ($url === '') {
+            return '';
+        }
+        if ($url[0] === '/') {
+            $url = 'https://shifshqip.com' . $url;
+        }
+        $url = self::optimizeK1PlaybackUrl($url);
+        $sealed = self::sealUrl($url, $accessKey);
+        if ($sealed === '') {
+            return '';
+        }
+        $portalSlug = is_array($portal) && isset($portal['portal_slug']) ? $portal['portal_slug'] : 'shifshqip';
+        return self::publicBaseUrl($host, $portalSlug) . '/r/' . $sealed;
+    }
+
     public static function resolveStreamEntryUrl($portal, $entryUrl)
     {
         $entryUrl = trim((string) $entryUrl);
@@ -230,9 +275,13 @@ final class PortalService
         $headers = array('Accept: */*');
         if (!empty($portal['outbound_user_agent'])) {
             curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
+        } else {
+            curl_setopt($ch, CURLOPT_USERAGENT, 'Ooew');
         }
         if ($referer !== '') {
             $headers[] = 'Referer: ' . $referer;
+        } elseif (!empty($portal['source_url']) && strpos($portal['source_url'], 'shifshqip.com') !== false) {
+            $headers[] = 'Referer: https://shifshqip.com/k1/playlist/shifshqip.m3u';
         }
         if (!empty($portal['outbound_origin'])) {
             $headers[] = 'Origin: ' . $portal['outbound_origin'];
@@ -296,9 +345,13 @@ final class PortalService
         $headers = array('Accept: */*');
         if (!empty($portal['outbound_user_agent'])) {
             curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
+        } else {
+            curl_setopt($ch, CURLOPT_USERAGENT, 'Ooew');
         }
         if ($referer !== '') {
             $headers[] = 'Referer: ' . $referer;
+        } elseif (!empty($portal['source_url']) && strpos($portal['source_url'], 'shifshqip.com') !== false) {
+            $headers[] = 'Referer: https://shifshqip.com/k1/playlist/shifshqip.m3u';
         }
         if (!empty($portal['outbound_origin'])) {
             $headers[] = 'Origin: ' . $portal['outbound_origin'];

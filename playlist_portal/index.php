@@ -80,6 +80,22 @@ if ($path['channel'] === '') {
     exit;
 }
 
+if ($path['channel'] === 'u' && $path['stream'] !== '') {
+    $playUrl = PortalService::resolveK1ChannelPortalUrl($portal, $host, $path['stream'], $accessKey);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+    if ($playUrl === '') {
+        echo json_encode(array('ok' => false, 'error' => 'channel_not_found'));
+        exit;
+    }
+    echo json_encode(array(
+        'ok' => true,
+        'mode' => 'portal',
+        'url' => $playUrl
+    ), JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 if ($path['channel'] === 'r' && $path['stream'] !== '') {
     $entryUrl = PortalService::unsealUrl($path['stream'], $accessKey);
     if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
@@ -89,7 +105,15 @@ if ($path['channel'] === 'r' && $path['stream'] !== '') {
     if ($finalUrl === '') {
         PortalService::deny('resolve_failed');
     }
+    $proxyStream = isset($headers['x_shif_stream_proxy']) && $headers['x_shif_stream_proxy'] === '1';
     header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+    if ($proxyStream) {
+        $streamUpstream = PortalService::fetchStreamPayload($portal, $finalUrl, $sourceUrl);
+        if (!PortalService::outputStreamBody($portal, $host, $path['slug'], $finalUrl, $streamUpstream)) {
+            PortalService::deny('proxy_error');
+        }
+        exit;
+    }
     header('Location: ' . $finalUrl, true, 302);
     exit;
 }

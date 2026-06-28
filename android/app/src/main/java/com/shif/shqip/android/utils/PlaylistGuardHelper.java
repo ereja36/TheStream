@@ -72,7 +72,20 @@ public final class PlaylistGuardHelper {
     }
 
     public static PlaylistGuardRule resolveRule(SharedPref sharedPref, String requestUrl) {
-        if (sharedPref == null || PlaylistPortalHelper.isPortalUrl(requestUrl)) {
+        if (sharedPref == null) {
+            return null;
+        }
+        if (sharedPref.isPortalSessionActive()) {
+            if (PlaylistPortalHelper.isPortalUrl(requestUrl)) {
+                return null;
+            }
+            if (PlaylistPortalHelper.isUpstreamStreamUrl(requestUrl)
+                    || isUpstreamSegmentUrl(requestUrl)) {
+                return PlaylistPortalHelper.buildPortalStreamRule(sharedPref);
+            }
+            return null;
+        }
+        if (PlaylistPortalHelper.isPortalUrl(requestUrl)) {
             return null;
         }
         if (PlaylistPortalHelper.isPortalStreamUrl(requestUrl, sharedPref)) {
@@ -126,6 +139,14 @@ public final class PlaylistGuardHelper {
         }
 
         return findMatchingRule(sharedPref.getActiveGuardSourceUrl(), rules);
+    }
+
+    private static boolean isUpstreamSegmentUrl(String requestUrl) {
+        if (TextUtils.isEmpty(requestUrl)) {
+            return false;
+        }
+        String lower = requestUrl.toLowerCase(Locale.US);
+        return lower.contains("shifshqip.com/k1/");
     }
 
     public static String resolvePlaybackUrl(SharedPref sharedPref, String urlString) throws IOException {
@@ -643,14 +664,7 @@ public final class PlaylistGuardHelper {
     }
 
     private static void applyCollectFallbackHeaders(HttpURLConnection connection, String urlString, PlaylistGuardRule rule) {
-        if (connection == null || rule != null || TextUtils.isEmpty(urlString)) {
-            return;
-        }
-        String lower = urlString.toLowerCase(Locale.US);
-        if (!lower.contains("app-measurement/collect") && !lower.contains("/collect/s/")) {
-            return;
-        }
-        connection.setRequestProperty("Referer", "https://shifher-15810060fed0.herokuapp.com/");
+        // No client-side upstream referer — portal proxy handles upstream headers.
     }
 
     private static boolean isLikelyPlaylistUrl(String url) {

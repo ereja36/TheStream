@@ -1,8 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:background="@color/color_player_background"
+    android:background="@android:color/transparent"
     android:layout_height="match_parent">
+
+    <TextView
+        android:id="@+id/txt_live_stats"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:background="#66000000"
+        android:paddingStart="8dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp"
+        android:textColor="@android:color/white"
+        android:textSize="11sp"
+        android:visibility="gone" />
 
     <LinearLayout
         android:layout_width="wrap_content"
@@ -25,6 +42,15 @@
         android:gravity="center|end"
         android:layoutDirection="ltr"
         android:orientation="horizontal">
+
+        <ImageButton
+            android:id="@+id/btn_rotate_sensor"
+            android:layout_width="@dimen/spacing_xxlarge"
+            android:layout_height="@dimen/spacing_xxlarge"
+            android:background="?selectableItemBackgroundBorderless"
+            android:contentDescription="@string/player_rotate_sensor"
+            android:src="@drawable/ic_rotate_sensor"
+            android:visibility="gone" />
 
         <ImageButton
             android:id="@+id/btn_epg"
@@ -78,6 +104,7 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_gravity="bottom"
+        android:background="#66000000"
         android:layoutDirection="ltr"
         android:orientation="vertical">
 
