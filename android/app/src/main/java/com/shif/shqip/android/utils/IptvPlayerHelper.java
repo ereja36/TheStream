@@ -32,20 +32,21 @@ import java.util.Locale;
 @SuppressWarnings("deprecation")
 public final class IptvPlayerHelper {
 
-  /** HLS.js maxBufferLength: 60 — clamped by the ~24s live window in practice */
-  private static final int LIVE_MIN_BUFFER_MS = 6_000;
-  private static final int LIVE_MAX_BUFFER_MS = 30_000;
-  private static final int BUFFER_FOR_PLAYBACK_MS = 2_000;
-  private static final int BUFFER_AFTER_REBUFFER_MS = 4_000;
+  /** HLS.js maxBufferLength: 60 */
+  private static final int LIVE_MIN_BUFFER_MS = 8_000;
+  private static final int LIVE_MAX_BUFFER_MS = 50_000;
+  private static final int BUFFER_FOR_PLAYBACK_MS = 2_500;
+  private static final int BUFFER_AFTER_REBUFFER_MS = 5_000;
 
   /**
-   * HLS.js liveSyncDurationCount: 6 — with a 4-segment window, stay near the
-   * oldest segment so ~24s of media is always ahead of the playhead.
+   * ~4 x 6s HLS window (~24s). Stay ~2 segments behind the live edge so new
+   * segments keep loading ahead of the playhead instead of buffering to the
+   * back of the window and stalling when old segments drop off.
    */
-  private static final long LIVE_TARGET_OFFSET_MS = 23_000;
-  private static final long LIVE_MIN_OFFSET_MS = 18_000;
-  private static final long LIVE_MAX_OFFSET_MS = 24_000;
-  private static final long LIVE_SEEK_BACK_MS = 20_000;
+  private static final long LIVE_TARGET_OFFSET_MS = 12_000;
+  private static final long LIVE_MIN_OFFSET_MS = 6_000;
+  private static final long LIVE_MAX_OFFSET_MS = 18_000;
+  private static final long LIVE_SEEK_BACK_MS = 10_000;
 
   private static final int HLS_MIN_LOADABLE_RETRY_COUNT = 5;
 
@@ -143,12 +144,24 @@ public final class IptvPlayerHelper {
     return MediaItem.fromUri(uri);
   }
 
-  /** One-time nudge away from the live edge on first READY (no periodic seeks). */
+  /** One-time nudge toward a safe offset on first READY (no periodic seeks). */
   public static Player.Listener createLiveOffsetListener(ExoPlayer player, String playbackUrl) {
     if (!isLiveStream(playbackUrl) || player == null) {
       return new Player.Listener() {};
     }
     return new LiveOffsetGuard(player);
+  }
+
+  public static long bufferedAheadMs(ExoPlayer player) {
+    if (player == null) {
+      return 0L;
+    }
+    long buffered = player.getBufferedPosition();
+    long position = player.getCurrentPosition();
+    if (buffered <= 0 || buffered == C.TIME_UNSET || position == C.TIME_UNSET) {
+      return 0L;
+    }
+    return Math.max(0L, buffered - position);
   }
 
   public static long liveRecoveryPositionMs(ExoPlayer player) {
@@ -206,7 +219,8 @@ public final class IptvPlayerHelper {
         long duration = player.getDuration();
         if (duration > 0 && duration != C.TIME_UNSET) {
           long position = player.getCurrentPosition();
-          if (duration - position < 8_000) {
+          long ahead = duration - position;
+          if (ahead < 4_000 || ahead > 20_000) {
             player.seekTo(Math.max(0, duration - LIVE_SEEK_BACK_MS));
           }
         }

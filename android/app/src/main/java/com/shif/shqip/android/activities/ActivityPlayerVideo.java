@@ -92,7 +92,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private IptvLiveStatsHelper liveStatsHelper;
     private ProgressBar progressBar;
     boolean fullscreen = false;
-    private boolean sensorRotateEnabled = false;
     private ImageView fullscreenButton;
     private long exitTime = 0;
     SharedPref sharedPref;
@@ -350,7 +349,15 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         if (IptvPlayerHelper.isLiveStream(video_url)) {
             View timeline = styledPlayerView.findViewById(R.id.layout_player_timeline);
             if (timeline != null) {
-                timeline.setVisibility(View.GONE);
+                timeline.setVisibility(View.VISIBLE);
+            }
+            View pos = styledPlayerView.findViewById(com.google.android.exoplayer2.ui.R.id.exo_position);
+            View dur = styledPlayerView.findViewById(com.google.android.exoplayer2.ui.R.id.exo_duration);
+            if (pos != null) {
+                pos.setVisibility(View.GONE);
+            }
+            if (dur != null) {
+                dur.setVisibility(View.GONE);
             }
             TextView txtLiveStats = styledPlayerView.findViewById(R.id.txt_live_stats);
             if (txtLiveStats != null) {
@@ -358,11 +365,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 liveStatsHelper = new IptvLiveStatsHelper(exoPlayer, txtLiveStats);
                 exoPlayer.addAnalyticsListener(liveStatsHelper);
                 liveStatsHelper.start();
-            }
-            View btnRotate = styledPlayerView.findViewById(R.id.btn_rotate_sensor);
-            if (btnRotate != null) {
-                btnRotate.setVisibility(View.VISIBLE);
-                btnRotate.setOnClickListener(view -> toggleSensorRotate());
             }
         }
 
@@ -385,18 +387,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             }
         } else if (btnEpg != null) {
             btnEpg.setVisibility(View.GONE);
-        }
-    }
-
-    private void toggleSensorRotate() {
-        sensorRotateEnabled = !sensorRotateEnabled;
-        if (sensorRotateEnabled) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
-            Toast.makeText(this, R.string.player_rotate_sensor, Toast.LENGTH_SHORT).show();
-        } else if (fullscreen) {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        } else {
-            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         }
     }
 

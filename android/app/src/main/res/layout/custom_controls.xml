@@ -44,15 +44,6 @@
         android:orientation="horizontal">
 
         <ImageButton
-            android:id="@+id/btn_rotate_sensor"
-            android:layout_width="@dimen/spacing_xxlarge"
-            android:layout_height="@dimen/spacing_xxlarge"
-            android:background="?selectableItemBackgroundBorderless"
-            android:contentDescription="@string/player_rotate_sensor"
-            android:src="@drawable/ic_rotate_sensor"
-            android:visibility="gone" />
-
-        <ImageButton
             android:id="@+id/btn_epg"
             android:layout_width="@dimen/spacing_xxlarge"
             android:layout_height="@dimen/spacing_xxlarge"

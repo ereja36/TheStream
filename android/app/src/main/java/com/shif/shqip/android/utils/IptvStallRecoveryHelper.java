@@ -20,10 +20,11 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
         void onStallHardRecover();
     }
 
-    /** k1 STALL_GRACE_MS */
-    private static final long STALL_GRACE_MS = 18_000;
+    private static final long STALL_GRACE_MS = 8_000;
+    private static final long LOW_BUFFER_GRACE_MS = 3_000;
+    private static final long LOW_BUFFER_THRESHOLD_MS = 3_000;
+    private static final long BUFFER_POLL_MS = 2_000;
     private static final long PROGRESS_EPSILON_MS = 200;
-    /** k1 MAX_STALL_RECOVERIES */
     private static final int MAX_STALL_RECOVERIES = 4;
 
     private final ExoPlayer player;
@@ -34,6 +35,7 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
     private long checkpointPositionMs = C.TIME_UNSET;
     private int stallRecoveries;
     private boolean stallTimerScheduled;
+    private boolean bufferWatchScheduled;
 
     private final Runnable stallCheckRunnable = new Runnable() {
         @Override
@@ -53,20 +55,43 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
                 return;
             }
 
-            stallRecoveries++;
-            if (stallRecoveries <= MAX_STALL_RECOVERIES) {
-                softRecover();
-                if (callback != null) {
-                    callback.onStallSoftRecover(stallRecoveries);
-                }
-                scheduleStallCheck();
+            triggerSoftRecover();
+        }
+    };
+
+    private final Runnable lowBufferRunnable = new Runnable() {
+        @Override
+        public void run() {
+            bufferWatchScheduled = false;
+            if (!player.getPlayWhenReady()) {
                 return;
             }
-
-            stallRecoveries = 0;
-            if (callback != null) {
-                callback.onStallHardRecover();
+            int state = player.getPlaybackState();
+            if (state != Player.STATE_READY && state != Player.STATE_BUFFERING) {
+                return;
             }
+            long ahead = IptvPlayerHelper.bufferedAheadMs(player);
+            if (ahead >= LOW_BUFFER_THRESHOLD_MS) {
+                return;
+            }
+            triggerSoftRecover();
+        }
+    };
+
+    private final Runnable bufferPollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!liveStream || !player.getPlayWhenReady()) {
+                return;
+            }
+            int state = player.getPlaybackState();
+            if (state == Player.STATE_READY || state == Player.STATE_BUFFERING) {
+                long ahead = IptvPlayerHelper.bufferedAheadMs(player);
+                if (ahead < LOW_BUFFER_THRESHOLD_MS) {
+                    scheduleLowBufferCheck();
+                }
+            }
+            handler.postDelayed(this, BUFFER_POLL_MS);
         }
     };
 
@@ -74,6 +99,9 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
         this.player = player;
         this.callback = callback;
         this.liveStream = IptvPlayerHelper.isLiveStream(playbackUrl);
+        if (liveStream) {
+            handler.postDelayed(bufferPollRunnable, BUFFER_POLL_MS);
+        }
     }
 
     @Override
@@ -108,7 +136,26 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
     }
 
     public void release() {
+        handler.removeCallbacks(bufferPollRunnable);
         clearStallWatch();
+        clearLowBufferWatch();
+    }
+
+    private void triggerSoftRecover() {
+        stallRecoveries++;
+        if (stallRecoveries <= MAX_STALL_RECOVERIES) {
+            softRecover();
+            if (callback != null) {
+                callback.onStallSoftRecover(stallRecoveries);
+            }
+            scheduleStallCheck();
+            return;
+        }
+
+        stallRecoveries = 0;
+        if (callback != null) {
+            callback.onStallHardRecover();
+        }
     }
 
     private void scheduleStallCheck() {
@@ -119,9 +166,22 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
         handler.postDelayed(stallCheckRunnable, STALL_GRACE_MS);
     }
 
+    private void scheduleLowBufferCheck() {
+        if (bufferWatchScheduled) {
+            return;
+        }
+        bufferWatchScheduled = true;
+        handler.postDelayed(lowBufferRunnable, LOW_BUFFER_GRACE_MS);
+    }
+
     private void clearStallWatch() {
         handler.removeCallbacks(stallCheckRunnable);
         stallTimerScheduled = false;
+    }
+
+    private void clearLowBufferWatch() {
+        handler.removeCallbacks(lowBufferRunnable);
+        bufferWatchScheduled = false;
     }
 
     /** Equivalent to HLS.js startLoad(-1) for ExoPlayer. */
