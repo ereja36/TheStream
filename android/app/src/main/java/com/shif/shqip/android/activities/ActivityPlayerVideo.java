@@ -22,6 +22,7 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.webkit.WebView;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.OnBackPressedDispatcher;
@@ -42,7 +43,8 @@ import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.TrackSelectionDialog;
-import com.shif.shqip.android.utils.VlcPlayerHelper;
+import com.shif.shqip.android.utils.K1PlaybackHelper;
+import com.shif.shqip.android.utils.ShakaPlayerHelper;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
@@ -87,13 +89,14 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     String epgUrl = "";
     String channelName = "";
     private StyledPlayerView styledPlayerView;
+    private WebView shakaWebView;
     private VLCVideoLayout vlcPlayerView;
     private View layoutVlcControls;
     private ImageView vlcFullscreenButton;
     private ExoPlayer exoPlayer;
-    private VlcPlayerHelper vlcPlayerHelper;
+    private ShakaPlayerHelper shakaPlayerHelper;
     private DefaultDataSource.Factory dataSourceFactory;
-    private boolean useVlcPlayer = false;
+    private boolean useShakaPlayer = false;
     private ProgressBar progressBar;
     boolean fullscreen = false;
     private ImageView fullscreenButton;
@@ -159,7 +162,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 }
                 video_url = resolved;
                 autoRetryCount = 0;
-                useVlcPlayer = VlcPlayerHelper.shouldUseVlc(video_url);
+                useShakaPlayer = ShakaPlayerHelper.shouldUseShaka(video_url);
                 initializePlayer();
             });
         }).start();
@@ -171,46 +174,33 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         }
 
         styledPlayerView = findViewById(R.id.exoPlayerView);
+        shakaWebView = findViewById(R.id.shakaWebView);
         vlcPlayerView = findViewById(R.id.vlcPlayerView);
         layoutVlcControls = findViewById(R.id.layout_vlc_controls);
         vlcFullscreenButton = findViewById(R.id.btn_vlc_fullscreen);
-        VlcPlayerHelper.setPlayerVisibility(useVlcPlayer, vlcPlayerView, styledPlayerView);
+        ShakaPlayerHelper.setPlayerVisibility(useShakaPlayer, shakaWebView, vlcPlayerView, styledPlayerView);
         if (layoutVlcControls != null) {
-            layoutVlcControls.setVisibility(useVlcPlayer ? View.VISIBLE : View.GONE);
+            layoutVlcControls.setVisibility(View.GONE);
         }
 
-        Log.d(TAG, "playback url: " + video_url + " engine=" + (useVlcPlayer ? "vlc" : "exo"));
+        Log.d(TAG, "playback url: " + video_url + " engine=" + (useShakaPlayer ? "shaka" : "exo"));
         playerOrientation();
 
-        if (useVlcPlayer) {
-            initializeVlcPlayer();
+        if (useShakaPlayer) {
+            initializeShakaPlayer();
         } else {
             initializeExoPlayer();
         }
     }
 
-    private void initializeVlcPlayer() {
+    private void initializeShakaPlayer() {
         releasePlayers();
-        vlcPlayerHelper = new VlcPlayerHelper(this);
-        vlcPlayerHelper.setCallback(new VlcPlayerHelper.PlaybackCallback() {
+        shakaPlayerHelper = new ShakaPlayerHelper(this);
+        shakaPlayerHelper.setCallback(new ShakaPlayerHelper.PlaybackCallback() {
             @Override
             public void onPlaying() {
                 progressBar.setVisibility(View.GONE);
                 contentLoaded = true;
-            }
-
-            @Override
-            public void onBuffering(float percent) {
-                if (percent < 100f) {
-                    progressBar.setVisibility(View.VISIBLE);
-                } else {
-                    progressBar.setVisibility(View.GONE);
-                }
-            }
-
-            @Override
-            public void onStopped() {
-                // no-op
             }
 
             @Override
@@ -220,24 +210,38 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                     retryPlayback(false);
                     return;
                 }
-                errorDialog();
+                fallbackToExoPlayer();
             }
         });
-        vlcPlayerHelper.initialize();
-        vlcPlayerHelper.play(
-                vlcPlayerView,
-                video_url,
-                PlaylistGuardHelper.resolveRule(sharedPref, video_url),
-                user_agent
-        );
-        setupVlcControls();
+        shakaPlayerHelper.attach(shakaWebView);
+        shakaPlayerHelper.play(video_url);
+        setupShakaControls();
         handleOnBackPressed();
         if (sharedPref.isPlayerEpgEnabled()) {
             loadEpgInfo();
         }
     }
 
+    private void fallbackToExoPlayer() {
+        useShakaPlayer = false;
+        ShakaPlayerHelper.setPlayerVisibility(false, shakaWebView, vlcPlayerView, styledPlayerView);
+        initializeExoPlayer();
+    }
+
+    private void setupShakaControls() {
+        View btnEpg = findViewById(R.id.btn_epg);
+        if (sharedPref.isPlayerEpgEnabled() && !TextUtils.isEmpty(epgUrl)) {
+            if (btnEpg != null) {
+                btnEpg.setVisibility(View.VISIBLE);
+                btnEpg.setOnClickListener(view -> toggleEpgPanel());
+            }
+        } else if (btnEpg != null) {
+            btnEpg.setVisibility(View.GONE);
+        }
+    }
+
     private void initializeExoPlayer() {
+        releasePlayers();
         dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
                 this, sharedPref, sourceStreamUrl, user_agent);
         exoPlayer = IptvPlayerHelper.createPlayer(this);
@@ -271,15 +275,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 }
             });
         }
-        View btnEpg = findViewById(R.id.btn_epg);
-        if (sharedPref.isPlayerEpgEnabled() && !TextUtils.isEmpty(epgUrl)) {
-            if (btnEpg != null) {
-                btnEpg.setVisibility(View.VISIBLE);
-                btnEpg.setOnClickListener(view -> toggleEpgPanel());
-            }
-        } else if (btnEpg != null) {
-            btnEpg.setVisibility(View.GONE);
-        }
     }
 
     private void toggleEpgPanel() {
@@ -294,9 +289,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void releasePlayers() {
-        if (vlcPlayerHelper != null) {
-            vlcPlayerHelper.release();
-            vlcPlayerHelper = null;
+        if (shakaPlayerHelper != null) {
+            shakaPlayerHelper.release();
+            shakaPlayerHelper = null;
         }
         if (exoPlayer != null) {
             exoPlayer.release();
@@ -305,6 +300,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void attachPlayerListener() {
+        exoPlayer.addListener(IptvPlayerHelper.createLiveOffsetListener(exoPlayer, video_url));
         exoPlayer.addListener(new Player.Listener() {
             @Override
             public void onCues(@NonNull List<Cue> cues) {
@@ -397,7 +393,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void playerOrientation() {
-        if (!useVlcPlayer) {
+        if (!useShakaPlayer && styledPlayerView != null) {
             fullscreenButton = styledPlayerView.findViewById(R.id.exo_fullscreen_icon);
             if (fullscreenButton != null) {
                 fullscreenButton.setOnClickListener(view -> {
@@ -506,8 +502,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        if (useVlcPlayer && vlcPlayerHelper != null) {
-            vlcPlayerHelper.pause();
+        if (useShakaPlayer && shakaPlayerHelper != null) {
+            shakaPlayerHelper.pause();
         } else if (exoPlayer != null) {
             exoPlayer.setPlayWhenReady(false);
             exoPlayer.getPlaybackState();
@@ -517,8 +513,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (useVlcPlayer && vlcPlayerHelper != null) {
-            vlcPlayerHelper.resume();
+        if (useShakaPlayer && shakaPlayerHelper != null) {
+            shakaPlayerHelper.resume();
         } else if (exoPlayer != null) {
             exoPlayer.setPlayWhenReady(true);
             exoPlayer.getPlaybackState();
@@ -541,8 +537,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void stopPlayback() {
-        if (vlcPlayerHelper != null) {
-            vlcPlayerHelper.stop();
+        if (shakaPlayerHelper != null) {
+            shakaPlayerHelper.stop();
         }
         if (exoPlayer != null) {
             exoPlayer.stop();
@@ -566,7 +562,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private void retryPlayback(boolean showErrorOnFailure) {
         progressBar.setVisibility(View.VISIBLE);
 
-        if (useVlcPlayer) {
+        if (useShakaPlayer) {
             new Thread(() -> {
                 String resolvedUrl = StreamPlaybackHelper.resolveFinalPlaybackUrl(sharedPref, sourceStreamUrl);
                 runOnUiThread(() -> {
@@ -578,13 +574,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                         return;
                     }
                     video_url = resolvedUrl;
-                    if (vlcPlayerHelper != null) {
-                        vlcPlayerHelper.play(
-                                vlcPlayerView,
-                                video_url,
-                                PlaylistGuardHelper.resolveRule(sharedPref, video_url),
-                                user_agent
-                        );
+                    if (shakaPlayerHelper != null) {
+                        shakaPlayerHelper.play(video_url);
                     } else {
                         initializePlayer();
                     }
@@ -594,6 +585,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         }
 
         if (exoPlayer == null) {
+            if (showErrorOnFailure) {
+                errorDialog();
+            }
             return;
         }
 
@@ -614,7 +608,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             }
             return;
         }
-        video_url = resolvedUrl;
+        video_url = K1PlaybackHelper.optimizePlaybackUrl(resolvedUrl);
         dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
                 this, sharedPref, sourceStreamUrl, user_agent);
         MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);

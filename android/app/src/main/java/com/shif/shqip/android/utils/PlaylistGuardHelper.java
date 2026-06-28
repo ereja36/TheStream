@@ -504,7 +504,7 @@ public final class PlaylistGuardHelper {
             return false;
         }
         String lower = url.toLowerCase(Locale.US);
-        return lower.contains("/channel/") || lower.contains("/proxy/");
+        return lower.contains("/channel/") || lower.contains("/channel-proxy/") || lower.contains("/proxy/");
     }
 
     private static boolean isDirectStreamUrl(String url) {

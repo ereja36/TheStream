@@ -23,19 +23,22 @@ public final class StreamPlaybackHelper {
         return PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, sourceUrl);
     }
 
-    /** Resolve portal /r/ URLs to the final upstream link (required for VLC). */
+    /** Resolve portal /r/ URLs to the final upstream link (required for Shaka/VLC). */
     public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl) {
         if (TextUtils.isEmpty(sourceUrl)) {
             return sourceUrl;
         }
+        String resolved;
         if (sharedPref != null && PlaylistPortalHelper.isPortalResolveUrl(sourceUrl)) {
             try {
-                return PlaylistGuardHelper.resolvePlaybackUrl(sharedPref, sourceUrl);
+                resolved = PlaylistGuardHelper.resolvePlaybackUrl(sharedPref, sourceUrl);
             } catch (Exception ignored) {
                 return "";
             }
+        } else {
+            resolved = resolveForPlayback(sharedPref, sourceUrl);
         }
-        return resolveForPlayback(sharedPref, sourceUrl);
+        return K1PlaybackHelper.optimizePlaybackUrl(resolved);
     }
 
     public static DefaultHttpDataSource.Factory configureHttpFactory(DefaultHttpDataSource.Factory factory) {
