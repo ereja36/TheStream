@@ -22,7 +22,6 @@ import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.webkit.WebView;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.OnBackPressedDispatcher;
@@ -44,7 +43,6 @@ import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.TrackSelectionDialog;
 import com.shif.shqip.android.utils.K1PlaybackHelper;
-import com.shif.shqip.android.utils.ShakaPlayerHelper;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
@@ -56,8 +54,6 @@ import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
-
-import org.videolan.libvlc.util.VLCVideoLayout;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -89,14 +85,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     String epgUrl = "";
     String channelName = "";
     private StyledPlayerView styledPlayerView;
-    private WebView shakaWebView;
-    private VLCVideoLayout vlcPlayerView;
-    private View layoutVlcControls;
-    private ImageView vlcFullscreenButton;
     private ExoPlayer exoPlayer;
-    private ShakaPlayerHelper shakaPlayerHelper;
     private DefaultDataSource.Factory dataSourceFactory;
-    private boolean useShakaPlayer = false;
     private ProgressBar progressBar;
     boolean fullscreen = false;
     private ImageView fullscreenButton;
@@ -162,7 +152,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 }
                 video_url = resolved;
                 autoRetryCount = 0;
-                useShakaPlayer = ShakaPlayerHelper.shouldUseShaka(video_url);
                 initializePlayer();
             });
         }).start();
@@ -174,70 +163,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         }
 
         styledPlayerView = findViewById(R.id.exoPlayerView);
-        shakaWebView = findViewById(R.id.shakaWebView);
-        vlcPlayerView = findViewById(R.id.vlcPlayerView);
-        layoutVlcControls = findViewById(R.id.layout_vlc_controls);
-        vlcFullscreenButton = findViewById(R.id.btn_vlc_fullscreen);
-        ShakaPlayerHelper.setPlayerVisibility(useShakaPlayer, shakaWebView, vlcPlayerView, styledPlayerView);
-        if (layoutVlcControls != null) {
-            layoutVlcControls.setVisibility(View.GONE);
-        }
-
-        Log.d(TAG, "playback url: " + video_url + " engine=" + (useShakaPlayer ? "shaka" : "exo"));
+        Log.d(TAG, "playback url: " + video_url + " engine=exo");
         playerOrientation();
-
-        if (useShakaPlayer) {
-            initializeShakaPlayer();
-        } else {
-            initializeExoPlayer();
-        }
-    }
-
-    private void initializeShakaPlayer() {
-        releasePlayers();
-        shakaPlayerHelper = new ShakaPlayerHelper(this);
-        shakaPlayerHelper.setCallback(new ShakaPlayerHelper.PlaybackCallback() {
-            @Override
-            public void onPlaying() {
-                progressBar.setVisibility(View.GONE);
-                contentLoaded = true;
-            }
-
-            @Override
-            public void onError() {
-                if (autoRetryCount < StreamPlaybackHelper.AUTO_RETRY_MAX) {
-                    autoRetryCount++;
-                    retryPlayback(false);
-                    return;
-                }
-                fallbackToExoPlayer();
-            }
-        });
-        shakaPlayerHelper.attach(shakaWebView);
-        shakaPlayerHelper.play(video_url);
-        setupShakaControls();
-        handleOnBackPressed();
-        if (sharedPref.isPlayerEpgEnabled()) {
-            loadEpgInfo();
-        }
-    }
-
-    private void fallbackToExoPlayer() {
-        useShakaPlayer = false;
-        ShakaPlayerHelper.setPlayerVisibility(false, shakaWebView, vlcPlayerView, styledPlayerView);
         initializeExoPlayer();
-    }
-
-    private void setupShakaControls() {
-        View btnEpg = findViewById(R.id.btn_epg);
-        if (sharedPref.isPlayerEpgEnabled() && !TextUtils.isEmpty(epgUrl)) {
-            if (btnEpg != null) {
-                btnEpg.setVisibility(View.VISIBLE);
-                btnEpg.setOnClickListener(view -> toggleEpgPanel());
-            }
-        } else if (btnEpg != null) {
-            btnEpg.setVisibility(View.GONE);
-        }
     }
 
     private void initializeExoPlayer() {
@@ -265,18 +193,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         exoPlayer.setPlayWhenReady(true);
     }
 
-    private void setupVlcControls() {
-        if (vlcFullscreenButton != null) {
-            vlcFullscreenButton.setOnClickListener(view -> {
-                if (fullscreen) {
-                    setPortrait();
-                } else {
-                    setLandscape();
-                }
-            });
-        }
-    }
-
     private void toggleEpgPanel() {
         if (layoutEpgInfo == null) {
             return;
@@ -289,10 +205,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void releasePlayers() {
-        if (shakaPlayerHelper != null) {
-            shakaPlayerHelper.release();
-            shakaPlayerHelper = null;
-        }
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;
@@ -338,7 +250,13 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             public void onPlayerError(@NonNull PlaybackException error) {
                 Log.d(TAG, "onPlayerError " + error.getMessage() + " code=" + error.errorCode);
                 if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
-                    exoPlayer.seekToDefaultPosition();
+                    long recovery = IptvPlayerHelper.liveRecoveryPositionMs(exoPlayer);
+                    if (recovery != com.google.android.exoplayer2.C.TIME_UNSET) {
+                        exoPlayer.seekTo(recovery);
+                    } else {
+                        exoPlayer.seekToDefaultPosition();
+                    }
+                    exoPlayer.prepare();
                     return;
                 }
                 if (autoRetryCount < StreamPlaybackHelper.AUTO_RETRY_MAX) {
@@ -393,17 +311,15 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void playerOrientation() {
-        if (!useShakaPlayer && styledPlayerView != null) {
-            fullscreenButton = styledPlayerView.findViewById(R.id.exo_fullscreen_icon);
-            if (fullscreenButton != null) {
-                fullscreenButton.setOnClickListener(view -> {
-                    if (fullscreen) {
-                        setPortrait();
-                    } else {
-                        setLandscape();
-                    }
-                });
-            }
+        fullscreenButton = styledPlayerView.findViewById(R.id.exo_fullscreen_icon);
+        if (fullscreenButton != null) {
+            fullscreenButton.setOnClickListener(view -> {
+                if (fullscreen) {
+                    setPortrait();
+                } else {
+                    setLandscape();
+                }
+            });
         }
 
         if (sharedPref.getPlayerOrientation() == PLAYER_MODE_LANDSCAPE) {
@@ -440,9 +356,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         if (fullscreenButton != null) {
             fullscreenButton.setImageDrawable(ContextCompat.getDrawable(ActivityPlayerVideo.this, drawableRes));
         }
-        if (vlcFullscreenButton != null) {
-            vlcFullscreenButton.setImageDrawable(ContextCompat.getDrawable(ActivityPlayerVideo.this, drawableRes));
-        }
     }
 
     private void resizeVideoSurface(int width, int height) {
@@ -451,12 +364,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             params.width = width;
             params.height = height;
             styledPlayerView.setLayoutParams(params);
-        }
-        if (vlcPlayerView != null) {
-            RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) vlcPlayerView.getLayoutParams();
-            params.width = width;
-            params.height = height;
-            vlcPlayerView.setLayoutParams(params);
         }
     }
 
@@ -502,9 +409,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        if (useShakaPlayer && shakaPlayerHelper != null) {
-            shakaPlayerHelper.pause();
-        } else if (exoPlayer != null) {
+        if (exoPlayer != null) {
             exoPlayer.setPlayWhenReady(false);
             exoPlayer.getPlaybackState();
         }
@@ -513,9 +418,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (useShakaPlayer && shakaPlayerHelper != null) {
-            shakaPlayerHelper.resume();
-        } else if (exoPlayer != null) {
+        if (exoPlayer != null) {
             exoPlayer.setPlayWhenReady(true);
             exoPlayer.getPlaybackState();
         }
@@ -537,9 +440,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void stopPlayback() {
-        if (shakaPlayerHelper != null) {
-            shakaPlayerHelper.stop();
-        }
         if (exoPlayer != null) {
             exoPlayer.stop();
         }
@@ -562,59 +462,50 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private void retryPlayback(boolean showErrorOnFailure) {
         progressBar.setVisibility(View.VISIBLE);
 
-        if (useShakaPlayer) {
-            new Thread(() -> {
-                String resolvedUrl = StreamPlaybackHelper.resolveFinalPlaybackUrl(sharedPref, sourceStreamUrl);
-                runOnUiThread(() -> {
-                    if (TextUtils.isEmpty(resolvedUrl)) {
-                        progressBar.setVisibility(View.GONE);
-                        if (showErrorOnFailure) {
-                            errorDialog();
-                        }
-                        return;
-                    }
-                    video_url = resolvedUrl;
-                    if (shakaPlayerHelper != null) {
-                        shakaPlayerHelper.play(video_url);
-                    } else {
-                        initializePlayer();
-                    }
-                });
-            }).start();
-            return;
-        }
-
         if (exoPlayer == null) {
-            if (showErrorOnFailure) {
-                errorDialog();
-            }
+            initializePlayer();
             return;
         }
 
         if (autoRetryCount <= 1) {
-            exoPlayer.seekToDefaultPosition();
+            if (IptvPlayerHelper.isLiveStream(video_url)) {
+                long recovery = IptvPlayerHelper.liveRecoveryPositionMs(exoPlayer);
+                if (recovery != com.google.android.exoplayer2.C.TIME_UNSET) {
+                    exoPlayer.seekTo(recovery);
+                } else {
+                    exoPlayer.seekToDefaultPosition();
+                }
+            } else {
+                exoPlayer.seekToDefaultPosition();
+            }
             exoPlayer.prepare();
+            exoPlayer.setPlayWhenReady(true);
             return;
         }
 
-        String resolvedUrl = StreamPlaybackHelper.resolveForPlayback(sharedPref, sourceStreamUrl);
-        if (TextUtils.isEmpty(resolvedUrl)) {
-            resolvedUrl = sourceStreamUrl;
-        }
-        if (TextUtils.isEmpty(resolvedUrl)) {
-            progressBar.setVisibility(View.GONE);
-            if (showErrorOnFailure) {
-                errorDialog();
+        new Thread(() -> {
+            String resolvedUrl = StreamPlaybackHelper.resolveFinalPlaybackUrl(sharedPref, sourceStreamUrl);
+            if (TextUtils.isEmpty(resolvedUrl)) {
+                resolvedUrl = sourceStreamUrl;
             }
-            return;
-        }
-        video_url = K1PlaybackHelper.optimizePlaybackUrl(resolvedUrl);
-        dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
-                this, sharedPref, sourceStreamUrl, user_agent);
-        MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);
-        exoPlayer.setMediaSource(mediaSource);
-        exoPlayer.prepare();
-        exoPlayer.setPlayWhenReady(true);
+            final String playbackUrl = K1PlaybackHelper.optimizePlaybackUrl(resolvedUrl);
+            runOnUiThread(() -> {
+                if (TextUtils.isEmpty(playbackUrl)) {
+                    progressBar.setVisibility(View.GONE);
+                    if (showErrorOnFailure) {
+                        errorDialog();
+                    }
+                    return;
+                }
+                video_url = playbackUrl;
+                dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
+                        ActivityPlayerVideo.this, sharedPref, sourceStreamUrl, user_agent);
+                MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);
+                exoPlayer.setMediaSource(mediaSource);
+                exoPlayer.prepare();
+                exoPlayer.setPlayWhenReady(true);
+            });
+        }).start();
     }
 
     @Override

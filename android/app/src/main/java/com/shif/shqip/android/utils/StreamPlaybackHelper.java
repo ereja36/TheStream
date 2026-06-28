@@ -23,7 +23,7 @@ public final class StreamPlaybackHelper {
         return PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, sourceUrl);
     }
 
-    /** Resolve portal /r/ URLs to the final upstream link (required for Shaka/VLC). */
+    /** Resolve portal /r/ URLs to the final upstream link. */
     public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl) {
         if (TextUtils.isEmpty(sourceUrl)) {
             return sourceUrl;
