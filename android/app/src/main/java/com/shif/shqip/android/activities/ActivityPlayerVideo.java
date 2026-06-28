@@ -12,7 +12,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.support.v4.media.session.PlaybackStateCompat;
 import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
@@ -38,37 +37,19 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Resp;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
-import com.shif.shqip.android.utils.PlaylistGuardHelper;
-import com.shif.shqip.android.utils.PlaylistGuardSession;
-import com.shif.shqip.android.utils.PlaylistPortalHelper;
+import com.shif.shqip.android.utils.IptvPlayerHelper;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.TrackSelectionDialog;
-import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlayer;
-import com.google.android.exoplayer2.LoadControl;
-import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Timeline;
-import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.source.MediaSource;
-import com.google.android.exoplayer2.source.ProgressiveMediaSource;
-import com.google.android.exoplayer2.source.dash.DashMediaSource;
-import com.google.android.exoplayer2.source.hls.HlsMediaSource;
-import com.google.android.exoplayer2.source.rtsp.RtspMediaSource;
 import com.google.android.exoplayer2.text.Cue;
-import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
-import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.ui.StyledPlayerView;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
-import com.google.android.exoplayer2.upstream.DefaultLoadErrorHandlingPolicy;
-import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Log;
-import com.google.android.exoplayer2.util.Util;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 
@@ -104,7 +85,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private StyledPlayerView styledPlayerView;
     private ExoPlayer exoPlayer;
     private DefaultDataSource.Factory dataSourceFactory;
-    private DefaultTrackSelector trackSelector;
     private ProgressBar progressBar;
     boolean fullscreen = false;
     private ImageView fullscreenButton;
@@ -161,20 +141,13 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         txtEpgNow = findViewById(R.id.txt_epg_now);
         txtEpgNext = findViewById(R.id.txt_epg_next);
         progressBar.setVisibility(View.VISIBLE);
-
-        new Thread(() -> {
-            PlaylistGuardSession.refreshBlocking(sharedPref);
-            String resolved = StreamPlaybackHelper.resolveForPlayback(sharedPref, sourceStreamUrl);
-            runOnUiThread(() -> {
-                if (TextUtils.isEmpty(resolved)) {
-                    errorDialog();
-                    return;
-                }
-                video_url = resolved;
-                autoRetryCount = 0;
-                initializePlayer();
-            });
-        }).start();
+        video_url = StreamPlaybackHelper.resolveForPlayback(sharedPref, sourceStreamUrl);
+        if (TextUtils.isEmpty(video_url)) {
+            errorDialog();
+            return;
+        }
+        autoRetryCount = 0;
+        initializePlayer();
     }
 
     private void initializePlayer() {
@@ -182,18 +155,14 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             return;
         }
 
-        dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(this, sharedPref, video_url, user_agent);
-        Log.d(TAG, "user agent : " + PlaylistGuardHelper.resolveUserAgent(
-                PlaylistGuardHelper.resolveRule(sharedPref, video_url), user_agent));
+        dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
+                this, sharedPref, sourceStreamUrl, user_agent);
+        Log.d(TAG, "playback url: " + video_url);
 
-        LoadControl loadControl = StreamPlaybackHelper.createLoadControl();
-        AdaptiveTrackSelection.Factory trackSelectionFactory = new AdaptiveTrackSelection.Factory();
-        trackSelector = new DefaultTrackSelector(this, trackSelectionFactory);
-
-        exoPlayer = new ExoPlayer.Builder(this)
-                .setTrackSelector(trackSelector)
-                .setLoadControl(loadControl)
-                .build();
+        if (exoPlayer != null) {
+            exoPlayer.release();
+        }
+        exoPlayer = IptvPlayerHelper.createPlayer(this);
 
         styledPlayerView = findViewById(R.id.exoPlayerView);
         styledPlayerView.setPlayer(exoPlayer);
@@ -201,13 +170,19 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         styledPlayerView.requestFocus();
 
         playerOrientation();
+        startPlayback();
+        attachPlayerListener();
+        setupControls();
+    }
 
-        Uri uri = Uri.parse(video_url);
-        MediaSource mediaSource = buildMediaSource(uri);
+    private void startPlayback() {
+        MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);
         exoPlayer.setMediaSource(mediaSource);
         exoPlayer.prepare();
         exoPlayer.setPlayWhenReady(true);
+    }
 
+    private void attachPlayerListener() {
         exoPlayer.addListener(new Player.Listener() {
             @Override
             public void onCues(@NonNull List<Cue> cues) {
@@ -221,33 +196,33 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
             @Override
             public void onPlaybackStateChanged(int state) {
-                if (state == PlaybackStateCompat.STATE_PLAYING) {
-                    progressBar.setVisibility(View.GONE);
-                    contentLoaded = true;
-                }
-
-                if (Config.ENABLE_LOOPING_MODE) {
-                    switch (state) {
-                        case Player.STATE_READY:
-                            progressBar.setVisibility(View.GONE);
-                            exoPlayer.setPlayWhenReady(true);
-                            break;
-                        case Player.STATE_ENDED:
-                            exoPlayer.seekTo(0);
-                            break;
-                        case Player.STATE_BUFFERING:
+                switch (state) {
+                    case Player.STATE_READY:
+                        progressBar.setVisibility(View.GONE);
+                        contentLoaded = true;
+                        break;
+                    case Player.STATE_BUFFERING:
+                        if (!Config.ENABLE_LOOPING_MODE) {
                             progressBar.setVisibility(View.VISIBLE);
-                            exoPlayer.setPlayWhenReady(true);
-                            break;
-                        case Player.STATE_IDLE:
-                            break;
-                    }
+                        }
+                        break;
+                    case Player.STATE_ENDED:
+                        if (Config.ENABLE_LOOPING_MODE) {
+                            exoPlayer.seekTo(0);
+                        }
+                        break;
+                    default:
+                        break;
                 }
             }
 
             @Override
             public void onPlayerError(@NonNull PlaybackException error) {
-                Log.d(TAG, "onPlayerError " + error.getMessage());
+                Log.d(TAG, "onPlayerError " + error.getMessage() + " code=" + error.errorCode);
+                if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+                    exoPlayer.seekToDefaultPosition();
+                    return;
+                }
                 if (autoRetryCount < StreamPlaybackHelper.AUTO_RETRY_MAX) {
                     autoRetryCount++;
                     retryPlayback(false);
@@ -263,7 +238,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             }
 
         });
+    }
 
+    private void setupControls() {
         styledPlayerView.findViewById(R.id.exo_track_selection_view).setOnClickListener(view -> {
             if (contentLoaded) {
                 TrackSelectionDialog trackSelectionDialog = TrackSelectionDialog.createForPlayer(
@@ -340,45 +317,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         params.height = ViewGroup.LayoutParams.MATCH_PARENT;
         styledPlayerView.setLayoutParams(params);
         fullscreen = true;
-    }
-
-    @SuppressLint("SwitchIntDef")
-    private MediaSource buildMediaSource(Uri uri) {
-        MediaItem mMediaItem = MediaItem.fromUri(Uri.parse(String.valueOf(uri)));
-        String url = uri.toString();
-        int type = Util.inferContentType(uri);
-        if (type == C.TYPE_OTHER && PlaylistPortalHelper.isPortalStreamEndpoint(url)) {
-            type = C.TYPE_HLS;
-        }
-        String lowerUrl = url.toLowerCase(Locale.US);
-        if (type == C.TYPE_OTHER && (lowerUrl.contains(".m3u8") || lowerUrl.contains(".m3u") || lowerUrl.contains("/hls/"))) {
-            type = C.TYPE_HLS;
-        }
-        switch (type) {
-            case C.TYPE_DASH:
-                return new DashMediaSource.Factory(dataSourceFactory)
-                        .createMediaSource(mMediaItem);
-            case C.TYPE_HLS:
-                return new HlsMediaSource.Factory(dataSourceFactory)
-                        .setAllowChunklessPreparation(true)
-                        .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(8))
-                        .createMediaSource(mMediaItem);
-            case C.TYPE_OTHER:
-                if (video_url.contains("hls")) {
-                    return new HlsMediaSource.Factory(dataSourceFactory)
-                            .setAllowChunklessPreparation(true)
-                            .createMediaSource(mMediaItem);
-                } else {
-                    return new ProgressiveMediaSource.Factory(dataSourceFactory, new DefaultExtractorsFactory())
-                            .createMediaSource(mMediaItem);
-                }
-            case C.TYPE_RTSP:
-                return new RtspMediaSource.Factory()
-                        .createMediaSource(MediaItem.fromUri(uri));
-            default: {
-                throw new IllegalStateException("Unsupported type: " + type);
-            }
-        }
     }
 
     private String getUserAgent() {
@@ -476,28 +414,31 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             return;
         }
         progressBar.setVisibility(View.VISIBLE);
-        new Thread(() -> {
-            PlaylistGuardSession.refreshBlocking(sharedPref);
-            String resolvedUrl = StreamPlaybackHelper.resolveForPlayback(sharedPref, sourceStreamUrl);
-            runOnUiThread(() -> {
-                if (TextUtils.isEmpty(resolvedUrl)) {
-                    progressBar.setVisibility(View.GONE);
-                    if (showErrorOnFailure) {
-                        errorDialog();
-                    }
-                    return;
-                }
-                video_url = resolvedUrl;
-                dataSourceFactory = PlaylistGuardHelper.createDataSourceFactory(
-                        ActivityPlayerVideo.this, sharedPref, video_url, user_agent);
-                Uri uri = Uri.parse(video_url);
-                MediaSource mediaSource = buildMediaSource(uri);
-                exoPlayer.setMediaSource(mediaSource);
-                exoPlayer.prepare();
-                exoPlayer.setPlayWhenReady(true);
-                progressBar.setVisibility(View.GONE);
-            });
-        }).start();
+
+        if (autoRetryCount <= 1) {
+            exoPlayer.seekToDefaultPosition();
+            exoPlayer.prepare();
+            return;
+        }
+
+        String resolvedUrl = StreamPlaybackHelper.resolveForPlayback(sharedPref, sourceStreamUrl);
+        if (TextUtils.isEmpty(resolvedUrl)) {
+            resolvedUrl = sourceStreamUrl;
+        }
+        if (TextUtils.isEmpty(resolvedUrl)) {
+            progressBar.setVisibility(View.GONE);
+            if (showErrorOnFailure) {
+                errorDialog();
+            }
+            return;
+        }
+        video_url = resolvedUrl;
+        dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
+                this, sharedPref, sourceStreamUrl, user_agent);
+        MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);
+        exoPlayer.setMediaSource(mediaSource);
+        exoPlayer.prepare();
+        exoPlayer.setPlayWhenReady(true);
     }
 
     @Override

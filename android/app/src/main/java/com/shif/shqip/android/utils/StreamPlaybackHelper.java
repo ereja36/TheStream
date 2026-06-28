@@ -8,16 +8,14 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 public final class StreamPlaybackHelper {
 
     public static final int AUTO_RETRY_MAX = 3;
-    public static final int CONNECT_TIMEOUT_MS = 30_000;
-    public static final int READ_TIMEOUT_MS = 90_000;
+    public static final int CONNECT_TIMEOUT_MS = 20_000;
+    public static final int READ_TIMEOUT_MS = 60_000;
 
     private StreamPlaybackHelper() {
     }
 
     public static LoadControl createLoadControl() {
-        return new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(50_000, 120_000, 1_500, 2_500)
-                .build();
+        return IptvPlayerHelper.createLoadControl();
     }
 
     public static String resolveForPlayback(SharedPref sharedPref, String sourceUrl) {

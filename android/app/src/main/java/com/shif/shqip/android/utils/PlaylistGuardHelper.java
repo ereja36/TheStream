@@ -196,11 +196,7 @@ public final class PlaylistGuardHelper {
         }
         if (sharedPref != null && sharedPref.isPortalSessionActive()) {
             if (PlaylistPortalHelper.isPortalResolveUrl(urlString)) {
-                try {
-                    return resolvePlaybackUrl(sharedPref, urlString);
-                } catch (Exception ignored) {
-                    return "";
-                }
+                return urlString;
             }
             if (PlaylistPortalHelper.isUpstreamStreamUrl(urlString)
                     || PlaylistPortalHelper.isPortalStreamEndpoint(urlString)) {

@@ -37,21 +37,15 @@ import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.EpgHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
-import com.shif.shqip.android.utils.PlaylistGuardHelper;
+import com.shif.shqip.android.utils.IptvPlayerHelper;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
-import com.shif.shqip.android.utils.PlaylistPortalHelper;
+import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import com.google.android.exoplayer2.ExoPlayer;
-import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.source.MediaSource;
-import com.google.android.exoplayer2.source.ProgressiveMediaSource;
-import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.ui.StyledPlayerView;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
-import com.google.android.exoplayer2.util.Util;
-
-import android.net.Uri;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -259,44 +253,25 @@ public class ActivityMainV2 extends AppCompatActivity {
         }
         releaseHeroPreview();
         heroPreviewChannel = channel;
-        heroExecutor.execute(() -> {
-            String playbackUrl = PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, channel.channel_url);
-            runOnUiThread(() -> {
-                if (isFinishing() || heroPreviewChannel == null
-                        || !TextUtils.equals(heroPreviewChannel.channel_id, channel.channel_id)) {
-                    return;
-                }
-                if (TextUtils.isEmpty(playbackUrl)) {
-                    return;
-                }
-                startHeroPreviewPlayer(channel, playbackUrl);
-            });
-        });
+        String playbackUrl = StreamPlaybackHelper.resolveForPlayback(sharedPref, channel.channel_url);
+        if (TextUtils.isEmpty(playbackUrl)) {
+            return;
+        }
+        startHeroPreviewPlayer(channel, playbackUrl);
     }
 
     private void startHeroPreviewPlayer(Channel channel, String playbackUrl) {
         if (heroPreview == null || channel == null || heroPreviewChannel == null) {
             return;
         }
-        heroPlayer = new ExoPlayer.Builder(this).build();
+        heroPlayer = IptvPlayerHelper.createPlayer(this);
         heroPlayer.setVolume(0f);
         heroPreview.setPlayer(heroPlayer);
         heroPreview.setUseController(false);
 
-        DefaultDataSource.Factory factory = PlaylistGuardHelper.createDataSourceFactory(
-                this, sharedPref, playbackUrl, channel.user_agent);
-        Uri uri = Uri.parse(playbackUrl);
-        MediaSource mediaSource;
-        int type = Util.inferContentType(uri);
-        String lowerUrl = playbackUrl.toLowerCase(Locale.US);
-        if (type == com.google.android.exoplayer2.C.TYPE_HLS
-                || PlaylistPortalHelper.isPortalStreamEndpoint(playbackUrl)
-                || lowerUrl.contains(".m3u8")
-                || lowerUrl.contains(".m3u")) {
-            mediaSource = new HlsMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri));
-        } else {
-            mediaSource = new ProgressiveMediaSource.Factory(factory).createMediaSource(MediaItem.fromUri(uri));
-        }
+        DefaultDataSource.Factory factory = IptvPlayerHelper.createDataSourceFactory(
+                this, sharedPref, channel.channel_url, channel.user_agent);
+        MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(playbackUrl, factory);
         heroPlayer.setMediaSource(mediaSource);
         heroPlayer.prepare();
         heroPlayer.setPlayWhenReady(true);
