@@ -185,6 +185,21 @@ final class PortalService
         return 'https://' . $host . '/k1/app-measurement/collect/' . rawurlencode($slug);
     }
 
+    /**
+     * Match k1 web player: use channel-proxy URLs instead of direct /channel/.
+     */
+    public static function optimizeK1PlaybackUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return $url;
+        }
+        if (strpos($url, '/k1/channel/') !== false && strpos($url, '/k1/channel-proxy/') === false) {
+            return str_replace('/k1/channel/', '/k1/channel-proxy/', $url);
+        }
+        return $url;
+    }
+
     public static function resolveStreamEntryUrl($portal, $entryUrl)
     {
         $entryUrl = trim((string) $entryUrl);
@@ -242,11 +257,11 @@ final class PortalService
         curl_close($ch);
 
         if ($status >= 300 && $status < 400 && $redirectLocation !== '') {
-            return self::resolveRelativeUrl($redirectLocation, $entryUrl);
+            return self::optimizeK1PlaybackUrl(self::resolveRelativeUrl($redirectLocation, $entryUrl));
         }
 
         if (preg_match('#Redirecting to\s+(/[^\s"\'<>]+)#i', (string) $body, $matches)) {
-            return self::resolveRelativeUrl($matches[1], $entryUrl);
+            return self::optimizeK1PlaybackUrl(self::resolveRelativeUrl($matches[1], $entryUrl));
         }
 
         return '';
@@ -566,9 +581,9 @@ final class PortalService
     {
         $resolved = self::resolveRelativeUrl($streamUrl, $sourceUrl);
         if ($resolved === '' || preg_match('#^https?://#i', $resolved)) {
-            return $resolved;
+            return self::optimizeK1PlaybackUrl($resolved);
         }
-        return self::resolveRelativeUrl($resolved, isset($portal['source_url']) ? $portal['source_url'] : $sourceUrl);
+        return self::optimizeK1PlaybackUrl(self::resolveRelativeUrl($resolved, isset($portal['source_url']) ? $portal['source_url'] : $sourceUrl));
     }
 
     public static function fetchStreamPayload($portal, $url, $sourceUrl = '', $depth = 0)
@@ -715,6 +730,7 @@ final class PortalService
             }
             $target = self::resolveRelativeUrl($trimmed, $sourceUrl);
             if ($target !== '' && preg_match('#^https?://#i', $target) && $accessKey !== '') {
+                $target = self::optimizeK1PlaybackUrl($target);
                 $sealed = self::sealUrl($target, $accessKey);
                 $output[] = $sealed !== '' ? $base . '/r/' . $sealed : $target;
             } else {

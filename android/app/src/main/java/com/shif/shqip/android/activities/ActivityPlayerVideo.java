@@ -146,7 +146,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         txtEpgNext = findViewById(R.id.txt_epg_next);
         progressBar.setVisibility(View.VISIBLE);
         new Thread(() -> {
-            String resolved = StreamPlaybackHelper.resolveFinalPlaybackUrl(sharedPref, sourceStreamUrl);
+            String resolved = StreamPlaybackHelper.resolveFinalPlaybackUrl(
+                    sharedPref, sourceStreamUrl, epgChannelId);
             runOnUiThread(() -> {
                 if (TextUtils.isEmpty(resolved)) {
                     errorDialog();
@@ -199,7 +200,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private void reloadLiveStream(boolean showErrorOnFailure) {
         progressBar.setVisibility(View.VISIBLE);
         new Thread(() -> {
-            String resolvedUrl = StreamPlaybackHelper.resolveFinalPlaybackUrl(sharedPref, sourceStreamUrl);
+            String resolvedUrl = StreamPlaybackHelper.resolveFinalPlaybackUrl(
+                    sharedPref, sourceStreamUrl, epgChannelId);
             if (TextUtils.isEmpty(resolvedUrl)) {
                 resolvedUrl = sourceStreamUrl;
             }

@@ -253,7 +253,8 @@ public class ActivityMainV2 extends AppCompatActivity {
         }
         releaseHeroPreview();
         heroPreviewChannel = channel;
-        String playbackUrl = StreamPlaybackHelper.resolveForPlayback(sharedPref, channel.channel_url);
+        String playbackUrl = StreamPlaybackHelper.resolveFinalPlaybackUrl(
+                sharedPref, channel.channel_url, channel.epg_id);
         if (TextUtils.isEmpty(playbackUrl)) {
             return;
         }

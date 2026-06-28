@@ -167,7 +167,7 @@ if ($settingsResult) {
 
                             <div class="form-group form-line">
                                 <label><b>Private source URL (hidden from users)</b></label>
-                                <input type="text" class="form-control" name="source_url" value="<?php echo htmlspecialchars($portal['source_url']); ?>" placeholder="https://example.com/secret-playlist.m3u">
+                                <input type="text" class="form-control" name="source_url" value="<?php echo htmlspecialchars($portal['source_url']); ?>" placeholder="https://shifshqip.com/k1/app-measurement/collect/shifshqip">
                             </div>
 
                             <div class="form-group form-line">
@@ -198,11 +198,11 @@ if ($settingsResult) {
                             <p class="help-info">Këto header-a përdoren vetëm nga playlist.shifshqip.com për të lexuar burimin tënd private. Përdoruesit nuk i shohin kurrë.</p>
                             <div class="form-group form-line">
                                 <label><b>User-Agent</b></label>
-                                <input type="text" class="form-control" name="outbound_user_agent" value="<?php echo htmlspecialchars($portal['outbound_user_agent']); ?>">
+                                <input type="text" class="form-control" name="outbound_user_agent" value="<?php echo htmlspecialchars($portal['outbound_user_agent']); ?>" placeholder="Ooew">
                             </div>
                             <div class="form-group form-line">
                                 <label><b>Referer</b></label>
-                                <input type="text" class="form-control" name="outbound_referer" value="<?php echo htmlspecialchars($portal['outbound_referer']); ?>">
+                                <input type="text" class="form-control" name="outbound_referer" value="<?php echo htmlspecialchars($portal['outbound_referer']); ?>" placeholder="https://shifshqip.com/k1/playlist/shifshqip.m3u">
                             </div>
                             <div class="form-group form-line">
                                 <label><b>Origin</b></label>

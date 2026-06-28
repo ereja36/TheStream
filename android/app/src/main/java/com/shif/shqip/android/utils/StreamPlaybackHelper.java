@@ -25,6 +25,16 @@ public final class StreamPlaybackHelper {
 
     /** Resolve portal /r/ URLs to the final upstream link. */
     public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl) {
+        return resolveFinalPlaybackUrl(sharedPref, sourceUrl, "");
+    }
+
+    public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl, String k1Slug) {
+        if (!TextUtils.isEmpty(k1Slug)) {
+            String apiUrl = K1ChannelUrlHelper.resolvePlayableUrl(k1Slug);
+            if (!TextUtils.isEmpty(apiUrl)) {
+                return apiUrl;
+            }
+        }
         if (TextUtils.isEmpty(sourceUrl)) {
             return sourceUrl;
         }
