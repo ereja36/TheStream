@@ -4,6 +4,7 @@ import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.shif.shqip.android.databases.prefs.SharedPref;
+import android.text.TextUtils;
 
 public final class StreamPlaybackHelper {
 
@@ -20,6 +21,21 @@ public final class StreamPlaybackHelper {
 
     public static String resolveForPlayback(SharedPref sharedPref, String sourceUrl) {
         return PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, sourceUrl);
+    }
+
+    /** Resolve portal /r/ URLs to the final upstream link (required for VLC). */
+    public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl) {
+        if (TextUtils.isEmpty(sourceUrl)) {
+            return sourceUrl;
+        }
+        if (sharedPref != null && PlaylistPortalHelper.isPortalResolveUrl(sourceUrl)) {
+            try {
+                return PlaylistGuardHelper.resolvePlaybackUrl(sharedPref, sourceUrl);
+            } catch (Exception ignored) {
+                return "";
+            }
+        }
+        return resolveForPlayback(sharedPref, sourceUrl);
     }
 
     public static DefaultHttpDataSource.Factory configureHttpFactory(DefaultHttpDataSource.Factory factory) {

@@ -38,9 +38,11 @@ import com.shif.shqip.android.models.Resp;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.IptvPlayerHelper;
+import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.TrackSelectionDialog;
+import com.shif.shqip.android.utils.VlcPlayerHelper;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
@@ -52,6 +54,8 @@ import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import com.google.android.exoplayer2.util.Log;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
+
+import org.videolan.libvlc.util.VLCVideoLayout;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -83,8 +87,13 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     String epgUrl = "";
     String channelName = "";
     private StyledPlayerView styledPlayerView;
+    private VLCVideoLayout vlcPlayerView;
+    private View layoutVlcControls;
+    private ImageView vlcFullscreenButton;
     private ExoPlayer exoPlayer;
+    private VlcPlayerHelper vlcPlayerHelper;
     private DefaultDataSource.Factory dataSourceFactory;
+    private boolean useVlcPlayer = false;
     private ProgressBar progressBar;
     boolean fullscreen = false;
     private ImageView fullscreenButton;
@@ -141,13 +150,19 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         txtEpgNow = findViewById(R.id.txt_epg_now);
         txtEpgNext = findViewById(R.id.txt_epg_next);
         progressBar.setVisibility(View.VISIBLE);
-        video_url = StreamPlaybackHelper.resolveForPlayback(sharedPref, sourceStreamUrl);
-        if (TextUtils.isEmpty(video_url)) {
-            errorDialog();
-            return;
-        }
-        autoRetryCount = 0;
-        initializePlayer();
+        new Thread(() -> {
+            String resolved = StreamPlaybackHelper.resolveFinalPlaybackUrl(sharedPref, sourceStreamUrl);
+            runOnUiThread(() -> {
+                if (TextUtils.isEmpty(resolved)) {
+                    errorDialog();
+                    return;
+                }
+                video_url = resolved;
+                autoRetryCount = 0;
+                useVlcPlayer = VlcPlayerHelper.shouldUseVlc(video_url);
+                initializePlayer();
+            });
+        }).start();
     }
 
     private void initializePlayer() {
@@ -155,32 +170,138 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             return;
         }
 
+        styledPlayerView = findViewById(R.id.exoPlayerView);
+        vlcPlayerView = findViewById(R.id.vlcPlayerView);
+        layoutVlcControls = findViewById(R.id.layout_vlc_controls);
+        vlcFullscreenButton = findViewById(R.id.btn_vlc_fullscreen);
+        VlcPlayerHelper.setPlayerVisibility(useVlcPlayer, vlcPlayerView, styledPlayerView);
+        if (layoutVlcControls != null) {
+            layoutVlcControls.setVisibility(useVlcPlayer ? View.VISIBLE : View.GONE);
+        }
+
+        Log.d(TAG, "playback url: " + video_url + " engine=" + (useVlcPlayer ? "vlc" : "exo"));
+        playerOrientation();
+
+        if (useVlcPlayer) {
+            initializeVlcPlayer();
+        } else {
+            initializeExoPlayer();
+        }
+    }
+
+    private void initializeVlcPlayer() {
+        releasePlayers();
+        vlcPlayerHelper = new VlcPlayerHelper(this);
+        vlcPlayerHelper.setCallback(new VlcPlayerHelper.PlaybackCallback() {
+            @Override
+            public void onPlaying() {
+                progressBar.setVisibility(View.GONE);
+                contentLoaded = true;
+            }
+
+            @Override
+            public void onBuffering(float percent) {
+                if (percent < 100f) {
+                    progressBar.setVisibility(View.VISIBLE);
+                } else {
+                    progressBar.setVisibility(View.GONE);
+                }
+            }
+
+            @Override
+            public void onStopped() {
+                // no-op
+            }
+
+            @Override
+            public void onError() {
+                if (autoRetryCount < StreamPlaybackHelper.AUTO_RETRY_MAX) {
+                    autoRetryCount++;
+                    retryPlayback(false);
+                    return;
+                }
+                errorDialog();
+            }
+        });
+        vlcPlayerHelper.initialize();
+        vlcPlayerHelper.play(
+                vlcPlayerView,
+                video_url,
+                PlaylistGuardHelper.resolveRule(sharedPref, video_url),
+                user_agent
+        );
+        setupVlcControls();
+        handleOnBackPressed();
+        if (sharedPref.isPlayerEpgEnabled()) {
+            loadEpgInfo();
+        }
+    }
+
+    private void initializeExoPlayer() {
         dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
                 this, sharedPref, sourceStreamUrl, user_agent);
-        Log.d(TAG, "playback url: " + video_url);
-
-        if (exoPlayer != null) {
-            exoPlayer.release();
-        }
         exoPlayer = IptvPlayerHelper.createPlayer(this);
-
-        styledPlayerView = findViewById(R.id.exoPlayerView);
         styledPlayerView.setPlayer(exoPlayer);
         styledPlayerView.setUseController(true);
         styledPlayerView.requestFocus();
 
-        playerOrientation();
-        startPlayback();
+        startExoPlayback();
         attachPlayerListener();
-        exoPlayer.addListener(IptvPlayerHelper.createLiveOffsetListener(exoPlayer, video_url));
         setupControls();
+        handleOnBackPressed();
+        if (sharedPref.isPlayerEpgEnabled()) {
+            loadEpgInfo();
+        }
     }
 
-    private void startPlayback() {
+    private void startExoPlayback() {
         MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);
         exoPlayer.setMediaSource(mediaSource);
         exoPlayer.prepare();
         exoPlayer.setPlayWhenReady(true);
+    }
+
+    private void setupVlcControls() {
+        if (vlcFullscreenButton != null) {
+            vlcFullscreenButton.setOnClickListener(view -> {
+                if (fullscreen) {
+                    setPortrait();
+                } else {
+                    setLandscape();
+                }
+            });
+        }
+        View btnEpg = findViewById(R.id.btn_epg);
+        if (sharedPref.isPlayerEpgEnabled() && !TextUtils.isEmpty(epgUrl)) {
+            if (btnEpg != null) {
+                btnEpg.setVisibility(View.VISIBLE);
+                btnEpg.setOnClickListener(view -> toggleEpgPanel());
+            }
+        } else if (btnEpg != null) {
+            btnEpg.setVisibility(View.GONE);
+        }
+    }
+
+    private void toggleEpgPanel() {
+        if (layoutEpgInfo == null) {
+            return;
+        }
+        if (layoutEpgInfo.getVisibility() == View.VISIBLE) {
+            layoutEpgInfo.setVisibility(View.GONE);
+        } else {
+            layoutEpgInfo.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void releasePlayers() {
+        if (vlcPlayerHelper != null) {
+            vlcPlayerHelper.release();
+            vlcPlayerHelper = null;
+        }
+        if (exoPlayer != null) {
+            exoPlayer.release();
+            exoPlayer = null;
+        }
     }
 
     private void attachPlayerListener() {
@@ -260,7 +381,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             }
         });
 
-        View btnEpg = styledPlayerView.findViewById(R.id.btn_epg);
+        View btnEpg = findViewById(R.id.btn_epg);
         if (sharedPref.isPlayerEpgEnabled() && !TextUtils.isEmpty(epgUrl)) {
             btnEpg.setVisibility(View.VISIBLE);
             btnEpg.setOnClickListener(view -> {
@@ -273,46 +394,41 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         } else if (btnEpg != null) {
             btnEpg.setVisibility(View.GONE);
         }
-
-        handleOnBackPressed();
-        if (sharedPref.isPlayerEpgEnabled()) {
-            loadEpgInfo();
-        }
     }
 
     private void playerOrientation() {
-        fullscreenButton = styledPlayerView.findViewById(R.id.exo_fullscreen_icon);
-        fullscreenButton.setOnClickListener(view -> {
-            if (fullscreen) {
-                setPortrait();
-            } else {
-                setLandscape();
+        if (!useVlcPlayer) {
+            fullscreenButton = styledPlayerView.findViewById(R.id.exo_fullscreen_icon);
+            if (fullscreenButton != null) {
+                fullscreenButton.setOnClickListener(view -> {
+                    if (fullscreen) {
+                        setPortrait();
+                    } else {
+                        setLandscape();
+                    }
+                });
             }
-        });
+        }
 
         if (sharedPref.getPlayerOrientation() == PLAYER_MODE_LANDSCAPE) {
             setLandscape();
         }
-
     }
 
     @SuppressLint("SourceLockedOrientationActivity")
     private void setPortrait() {
-        fullscreenButton.setImageDrawable(ContextCompat.getDrawable(ActivityPlayerVideo.this, R.drawable.ic_exo_fullscreen_open));
+        updateFullscreenIcon(R.drawable.ic_exo_fullscreen_open);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
         if (getSupportActionBar() != null) {
             getSupportActionBar().show();
         }
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) styledPlayerView.getLayoutParams();
-        params.width = ViewGroup.LayoutParams.MATCH_PARENT;
-        params.height = ViewGroup.LayoutParams.MATCH_PARENT;
-        styledPlayerView.setLayoutParams(params);
+        resizeVideoSurface(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         fullscreen = false;
     }
 
     private void setLandscape() {
-        fullscreenButton.setImageDrawable(ContextCompat.getDrawable(ActivityPlayerVideo.this, R.drawable.ic_exo_fullscreen_close));
+        updateFullscreenIcon(R.drawable.ic_exo_fullscreen_close);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                 | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
@@ -320,11 +436,32 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             getSupportActionBar().hide();
         }
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) styledPlayerView.getLayoutParams();
-        params.width = ViewGroup.LayoutParams.MATCH_PARENT;
-        params.height = ViewGroup.LayoutParams.MATCH_PARENT;
-        styledPlayerView.setLayoutParams(params);
+        resizeVideoSurface(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         fullscreen = true;
+    }
+
+    private void updateFullscreenIcon(int drawableRes) {
+        if (fullscreenButton != null) {
+            fullscreenButton.setImageDrawable(ContextCompat.getDrawable(ActivityPlayerVideo.this, drawableRes));
+        }
+        if (vlcFullscreenButton != null) {
+            vlcFullscreenButton.setImageDrawable(ContextCompat.getDrawable(ActivityPlayerVideo.this, drawableRes));
+        }
+    }
+
+    private void resizeVideoSurface(int width, int height) {
+        if (styledPlayerView != null) {
+            RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) styledPlayerView.getLayoutParams();
+            params.width = width;
+            params.height = height;
+            styledPlayerView.setLayoutParams(params);
+        }
+        if (vlcPlayerView != null) {
+            RelativeLayout.LayoutParams params = (RelativeLayout.LayoutParams) vlcPlayerView.getLayoutParams();
+            params.width = width;
+            params.height = height;
+            vlcPlayerView.setLayoutParams(params);
+        }
     }
 
     private String getUserAgent() {
@@ -369,7 +506,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        if (exoPlayer != null) {
+        if (useVlcPlayer && vlcPlayerHelper != null) {
+            vlcPlayerHelper.pause();
+        } else if (exoPlayer != null) {
             exoPlayer.setPlayWhenReady(false);
             exoPlayer.getPlaybackState();
         }
@@ -378,7 +517,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (exoPlayer != null) {
+        if (useVlcPlayer && vlcPlayerHelper != null) {
+            vlcPlayerHelper.resume();
+        } else if (exoPlayer != null) {
             exoPlayer.setPlayWhenReady(true);
             exoPlayer.getPlaybackState();
         }
@@ -391,15 +532,20 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 exitTime = System.currentTimeMillis();
             } else {
                 finish();
-                if (exoPlayer != null) {
-                    exoPlayer.stop();
-                }
+                stopPlayback();
             }
         } else {
             finish();
-            if (exoPlayer != null) {
-                exoPlayer.stop();
-            }
+            stopPlayback();
+        }
+    }
+
+    private void stopPlayback() {
+        if (vlcPlayerHelper != null) {
+            vlcPlayerHelper.stop();
+        }
+        if (exoPlayer != null) {
+            exoPlayer.stop();
         }
     }
 
@@ -418,10 +564,38 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void retryPlayback(boolean showErrorOnFailure) {
+        progressBar.setVisibility(View.VISIBLE);
+
+        if (useVlcPlayer) {
+            new Thread(() -> {
+                String resolvedUrl = StreamPlaybackHelper.resolveFinalPlaybackUrl(sharedPref, sourceStreamUrl);
+                runOnUiThread(() -> {
+                    if (TextUtils.isEmpty(resolvedUrl)) {
+                        progressBar.setVisibility(View.GONE);
+                        if (showErrorOnFailure) {
+                            errorDialog();
+                        }
+                        return;
+                    }
+                    video_url = resolvedUrl;
+                    if (vlcPlayerHelper != null) {
+                        vlcPlayerHelper.play(
+                                vlcPlayerView,
+                                video_url,
+                                PlaylistGuardHelper.resolveRule(sharedPref, video_url),
+                                user_agent
+                        );
+                    } else {
+                        initializePlayer();
+                    }
+                });
+            }).start();
+            return;
+        }
+
         if (exoPlayer == null) {
             return;
         }
-        progressBar.setVisibility(View.VISIBLE);
 
         if (autoRetryCount <= 1) {
             exoPlayer.seekToDefaultPosition();
@@ -453,10 +627,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     protected void onDestroy() {
         destroyed = true;
         epgExecutor.shutdownNow();
-        if (exoPlayer != null) {
-            exoPlayer.release();
-            exoPlayer = null;
-        }
+        releasePlayers();
         super.onDestroy();
     }
 
