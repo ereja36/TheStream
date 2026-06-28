@@ -172,6 +172,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         playerOrientation();
         startPlayback();
         attachPlayerListener();
+        exoPlayer.addListener(IptvPlayerHelper.createLiveOffsetListener(exoPlayer, video_url));
         setupControls();
     }
 
@@ -241,6 +242,13 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void setupControls() {
+        if (IptvPlayerHelper.isLiveStream(video_url)) {
+            View timeline = styledPlayerView.findViewById(R.id.layout_player_timeline);
+            if (timeline != null) {
+                timeline.setVisibility(View.GONE);
+            }
+        }
+
         styledPlayerView.findViewById(R.id.exo_track_selection_view).setOnClickListener(view -> {
             if (contentLoaded) {
                 TrackSelectionDialog trackSelectionDialog = TrackSelectionDialog.createForPlayer(

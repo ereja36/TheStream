@@ -2,12 +2,15 @@ package com.shif.shqip.android.utils;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.ProgressiveMediaSource;
@@ -24,17 +27,28 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import java.util.Locale;
 
 /**
- * ExoPlayer setup tuned for live IPTV playback, modeled after One IPTV Player:
- * direct URL playback, drip-feed buffering, and stable HLS handling.
+ * ExoPlayer setup tuned for live IPTV playback.
+ * HLS playlists often expose only ~20-30s sliding windows; buffers and live
+ * offset must stay inside that window to avoid edge rebuffering every segment.
  */
 @SuppressWarnings("deprecation")
 public final class IptvPlayerHelper {
 
-  private static final int MIN_BUFFER_MS = 30_000;
-  private static final int MAX_BUFFER_MS = 30_000;
+  /** Typical IPTV HLS window is ~24s — keep buffers below that. */
+  private static final int LIVE_MIN_BUFFER_MS = 10_000;
+  private static final int LIVE_MAX_BUFFER_MS = 18_000;
   private static final int BUFFER_FOR_PLAYBACK_MS = 1_000;
-  private static final int BUFFER_AFTER_REBUFFER_MS = 2_500;
+  private static final int BUFFER_AFTER_REBUFFER_MS = 5_000;
+
+  /** Stay ~14s behind the live edge inside a ~24s window. */
+  private static final long LIVE_TARGET_OFFSET_MS = 14_000;
+  private static final long LIVE_MIN_OFFSET_MS = 10_000;
+  private static final long LIVE_MAX_OFFSET_MS = 20_000;
+  private static final long LIVE_SAFE_EDGE_MS = 6_000;
+  private static final long LIVE_SEEK_BACK_MS = 14_000;
+
   private static final int HLS_MIN_LOADABLE_RETRY_COUNT = 12;
+  private static final long OFFSET_GUARD_INTERVAL_MS = 4_000;
 
   private IptvPlayerHelper() {
   }
@@ -42,8 +56,8 @@ public final class IptvPlayerHelper {
   public static LoadControl createLoadControl() {
     return new DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                    MIN_BUFFER_MS,
-                    MAX_BUFFER_MS,
+                    LIVE_MIN_BUFFER_MS,
+                    LIVE_MAX_BUFFER_MS,
                     BUFFER_FOR_PLAYBACK_MS,
                     BUFFER_AFTER_REBUFFER_MS
             )
@@ -89,23 +103,27 @@ public final class IptvPlayerHelper {
       case C.TYPE_DASH:
         return new DashMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem);
       case C.TYPE_HLS:
-        return new HlsMediaSource.Factory(dataSourceFactory)
-                .setAllowChunklessPreparation(false)
-                .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(HLS_MIN_LOADABLE_RETRY_COUNT))
-                .createMediaSource(mediaItem);
+        return buildHlsSource(dataSourceFactory, mediaItem);
       case C.TYPE_RTSP:
         return new RtspMediaSource.Factory().createMediaSource(mediaItem);
       case C.TYPE_OTHER:
       default:
         if (playbackUrl.toLowerCase(Locale.US).contains("hls")) {
-          return new HlsMediaSource.Factory(dataSourceFactory)
-                  .setAllowChunklessPreparation(false)
-                  .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(HLS_MIN_LOADABLE_RETRY_COUNT))
-                  .createMediaSource(mediaItem);
+          return buildHlsSource(dataSourceFactory, mediaItem);
         }
         return new ProgressiveMediaSource.Factory(dataSourceFactory, new DefaultExtractorsFactory())
                 .createMediaSource(mediaItem);
     }
+  }
+
+  private static HlsMediaSource buildHlsSource(
+          DefaultDataSource.Factory dataSourceFactory,
+          MediaItem mediaItem
+  ) {
+    return new HlsMediaSource.Factory(dataSourceFactory)
+            .setAllowChunklessPreparation(false)
+            .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(HLS_MIN_LOADABLE_RETRY_COUNT))
+            .createMediaSource(mediaItem);
   }
 
   private static MediaItem buildMediaItem(String playbackUrl, Uri uri) {
@@ -114,9 +132,11 @@ public final class IptvPlayerHelper {
               .setUri(uri)
               .setLiveConfiguration(
                       new MediaItem.LiveConfiguration.Builder()
-                              .setTargetOffsetMs(3_000)
-                              .setMinPlaybackSpeed(0.97f)
-                              .setMaxPlaybackSpeed(1.03f)
+                              .setTargetOffsetMs(LIVE_TARGET_OFFSET_MS)
+                              .setMinOffsetMs(LIVE_MIN_OFFSET_MS)
+                              .setMaxOffsetMs(LIVE_MAX_OFFSET_MS)
+                              .setMinPlaybackSpeed(0.98f)
+                              .setMaxPlaybackSpeed(1.02f)
                               .build()
               )
               .build();
@@ -124,7 +144,17 @@ public final class IptvPlayerHelper {
     return MediaItem.fromUri(uri);
   }
 
-  private static boolean isLiveStream(String url) {
+  /**
+   * Keeps playback away from the live edge when the HLS window is short (~24s).
+   */
+  public static Player.Listener createLiveOffsetListener(ExoPlayer player, String playbackUrl) {
+    if (!isLiveStream(playbackUrl) || player == null) {
+      return new Player.Listener() {};
+    }
+    return new LiveOffsetGuard(player);
+  }
+
+  public static boolean isLiveStream(String url) {
     if (url == null) {
       return false;
     }
@@ -150,5 +180,69 @@ public final class IptvPlayerHelper {
       return C.TYPE_HLS;
     }
     return type;
+  }
+
+  private static final class LiveOffsetGuard implements Player.Listener {
+
+    private final ExoPlayer player;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean startAdjusted;
+
+    private final Runnable guardRunnable = new Runnable() {
+      @Override
+      public void run() {
+        maintainOffset();
+        handler.postDelayed(this, OFFSET_GUARD_INTERVAL_MS);
+      }
+    };
+
+    LiveOffsetGuard(ExoPlayer player) {
+      this.player = player;
+    }
+
+    @Override
+    public void onPlaybackStateChanged(int state) {
+      if (state == Player.STATE_READY) {
+        if (!startAdjusted) {
+          adjustStartPosition();
+          startAdjusted = true;
+        }
+        handler.removeCallbacks(guardRunnable);
+        handler.post(guardRunnable);
+      } else if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) {
+        handler.removeCallbacks(guardRunnable);
+      }
+    }
+
+    private void adjustStartPosition() {
+      long duration = player.getDuration();
+      if (duration <= 0 || duration == C.TIME_UNSET) {
+        return;
+      }
+      long position = player.getCurrentPosition();
+      long distanceFromEdge = duration - position;
+      if (distanceFromEdge < LIVE_SAFE_EDGE_MS) {
+        long target = Math.max(0, duration - LIVE_SEEK_BACK_MS);
+        player.seekTo(target);
+      }
+    }
+
+    private void maintainOffset() {
+      if (!player.isPlaying()) {
+        return;
+      }
+      long duration = player.getDuration();
+      if (duration <= 0 || duration == C.TIME_UNSET) {
+        return;
+      }
+      long position = player.getCurrentPosition();
+      long distanceFromEdge = duration - position;
+      if (distanceFromEdge < LIVE_SAFE_EDGE_MS) {
+        long target = Math.max(0, duration - LIVE_SEEK_BACK_MS);
+        if (Math.abs(target - position) > 2_000) {
+          player.seekTo(target);
+        }
+      }
+    }
   }
 }
