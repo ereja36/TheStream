@@ -2,7 +2,7 @@ ALTER TABLE `tbl_settings`
   ADD COLUMN `player_brand_text` VARCHAR(128) NOT NULL DEFAULT '' AFTER `player_engine`,
   ADD COLUMN `player_brand_logo_url` VARCHAR(512) NOT NULL DEFAULT '' AFTER `player_brand_text`,
   ADD COLUMN `player_brand_enabled` TINYINT(1) NOT NULL DEFAULT 1 AFTER `player_brand_logo_url`,
-  ADD COLUMN `app_integrity_enabled` TINYINT(1) NOT NULL DEFAULT 1 AFTER `player_brand_enabled`,
+  ADD COLUMN `app_integrity_enabled` TINYINT(1) NOT NULL DEFAULT 0 AFTER `player_brand_enabled`,
   ADD COLUMN `app_release_cert_sha256` VARCHAR(256) NOT NULL DEFAULT '' AFTER `app_integrity_enabled`,
   ADD COLUMN `ads_antiblock_script` TEXT NULL AFTER `app_release_cert_sha256`;
 
