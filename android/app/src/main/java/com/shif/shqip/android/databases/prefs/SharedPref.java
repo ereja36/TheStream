@@ -528,4 +528,57 @@ public class SharedPref {
         return sharedPreferences.getString("playlist_name", "");
     }
 
+    public void savePlayerBranding(boolean enabled, String brandText, String brandLogoUrl) {
+        editor.putBoolean("player_brand_enabled", enabled);
+        editor.putString("player_brand_text", brandText == null ? "" : brandText.trim());
+        editor.putString("player_brand_logo_url", brandLogoUrl == null ? "" : brandLogoUrl.trim());
+        editor.apply();
+    }
+
+    public boolean isPlayerBrandEnabled() {
+        return sharedPreferences.getBoolean("player_brand_enabled", true);
+    }
+
+    public String getPlayerBrandText() {
+        return sharedPreferences.getString("player_brand_text", "");
+    }
+
+    public String getPlayerBrandLogoUrl() {
+        return sharedPreferences.getString("player_brand_logo_url", "");
+    }
+
+    public void saveSecuritySettings(
+            boolean integrityEnabled,
+            String allowedCertSha256,
+            String adsAntiblockScript,
+            boolean serverAdsEnabled
+    ) {
+        editor.putBoolean("app_integrity_enabled", integrityEnabled);
+        editor.putString("app_release_cert_sha256", allowedCertSha256 == null ? "" : allowedCertSha256.trim());
+        editor.putString("ads_antiblock_script", adsAntiblockScript == null ? "" : adsAntiblockScript.trim());
+        editor.putBoolean("server_ads_enabled", serverAdsEnabled);
+        editor.apply();
+    }
+
+    public boolean isAppIntegrityEnabled() {
+        return sharedPreferences.getBoolean("app_integrity_enabled", true);
+    }
+
+    public String getAllowedReleaseCertSha256() {
+        return sharedPreferences.getString("app_release_cert_sha256", "");
+    }
+
+    public String getAdsAntiblockScript() {
+        return sharedPreferences.getString("ads_antiblock_script", "");
+    }
+
+    public void saveAdsAntiblockScript(String script) {
+        editor.putString("ads_antiblock_script", script == null ? "" : script.trim());
+        editor.apply();
+    }
+
+    public boolean isServerAdsEnabled() {
+        return sharedPreferences.getBoolean("server_ads_enabled", true);
+    }
+
 }

@@ -41,6 +41,8 @@ import com.shif.shqip.android.models.Settings;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.AdsAntiblockHelper;
+import com.shif.shqip.android.utils.AppIntegrityHelper;
 import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.DeviceApiHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
@@ -65,6 +67,7 @@ public class ActivitySplash extends AppCompatActivity {
     ImageView img_splash;
     SharedPref sharedPref;
     AdsManager adsManager;
+    AdsAntiblockHelper adsAntiblockHelper;
     AdsPref adsPref;
     App app;
     Settings settings;
@@ -81,6 +84,7 @@ public class ActivitySplash extends AppCompatActivity {
         setContentView(R.layout.activity_splash);
         isForceOpenAds = Config.FORCE_TO_SHOW_APP_OPEN_AD_ON_START;
         adsManager = new AdsManager(this);
+        adsAntiblockHelper = new AdsAntiblockHelper(this);
         sharedPref = new SharedPref(this);
         adsPref = new AdsPref(this);
         deviceId = DeviceApiHelper.getLocalDeviceId(this);
@@ -146,6 +150,7 @@ public class ActivitySplash extends AppCompatActivity {
                     ads = resp.ads;
                     license = resp.license;
                     Tools.saveAds(adsPref, ads);
+                    boolean serverAdsOn = ads != null && "on".equalsIgnoreCase(ads.ad_status);
                     sharedPref.saveCredentials(
                             settings.youtube_api_key,
                             settings.more_apps_url,
@@ -154,6 +159,26 @@ public class ActivitySplash extends AppCompatActivity {
                             settings.providers,
                             settings.enable_player_epg != 0,
                             TextUtils.isEmpty(settings.privacy_public_url) ? "https://shifshqip.com/privacy" : settings.privacy_public_url);
+                    sharedPref.savePlayerBranding(
+                            settings.player_brand_enabled != 0,
+                            settings.player_brand_text,
+                            settings.player_brand_logo_url
+                    );
+                    sharedPref.saveSecuritySettings(
+                            settings.app_integrity_enabled != 0,
+                            settings.app_release_cert_sha256,
+                            settings.ads_antiblock_script,
+                            serverAdsOn
+                    );
+                    adsAntiblockHelper.applyServerScript(settings.ads_antiblock_script);
+                    if (!AppIntegrityHelper.isAppAllowed(getApplicationContext(), sharedPref)) {
+                        showIntegrityBlockedDialog();
+                        return;
+                    }
+                    if (!AppIntegrityHelper.isAdsConfigTrusted(getApplicationContext(), sharedPref)) {
+                        showIntegrityBlockedDialog();
+                        return;
+                    }
                     DeviceApiHelper.reportDeviceOpen(sharedPref, deviceId);
                     sharedPref.saveUser(license.item_id, license.item_name, license.buyer, license.license_type);
                     if (app.design_id != null) {
@@ -245,6 +270,15 @@ public class ActivitySplash extends AppCompatActivity {
                 Log.d(TAG, "startMainActivity");
             }
         }
+    }
+
+    private void showIntegrityBlockedDialog() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.integrity_blocked_title)
+                .setMessage(R.string.integrity_blocked_message)
+                .setCancelable(false)
+                .setPositiveButton(R.string.dialog_ok, (dialog, which) -> finishAffinity())
+                .show();
     }
 
     private void showBlockedDialog(String reason) {

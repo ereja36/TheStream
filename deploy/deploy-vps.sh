@@ -47,6 +47,11 @@ if [[ -f "${ROOT_DIR}/deploy/nginx-playlist.shifshqip.com.conf" ]]; then
     "${VPS_USER}@${VPS_HOST}:/etc/nginx/sites-available/playlist.shifshqip.com"
 fi
 
+if [[ -f "${ROOT_DIR}/database/migrations/014_player_branding_security.sql" ]]; then
+  scp "${ROOT_DIR}/database/migrations/014_player_branding_security.sql" \
+    "${VPS_USER}@${VPS_HOST}:/tmp/014_player_branding_security.sql"
+fi
+
 if [[ -f "${ROOT_DIR}/database/migrations/013_player_engine.sql" ]]; then
   scp "${ROOT_DIR}/database/migrations/013_player_engine.sql" \
     "${VPS_USER}@${VPS_HOST}:/tmp/013_player_engine.sql"
@@ -106,6 +111,10 @@ REMOTE_BOOTSTRAP
 
 ssh "${VPS_USER}@${VPS_HOST}" bash -s <<EOF
 set -e
+if [[ -f /tmp/014_player_branding_security.sql ]]; then
+  mysql -u ${DB_USER} ${DB_PASS:+-p"${DB_PASS}"} ${DB_NAME} < /tmp/014_player_branding_security.sql || true
+  rm -f /tmp/014_player_branding_security.sql
+fi
 if [[ -f /tmp/013_player_engine.sql ]]; then
   mysql -u ${DB_USER} ${DB_PASS:+-p"${DB_PASS}"} ${DB_NAME} < /tmp/013_player_engine.sql || true
   rm -f /tmp/013_player_engine.sql

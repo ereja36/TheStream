@@ -41,9 +41,8 @@ import com.shif.shqip.android.utils.IptvPlayerHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
-import com.shif.shqip.android.utils.TrackSelectionDialog;
-import com.shif.shqip.android.utils.IptvLiveStatsHelper;
 import com.shif.shqip.android.utils.IptvStallRecoveryHelper;
+import com.bumptech.glide.Glide;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.Player;
@@ -89,7 +88,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private ExoPlayer exoPlayer;
     private DefaultDataSource.Factory dataSourceFactory;
     private IptvStallRecoveryHelper stallRecoveryHelper;
-    private IptvLiveStatsHelper liveStatsHelper;
     private ProgressBar progressBar;
     boolean fullscreen = false;
     private ImageView fullscreenButton;
@@ -237,10 +235,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void releasePlayers() {
-        if (liveStatsHelper != null) {
-            liveStatsHelper.stop();
-            liveStatsHelper = null;
-        }
         if (stallRecoveryHelper != null) {
             stallRecoveryHelper.release();
             stallRecoveryHelper = null;
@@ -359,25 +353,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             if (dur != null) {
                 dur.setVisibility(View.GONE);
             }
-            TextView txtLiveStats = styledPlayerView.findViewById(R.id.txt_live_stats);
-            if (txtLiveStats != null) {
-                txtLiveStats.setVisibility(View.VISIBLE);
-                liveStatsHelper = new IptvLiveStatsHelper(exoPlayer, txtLiveStats);
-                exoPlayer.addAnalyticsListener(liveStatsHelper);
-                liveStatsHelper.start();
-            }
         }
 
-        styledPlayerView.findViewById(R.id.exo_track_selection_view).setOnClickListener(view -> {
-            if (contentLoaded) {
-                TrackSelectionDialog trackSelectionDialog = TrackSelectionDialog.createForPlayer(
-                        exoPlayer, dismissedDialog -> {
-                        });
-                trackSelectionDialog.show(getSupportFragmentManager(), null);
-            } else {
-                Toast.makeText(getApplicationContext(), R.string.please_wait, Toast.LENGTH_SHORT).show();
-            }
-        });
+        setupPlayerBranding();
 
         View btnEpg = styledPlayerView.findViewById(R.id.btn_epg);
         if (sharedPref.isPlayerEpgEnabled() && !TextUtils.isEmpty(epgUrl)) {
@@ -387,6 +365,37 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             }
         } else if (btnEpg != null) {
             btnEpg.setVisibility(View.GONE);
+        }
+    }
+
+    private void setupPlayerBranding() {
+        if (!sharedPref.isPlayerBrandEnabled()) {
+            return;
+        }
+        TextView brandText = styledPlayerView.findViewById(R.id.txt_player_brand);
+        ImageView brandLogo = styledPlayerView.findViewById(R.id.img_player_brand);
+        String logoUrl = sharedPref.getPlayerBrandLogoUrl();
+        String text = sharedPref.getPlayerBrandText();
+        if (!TextUtils.isEmpty(logoUrl) && brandLogo != null) {
+            brandLogo.setVisibility(View.VISIBLE);
+            Glide.with(this)
+                    .load(logoUrl)
+                    .into(brandLogo);
+            if (brandText != null) {
+                brandText.setVisibility(View.GONE);
+            }
+            return;
+        }
+        if (brandLogo != null) {
+            brandLogo.setVisibility(View.GONE);
+        }
+        if (brandText != null) {
+            if (!TextUtils.isEmpty(text)) {
+                brandText.setText(text);
+                brandText.setVisibility(View.VISIBLE);
+            } else {
+                brandText.setVisibility(View.GONE);
+            }
         }
     }
 

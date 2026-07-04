@@ -48,8 +48,10 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.fragments.FragmentCategory;
 import com.shif.shqip.android.fragments.FragmentFavorite;
 import com.shif.shqip.android.fragments.FragmentRecent;
+import com.shif.shqip.android.utils.AdsAntiblockHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.AppBarLayoutBehavior;
+import com.shif.shqip.android.utils.AppIntegrityHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
@@ -87,6 +89,7 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     SharedPref sharedPref;
     AdsPref adsPref;
     AdsManager adsManager;
+    AdsAntiblockHelper adsAntiblockHelper;
     private AppUpdateManager appUpdateManager;
     private ActivityResultLauncher<IntentSenderRequest> appUpdateResultLauncher;
     ViewPagerHelper viewPagerHelper;
@@ -111,6 +114,13 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
         Tools.setNavigation(this);
         viewPagerHelper = new ViewPagerHelper(this);
         adsManager = new AdsManager(this);
+        adsAntiblockHelper = new AdsAntiblockHelper(this);
+
+        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)
+                || !AppIntegrityHelper.isAdsConfigTrusted(this, sharedPref)) {
+            finishAffinity();
+            return;
+        }
 
         if (Config.FORCE_TO_SHOW_APP_OPEN_AD_ON_START) {
             ProcessLifecycleOwner.get().getLifecycle().addObserver(this);
@@ -123,6 +133,7 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
             });
             adsManager.loadBannerAd(Constant.BANNER_HOME);
             adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
+            adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
         }, 100);
 
         initComponent();
@@ -335,9 +346,22 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
     @Override
     protected void onResume() {
         super.onResume();
+        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)
+                || !AppIntegrityHelper.isAdsConfigTrusted(this, sharedPref)) {
+            finishAffinity();
+            return;
+        }
         adsManager.resumeBannerAd(Constant.BANNER_HOME);
+        if (adsAntiblockHelper != null && adsAntiblockHelper.shouldForceAdReloadOnResume()) {
+            reloadHomeAds();
+        }
         PlaylistGuardSession.refreshAsync(sharedPref);
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, null);
+    }
+
+    private void reloadHomeAds() {
+        adsManager.loadBannerAd(Constant.BANNER_HOME);
+        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
     }
 
     @Override

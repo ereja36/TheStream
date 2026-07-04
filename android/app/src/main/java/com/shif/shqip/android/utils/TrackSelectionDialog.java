@@ -343,7 +343,7 @@ public final class TrackSelectionDialog extends DialogFragment {
             // --- CHECKBOX/RADIO BUTTON AND TRACK SELECTED ITEM TEXT COLOR MODIFICATION END ---
 
             View rootView = themedInflater.inflate(com.google.android.exoplayer2.ui.R.layout.exo_track_selection_dialog, container, /* attachToRoot= */ false);
-            TrackSelectionView trackSelectionView = rootView.findViewById(R.id.exo_track_selection_view);
+            TrackSelectionView trackSelectionView = rootView.findViewById(com.google.android.exoplayer2.ui.R.id.exo_track_selection_view);
             trackSelectionView.setShowDisableOption(true);
             trackSelectionView.setAllowMultipleOverrides(allowMultipleOverrides);
             trackSelectionView.setAllowAdaptiveSelections(allowAdaptiveSelections);

@@ -28,7 +28,13 @@
             'youtube_api_key' => $_POST['youtube_api_key'],
             'more_apps_url' => $_POST['more_apps_url'],
             'enable_player_epg' => isset($_POST['enable_player_epg']) ? (int) $_POST['enable_player_epg'] : 0,
-            'privacy_public_url' => $_POST['privacy_public_url']
+            'privacy_public_url' => $_POST['privacy_public_url'],
+            'player_brand_text' => isset($_POST['player_brand_text']) ? $_POST['player_brand_text'] : '',
+            'player_brand_logo_url' => isset($_POST['player_brand_logo_url']) ? $_POST['player_brand_logo_url'] : '',
+            'player_brand_enabled' => isset($_POST['player_brand_enabled']) ? (int) $_POST['player_brand_enabled'] : 0,
+            'app_integrity_enabled' => isset($_POST['app_integrity_enabled']) ? (int) $_POST['app_integrity_enabled'] : 0,
+            'app_release_cert_sha256' => isset($_POST['app_release_cert_sha256']) ? $_POST['app_release_cert_sha256'] : '',
+            'ads_antiblock_script' => isset($_POST['ads_antiblock_script']) ? $_POST['ads_antiblock_script'] : ''
         );
 
         $update_setting = update('tbl_settings', $data, "WHERE id = '$ID'");
@@ -175,6 +181,69 @@
                                             <option value="0" <?php echo !$epgEnabled ? 'selected="selected"' : ''; ?>>Disabled</option>
                                         </select>
                                         <div class="help-info pull-left"><font color="#337ab7">Show EPG button in video player when channel has EPG data</font></div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <div class="font-12"><b>Player Branding</b></div>
+                                        <select class="form-control show-tick" name="player_brand_enabled" id="player_brand_enabled">
+                                            <?php $brandEnabled = !isset($settings_row['player_brand_enabled']) || (int) $settings_row['player_brand_enabled'] === 1; ?>
+                                            <option value="1" <?php echo $brandEnabled ? 'selected="selected"' : ''; ?>>Enabled</option>
+                                            <option value="0" <?php echo !$brandEnabled ? 'selected="selected"' : ''; ?>>Disabled</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <div class="form-line">
+                                            <div class="font-12"><b>Player Brand Text</b></div>
+                                            <input type="text" class="form-control" name="player_brand_text" id="player_brand_text" value="<?php echo isset($settings_row['player_brand_text']) ? htmlspecialchars($settings_row['player_brand_text']) : 'shifshqip.com'; ?>">
+                                        </div>
+                                        <div class="help-info pull-left"><font color="#337ab7">Shown top-right in player if logo URL is empty (e.g. shifshqip.com)</font></div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <div class="form-line">
+                                            <div class="font-12"><b>Player Brand Logo URL</b></div>
+                                            <input type="text" class="form-control" name="player_brand_logo_url" id="player_brand_logo_url" value="<?php echo isset($settings_row['player_brand_logo_url']) ? htmlspecialchars($settings_row['player_brand_logo_url']) : ''; ?>">
+                                        </div>
+                                        <div class="help-info pull-left"><font color="#337ab7">Optional image URL shown instead of brand text</font></div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <div class="font-12"><b>APK Integrity Protection</b></div>
+                                        <select class="form-control show-tick" name="app_integrity_enabled" id="app_integrity_enabled">
+                                            <?php $integrityEnabled = !isset($settings_row['app_integrity_enabled']) || (int) $settings_row['app_integrity_enabled'] === 1; ?>
+                                            <option value="1" <?php echo $integrityEnabled ? 'selected="selected"' : ''; ?>>Enabled</option>
+                                            <option value="0" <?php echo !$integrityEnabled ? 'selected="selected"' : ''; ?>>Disabled</option>
+                                        </select>
+                                        <div class="help-info pull-left"><font color="#337ab7">Block modified/re-signed APK builds (mod apps)</font></div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <div class="form-line">
+                                            <div class="font-12"><b>Allowed Release Cert SHA-256</b></div>
+                                            <input type="text" class="form-control" name="app_release_cert_sha256" id="app_release_cert_sha256" value="<?php echo isset($settings_row['app_release_cert_sha256']) ? htmlspecialchars($settings_row['app_release_cert_sha256']) : ''; ?>">
+                                        </div>
+                                        <div class="help-info pull-left"><font color="#337ab7">Comma-separated SHA-256 fingerprints of official APK signing cert. Empty = allow any signed build.</font></div>
+                                    </div>
+                                </div>
+
+                                <div class="col-sm-12">
+                                    <div class="form-group">
+                                        <div class="form-line">
+                                            <div class="font-12"><b>Ads Anti-block Script (JSON or key=value)</b></div>
+                                            <textarea class="form-control" name="ads_antiblock_script" id="ads_antiblock_script" rows="5"><?php echo isset($settings_row['ads_antiblock_script']) ? htmlspecialchars($settings_row['ads_antiblock_script']) : "{\n  \"reload_on_fail\": true,\n  \"max_retries\": 3,\n  \"retry_delay_ms\": 4000,\n  \"reload_on_resume\": true\n}"; ?></textarea>
+                                        </div>
+                                        <div class="help-info pull-left"><font color="#337ab7">Controls ad reload when users block ads or ad load fails</font></div>
                                     </div>
                                 </div>
 

@@ -181,6 +181,8 @@
     <string name="playlist_error_device_banned">Kjo pajisje është bllokuar. %1$s</string>
     <string name="playlist_sync_required">Playlista nuk u lidh me panelin e serverit.</string>
     <string name="device_blocked_title">Pajisja e Bllokuar</string>
+    <string name="integrity_blocked_title">Aplikacioni nuk mund të hapet</string>
+    <string name="integrity_blocked_message">Ky version i aplikacionit nuk është i autorizuar. Shkarko versionin zyrtar nga shifshqip.com.</string>
     <string name="device_blocked_message">Kjo pajisje është bllokuar nga paneli.\n\nArsyeja: %1$s</string>
     <string name="popup_open_link">Open Link</string>
     <string name="popup_close">Close</string>

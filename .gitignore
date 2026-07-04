@@ -23,9 +23,11 @@ Thumbs.db
 # Secrets (never commit real credentials)
 admin_panel/the_stream/includes/config.php
 android/app/google-services.json
+android/keystore/
 
 # Archives
 *.zip
 
 # Logs
 *.log
+app/
