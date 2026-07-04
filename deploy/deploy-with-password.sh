@@ -47,6 +47,14 @@ sshpass -e scp -o StrictHostKeyChecking=accept-new \
   "${SCRIPT_DIR}/../android/keystore/shif-shqip-release.jks" 2>/dev/null || \
   echo "Warning: could not fetch keystore — building with local keystore if present."
 
+if [[ -z "${DB_PASS:-}" ]]; then
+  echo "==> Reading DB password from VPS config.php..."
+  DB_PASS="$(sshpass -e ssh -o StrictHostKeyChecking=accept-new \
+    "${VPS_USER:-root}@${VPS_HOST:-57.128.254.213}" \
+    "php -r \"include '/var/www/shifshqip-api/the_stream/includes/config.php'; echo \\\$pass;\"" 2>/dev/null || true)"
+  export DB_PASS
+fi
+
 if [[ ! -f "${SCRIPT_DIR}/../android/app/build/outputs/apk/release/app-release.apk" ]]; then
   echo "==> Building release APK..."
   (
