@@ -102,10 +102,5 @@ jobs:
         env:
           REST_API_KEY: ${{ secrets.REST_API_KEY }}
         run: |
-          curl -fsS "https://api.shifshqip.com/api/api.php?get_config&package_name=com.shif.shqip.android&api_key=${REST_API_KEY:-shifshqip}" | python3 - <<'PY'
-import json,sys
-data=json.load(sys.stdin)
-s=data.get('settings',{})
-assert 'player_brand_text' in s, 'player_brand_text missing — migration 014 not applied?'
-print('ok version fields:', s.get('player_brand_text'), s.get('app_integrity_enabled'))
-PY
+          curl -fsS "https://api.shifshqip.com/api/api.php?get_config&package_name=com.shif.shqip.android&api_key=${REST_API_KEY:-shifshqip}" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); s=d.get('settings',{}); assert 'player_brand_text' in s, 'migration 014 missing'; print('ok', s.get('player_brand_text'), s.get('app_integrity_enabled'))"
