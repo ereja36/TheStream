@@ -41,6 +41,7 @@ import com.shif.shqip.android.models.Settings;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsAntiblockHelper;
 import com.shif.shqip.android.utils.AppIntegrityHelper;
 import com.shif.shqip.android.utils.DesignRouter;
@@ -150,6 +151,7 @@ public class ActivitySplash extends AppCompatActivity {
                     ads = resp.ads;
                     license = resp.license;
                     Tools.saveAds(adsPref, ads);
+                    AdPlacementHelper.onRemoteAdsConfigLoaded(ActivitySplash.this);
                     boolean serverAdsOn = ads != null && "on".equalsIgnoreCase(ads.ad_status);
                     sharedPref.saveCredentials(
                             settings.youtube_api_key,

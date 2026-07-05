@@ -24,6 +24,8 @@ import com.shif.shqip.android.fragments.FragmentFavorite;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
+import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
@@ -44,12 +46,14 @@ public class ActivityMainV3 extends AppCompatActivity {
     private FrameLayout overlayContainer;
     private View scrollContent;
     private TextView emptyMessage;
+    private AdsManager adsManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Tools.getDesignTheme(this);
         sharedPref = new SharedPref(this);
+        adsManager = new AdsManager(this);
         setContentView(R.layout.activity_main_v3);
         DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_nav);
 
@@ -78,8 +82,19 @@ public class ActivityMainV3 extends AppCompatActivity {
                 startActivity(new Intent(this, ActivitySettings.class)));
 
         DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
+        Tools.postDelayed(() -> {
+            adsManager.initializeAd();
+            adsManager.updateConsentStatus();
+            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, 1);
+        }, 100);
         setupBottomNav();
         loadChannels();
+    }
+
+    public void showInterstitialAd() {
+        if (adsManager != null) {
+            adsManager.showInterstitialAd();
+        }
     }
 
     @Override

@@ -132,7 +132,8 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
             adsManager.loadAppOpenAd(Constant.APP_OPEN_AD_ON_RESUME, false, () -> {
             });
             adsManager.loadBannerAd(Constant.BANNER_HOME);
-            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
+            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, 1);
+            adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
             adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
         }, 100);
 
@@ -361,7 +362,9 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
 
     private void reloadHomeAds() {
         adsManager.loadBannerAd(Constant.BANNER_HOME);
-        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
+        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, 1);
+        adsManager.loadAppOpenAd(Constant.APP_OPEN_AD_ON_RESUME, false, () -> {
+        });
     }
 
     @Override

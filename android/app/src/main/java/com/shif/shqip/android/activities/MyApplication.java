@@ -45,6 +45,7 @@ public class MyApplication extends Application {
     AdsPref adsPref;
     SharedPref sharedPref;
     AppOpenAd appOpenAd;
+    private boolean openAdsLifecycleRegistered;
 
     @Override
     public void onCreate() {
@@ -119,27 +120,40 @@ public class MyApplication extends Application {
     }
 
     private void initOpenAds() {
+        refreshOpenAds();
+    }
+
+    /**
+     * Call after remote ads config is saved (splash) so app-open/resume ads use real unit IDs.
+     */
+    public void refreshOpenAds() {
         adsPref = new AdsPref(this);
-        appOpenAd = new AppOpenAd();
         String mainAds = adsPref.getMainAds();
-        boolean hasValidMainAds = !TextUtils.isEmpty(mainAds) && !"0".equals(mainAds);
-        if (adsPref.getAdStatus() && hasValidMainAds && !Config.FORCE_TO_SHOW_APP_OPEN_AD_ON_START) {
+        if (!adsPref.getAdStatus() || TextUtils.isEmpty(mainAds) || "0".equals(mainAds)) {
+            return;
+        }
+        if (appOpenAd == null) {
+            appOpenAd = new AppOpenAd();
+        }
+        boolean placementOnStart = Constant.APP_OPEN_AD_ON_START && !Config.FORCE_TO_SHOW_APP_OPEN_AD_ON_START;
+        appOpenAd.initAppOpenAdMob(new AppOpenAdMob())
+                .initAppOpenAdManager(new AppOpenAdManager())
+                .initAppOpenAdAppLovin(new AppOpenAdAppLovin())
+                .initAppOpenAdWortise(new AppOpenAdWortise())
+                .initAppOpenAdPangle(new AppOpenAdPangle())
+                .initAppOpenAdYandex(new AppOpenAdYandex())
+                .setAdStatus(AD_STATUS_ON)
+                .setAdNetwork(mainAds)
+                .setBackupAdNetwork(adsPref.getBackupAds())
+                .setPlacementOnStart(placementOnStart)
+                .setPlacementOnResume(Constant.APP_OPEN_AD_ON_RESUME)
+                .setAdMobAppOpenId(adsPref.getAdMobAppOpenAdId())
+                .setAdManagerAppOpenId(adsPref.getAdManagerAppOpenAdId())
+                .setApplovinAppOpenId(adsPref.getAppLovinAppOpenAdUnitId());
+        if (!openAdsLifecycleRegistered) {
             registerActivityLifecycleCallbacks(activityLifecycleCallbacks);
             ProcessLifecycleOwner.get().getLifecycle().addObserver(lifecycleObserver);
-            appOpenAd.initAppOpenAdMob(new AppOpenAdMob())
-                    .initAppOpenAdManager(new AppOpenAdManager())
-                    .initAppOpenAdAppLovin(new AppOpenAdAppLovin())
-                    .initAppOpenAdWortise(new AppOpenAdWortise())
-                    .initAppOpenAdPangle(new AppOpenAdPangle())
-                    .initAppOpenAdYandex(new AppOpenAdYandex())
-                    .setAdStatus(AD_STATUS_ON)
-                    .setAdNetwork(mainAds)
-                    .setBackupAdNetwork(adsPref.getBackupAds())
-                    .setPlacementOnStart(Constant.APP_OPEN_AD_ON_START)
-                    .setPlacementOnResume(Constant.APP_OPEN_AD_ON_RESUME)
-                    .setAdMobAppOpenId(adsPref.getAdMobAppOpenAdId())
-                    .setAdManagerAppOpenId(adsPref.getAdManagerAppOpenAdId())
-                    .setApplovinAppOpenId(adsPref.getAppLovinAppOpenAdUnitId());
+            openAdsLifecycleRegistered = true;
         }
     }
 
@@ -191,6 +205,8 @@ public class MyApplication extends Application {
     public void showAdIfAvailable(@NonNull Activity activity, @NonNull OnShowAdCompleteListener onShowAdCompleteListener) {
         if (appOpenAd != null) {
             appOpenAd.showAdIfAvailable(activity, onShowAdCompleteListener);
+        } else {
+            onShowAdCompleteListener.onShowAdComplete();
         }
     }
 

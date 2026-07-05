@@ -554,6 +554,7 @@ public class Tools {
             }
             intent.putExtra("channel_id", channel.channel_id);
             activity.startActivity(intent);
+            AdPlacementHelper.showInterstitialBeforeAction(activity);
         } else {
             Snackbar.make(view, activity.getResources().getString(R.string.network_required), Snackbar.LENGTH_SHORT).show();
         }

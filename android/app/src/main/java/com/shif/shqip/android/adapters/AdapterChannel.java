@@ -34,6 +34,7 @@ import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
 import com.bumptech.glide.Glide;
@@ -41,6 +42,7 @@ import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.request.RequestOptions;
 import com.solodroidx.ads.nativead.NativeAdViewHolder;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
@@ -299,25 +301,26 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     public void insertDataWithNativeAd(List<Channel> items) {
         setLoaded();
         int positionStart = getItemCount();
-        for (Channel post : items) {
-            Log.d("item", "TITLE: " + post.channel_name);
+        if (!adsPref.getAdStatus() || !AdPlacementHelper.shouldInsertNativeAds()) {
+            this.items.addAll(items);
+            notifyItemRangeInserted(positionStart, items.size());
+            return;
         }
-        if (sharedPref.getChannelViewType() == Constant.CHANNEL_GRID_2_COLUMN) {
-            if (items.size() >= Constant.NATIVE_AD_INDEX_2_COLUMNS) {
-                items.add(Constant.NATIVE_AD_INDEX_2_COLUMNS, new Channel());
-            }
-        } else if (sharedPref.getChannelViewType() == Constant.CHANNEL_GRID_3_COLUMN) {
-            if (items.size() >= Constant.NATIVE_AD_INDEX_3_COLUMNS) {
-                items.add(Constant.NATIVE_AD_INDEX_3_COLUMNS, new Channel());
-            }
-        } else {
-            if (items.size() >= adsPref.getNativeAdIndex()) {
-                items.add(adsPref.getNativeAdIndex(), new Channel());
+
+        List<Channel> enriched = new ArrayList<>();
+        int startIndex = AdPlacementHelper.resolveNativeStartIndex(adsPref);
+        int interval = AdPlacementHelper.resolveNativeInterval(adsPref);
+        int channelCount = 0;
+        for (Channel post : items) {
+            enriched.add(post);
+            channelCount++;
+            if (channelCount == startIndex || (channelCount > startIndex && (channelCount - startIndex) % interval == 0)) {
+                enriched.add(new Channel());
             }
         }
 
-        int itemCount = items.size();
-        this.items.addAll(items);
+        int itemCount = enriched.size();
+        this.items.addAll(enriched);
         notifyItemRangeInserted(positionStart, itemCount);
     }
 

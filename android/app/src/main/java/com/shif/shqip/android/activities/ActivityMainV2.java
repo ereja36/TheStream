@@ -32,6 +32,7 @@ import com.shif.shqip.android.models.Category;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
+import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
@@ -71,12 +72,14 @@ public class ActivityMainV2 extends AppCompatActivity {
     private ExoPlayer heroPlayer;
     private StyledPlayerView heroPreview;
     private Channel heroPreviewChannel;
+    private AdsManager adsManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Tools.getDesignTheme(this);
         sharedPref = new SharedPref(this);
+        adsManager = new AdsManager(this);
         setContentView(R.layout.activity_main_v2);
         DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_nav_pill);
 
@@ -90,7 +93,18 @@ public class ActivityMainV2 extends AppCompatActivity {
         setupBottomNav();
         bringChromeToFront();
         DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
+        Tools.postDelayed(() -> {
+            adsManager.initializeAd();
+            adsManager.updateConsentStatus();
+            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, 1);
+        }, 100);
         loadChannels();
+    }
+
+    public void showInterstitialAd() {
+        if (adsManager != null) {
+            adsManager.showInterstitialAd();
+        }
     }
 
     @Override
