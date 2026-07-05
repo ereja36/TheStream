@@ -29,4 +29,4 @@ android/keystore/
 
 # Logs
 *.log
-app/
+/app/
