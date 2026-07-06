@@ -19,6 +19,7 @@ import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.adapters.AdapterChannelCardV3;
 import com.shif.shqip.android.callbacks.CallbackChannel;
+import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.fragments.FragmentFavorite;
 import com.shif.shqip.android.models.Channel;
@@ -41,6 +42,7 @@ import retrofit2.Response;
 public class ActivityMainV3 extends AppCompatActivity {
 
     private SharedPref sharedPref;
+    private AdsPref adsPref;
     private AdapterChannelCardV3 featuredAdapter;
     private AdapterChannelCardV3 gridAdapter;
     private FrameLayout overlayContainer;
@@ -53,6 +55,7 @@ public class ActivityMainV3 extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         Tools.getDesignTheme(this);
         sharedPref = new SharedPref(this);
+        adsPref = new AdsPref(this);
         adsManager = new AdsManager(this);
         setContentView(R.layout.activity_main_v3);
         DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_nav);
@@ -85,7 +88,7 @@ public class ActivityMainV3 extends AppCompatActivity {
         Tools.postDelayed(() -> {
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
-            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, 1);
+            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
         }, 100);
         setupBottomNav();
         loadChannels();

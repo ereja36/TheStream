@@ -80,7 +80,7 @@ public class ActivityCategoryDetail extends AppCompatActivity {
 
         adsManager = new AdsManager(this);
         adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
-        adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, 1);
+        adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
 
         category = (Category) getIntent().getSerializableExtra(Constant.EXTRA_OBJC);
         if (category == null) {

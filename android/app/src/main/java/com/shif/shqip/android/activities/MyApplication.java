@@ -7,22 +7,21 @@ import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.lifecycle.DefaultLifecycleObserver;
-import androidx.lifecycle.LifecycleObserver;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.ProcessLifecycleOwner;
 import androidx.multidex.MultiDex;
 
-import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
-import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Tools;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.analytics.FirebaseAnalytics;
@@ -40,12 +39,18 @@ import com.solodroidx.ads.listener.OnShowAdCompleteListener;
 public class MyApplication extends Application {
 
     public static final String TAG = "MyApplication";
+    private static final long MIN_APP_OPEN_GAP_MS = 1_500L;
+
     private static MyApplication mInstance;
     FirebaseAnalytics mFirebaseAnalytics;
     AdsPref adsPref;
     SharedPref sharedPref;
     AppOpenAd appOpenAd;
     private boolean openAdsLifecycleRegistered;
+    private Activity currentActivity;
+    private boolean resumeAppOpenReady;
+    private boolean wasInBackground;
+    private long lastAppOpenShownAt;
 
     @Override
     public void onCreate() {
@@ -123,9 +128,6 @@ public class MyApplication extends Application {
         refreshOpenAds();
     }
 
-    /**
-     * Call after remote ads config is saved (splash) so app-open/resume ads use real unit IDs.
-     */
     public void refreshOpenAds() {
         adsPref = new AdsPref(this);
         String mainAds = adsPref.getMainAds();
@@ -135,7 +137,6 @@ public class MyApplication extends Application {
         if (appOpenAd == null) {
             appOpenAd = new AppOpenAd();
         }
-        boolean placementOnStart = Constant.APP_OPEN_AD_ON_START && !Config.FORCE_TO_SHOW_APP_OPEN_AD_ON_START;
         appOpenAd.initAppOpenAdMob(new AppOpenAdMob())
                 .initAppOpenAdManager(new AppOpenAdManager())
                 .initAppOpenAdAppLovin(new AppOpenAdAppLovin())
@@ -145,48 +146,96 @@ public class MyApplication extends Application {
                 .setAdStatus(AD_STATUS_ON)
                 .setAdNetwork(mainAds)
                 .setBackupAdNetwork(adsPref.getBackupAds())
-                .setPlacementOnStart(placementOnStart)
-                .setPlacementOnResume(Constant.APP_OPEN_AD_ON_RESUME)
+                .setPlacementOnStart(false)
+                .setPlacementOnResume(false)
                 .setAdMobAppOpenId(adsPref.getAdMobAppOpenAdId())
                 .setAdManagerAppOpenId(adsPref.getAdManagerAppOpenAdId())
                 .setApplovinAppOpenId(adsPref.getAppLovinAppOpenAdUnitId());
         if (!openAdsLifecycleRegistered) {
             registerActivityLifecycleCallbacks(activityLifecycleCallbacks);
-            ProcessLifecycleOwner.get().getLifecycle().addObserver(lifecycleObserver);
+            ProcessLifecycleOwner.get().getLifecycle().addObserver(processLifecycleObserver);
             openAdsLifecycleRegistered = true;
         }
     }
 
-    LifecycleObserver lifecycleObserver = new DefaultLifecycleObserver() {
+    public void markResumeAppOpenReady() {
+        resumeAppOpenReady = true;
+    }
+
+    public void recordAppOpenShown() {
+        lastAppOpenShownAt = SystemClock.elapsedRealtime();
+    }
+
+    public void preloadAppOpenAd(@Nullable Activity activity) {
+        Activity host = activity != null ? activity : currentActivity;
+        if (host == null || host.isFinishing()) {
+            return;
+        }
+        adsPref = new AdsPref(this);
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        AdsManager adsManager = new AdsManager(host);
+        adsManager.loadAppOpenAd(true, false, () -> {
+        });
+    }
+
+    private void showResumeAppOpenIfNeeded() {
+        adsPref = new AdsPref(this);
+        if (!resumeAppOpenReady || !adsPref.getAdStatus() || !adsPref.getAppOpenOnResume()) {
+            return;
+        }
+        if (currentActivity == null || currentActivity.isFinishing()
+                || currentActivity instanceof ActivitySplash) {
+            return;
+        }
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastAppOpenShownAt < MIN_APP_OPEN_GAP_MS) {
+            return;
+        }
+        AdsManager adsManager = new AdsManager(currentActivity);
+        adsManager.loadAppOpenAd(true, true, () -> {
+            recordAppOpenShown();
+            AppOpenAd.isAppOpenAdLoaded = false;
+            preloadAppOpenAd(currentActivity);
+        });
+    }
+
+    private final DefaultLifecycleObserver processLifecycleObserver = new DefaultLifecycleObserver() {
         @Override
         public void onStart(@NonNull LifecycleOwner owner) {
-            DefaultLifecycleObserver.super.onStart(owner);
-            if (AppOpenAd.isAppOpenAdLoaded) {
-                if (appOpenAd != null) {
-                    appOpenAd.setOnStartLifecycleObserver();
-                }
+            if (wasInBackground) {
+                showResumeAppOpenIfNeeded();
             }
+            wasInBackground = false;
+        }
+
+        @Override
+        public void onStop(@NonNull LifecycleOwner owner) {
+            wasInBackground = true;
         }
     };
 
-    ActivityLifecycleCallbacks activityLifecycleCallbacks = new ActivityLifecycleCallbacks() {
+    private final ActivityLifecycleCallbacks activityLifecycleCallbacks = new ActivityLifecycleCallbacks() {
         @Override
         public void onActivityCreated(@NonNull Activity activity, @Nullable Bundle savedInstanceState) {
         }
 
         @Override
         public void onActivityStarted(@NonNull Activity activity) {
-            if (appOpenAd != null) {
-                appOpenAd.setOnStartActivityLifecycleCallbacks(activity);
-            }
+            currentActivity = activity;
         }
 
         @Override
         public void onActivityResumed(@NonNull Activity activity) {
+            currentActivity = activity;
         }
 
         @Override
         public void onActivityPaused(@NonNull Activity activity) {
+            if (currentActivity == activity) {
+                currentActivity = null;
+            }
         }
 
         @Override
@@ -199,16 +248,22 @@ public class MyApplication extends Application {
 
         @Override
         public void onActivityDestroyed(@NonNull Activity activity) {
+            if (currentActivity == activity) {
+                currentActivity = null;
+            }
         }
     };
 
     public void showAdIfAvailable(@NonNull Activity activity, @NonNull OnShowAdCompleteListener onShowAdCompleteListener) {
-        if (appOpenAd != null) {
-            appOpenAd.showAdIfAvailable(activity, onShowAdCompleteListener);
-        } else {
+        if (!adsPref.getAppOpenOnStart()) {
             onShowAdCompleteListener.onShowAdComplete();
+            return;
         }
+        AdsManager adsManager = new AdsManager(activity);
+        adsManager.loadAppOpenAd(true, true, () -> {
+            recordAppOpenShown();
+            AppOpenAd.isAppOpenAdLoaded = false;
+            onShowAdCompleteListener.onShowAdComplete();
+        });
     }
-
-
 }

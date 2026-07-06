@@ -74,7 +74,6 @@ public class ActivitySplash extends AppCompatActivity {
     Settings settings;
     Ads ads;
     License license;
-    boolean isForceOpenAds;
     private final ExecutorService startupExecutor = Executors.newSingleThreadExecutor();
     private String deviceId;
 
@@ -83,7 +82,6 @@ public class ActivitySplash extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         Tools.transparentStatusBarNavigation(ActivitySplash.this);
         setContentView(R.layout.activity_splash);
-        isForceOpenAds = Config.FORCE_TO_SHOW_APP_OPEN_AD_ON_START;
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
         sharedPref = new SharedPref(this);
@@ -252,25 +250,21 @@ public class ActivitySplash extends AppCompatActivity {
     }
 
     private void showAppOpenAdIfAvailable() {
-        if (isForceOpenAds) {
-            if (Constant.APP_OPEN_AD_ON_START) {
-                adsManager.loadAppOpenAd(Constant.APP_OPEN_AD_ON_START, true, () -> {
-                    startMainActivity();
-                    AppOpenAd.isAppOpenAdLoaded = false;
-                    Log.d(TAG, "showAppOpenAdIfAvailable");
-                });
-            } else {
-                startMainActivity();
-                Log.d(TAG, "app open on start disabled");
-            }
+        Runnable continueToMain = () -> {
+            MyApplication.getInstance().markResumeAppOpenReady();
+            startMainActivity();
+            MyApplication.getInstance().preloadAppOpenAd(this);
+        };
+        if (adsPref.getAdStatus() && adsPref.getAppOpenOnStart()) {
+            adsManager.loadAppOpenAd(true, true, () -> {
+                MyApplication.getInstance().recordAppOpenShown();
+                AppOpenAd.isAppOpenAdLoaded = false;
+                continueToMain.run();
+                Log.d(TAG, "showAppOpenAdIfAvailable");
+            });
         } else {
-            if (adsPref.getAdStatus() && Constant.APP_OPEN_AD_ON_START) {
-                Application application = getApplication();
-                ((MyApplication) application).showAdIfAvailable(this, this::startMainActivity);
-            } else {
-                startMainActivity();
-                Log.d(TAG, "startMainActivity");
-            }
+            continueToMain.run();
+            Log.d(TAG, "app open on start disabled");
         }
     }
 

@@ -41,7 +41,7 @@ public final class AdPlacementHelper {
             ((ActivityMainV3) activity).showInterstitialAd();
         } else {
             AdsManager adsManager = new AdsManager(activity);
-            adsManager.loadInterstitialAd(true, 1);
+            adsManager.loadInterstitialAd(true, adsPref.getInterstitialAdInterval());
             adsManager.showInterstitialAd();
         }
     }

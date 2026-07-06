@@ -26,6 +26,7 @@ import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.adapters.AdapterChannelCardV2;
 import com.shif.shqip.android.callbacks.CallbackChannel;
+import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.fragments.FragmentFavorite;
 import com.shif.shqip.android.models.Category;
@@ -61,6 +62,7 @@ import retrofit2.Response;
 public class ActivityMainV2 extends AppCompatActivity {
 
     private SharedPref sharedPref;
+    private AdsPref adsPref;
     private List<Channel> allChannels = new ArrayList<>();
     private Channel featuredChannel;
     private LinearLayout categorySections;
@@ -79,6 +81,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         Tools.getDesignTheme(this);
         sharedPref = new SharedPref(this);
+        adsPref = new AdsPref(this);
         adsManager = new AdsManager(this);
         setContentView(R.layout.activity_main_v2);
         DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_nav_pill);
@@ -96,7 +99,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         Tools.postDelayed(() -> {
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
-            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, 1);
+            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
         }, 100);
         loadChannels();
     }

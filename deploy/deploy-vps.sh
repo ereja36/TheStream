@@ -47,6 +47,11 @@ if [[ -f "${ROOT_DIR}/deploy/nginx-playlist.shifshqip.com.conf" ]]; then
     "${VPS_USER}@${VPS_HOST}:/etc/nginx/sites-available/playlist.shifshqip.com"
 fi
 
+if [[ -f "${ROOT_DIR}/database/migrations/016_app_open_panel_controls.sql" ]]; then
+  scp "${ROOT_DIR}/database/migrations/016_app_open_panel_controls.sql" \
+    "${VPS_USER}@${VPS_HOST}:/tmp/016_app_open_panel_controls.sql"
+fi
+
 if [[ -f "${ROOT_DIR}/database/migrations/015_ads_frequency.sql" ]]; then
   scp "${ROOT_DIR}/database/migrations/015_ads_frequency.sql" \
     "${VPS_USER}@${VPS_HOST}:/tmp/015_ads_frequency.sql"
@@ -116,6 +121,10 @@ REMOTE_BOOTSTRAP
 
 ssh "${VPS_USER}@${VPS_HOST}" bash -s <<EOF
 set -e
+if [[ -f /tmp/016_app_open_panel_controls.sql ]]; then
+  mysql -u ${DB_USER} ${DB_PASS:+-p"${DB_PASS}"} ${DB_NAME} < /tmp/016_app_open_panel_controls.sql || true
+  rm -f /tmp/016_app_open_panel_controls.sql
+fi
 if [[ -f /tmp/015_ads_frequency.sql ]]; then
   mysql -u ${DB_USER} ${DB_PASS:+-p"${DB_PASS}"} ${DB_NAME} < /tmp/015_ads_frequency.sql || true
   rm -f /tmp/015_ads_frequency.sql

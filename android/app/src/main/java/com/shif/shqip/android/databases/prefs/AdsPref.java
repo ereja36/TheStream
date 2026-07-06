@@ -215,7 +215,22 @@ public class AdsPref {
     }
 
     public int getInterstitialAdInterval() {
-        return sharedPreferences.getInt("interstitial_ad_interval", 3);
+        int interval = sharedPreferences.getInt("interstitial_ad_interval", 3);
+        return Math.max(1, interval);
+    }
+
+    public boolean getAppOpenOnStart() {
+        return sharedPreferences.getBoolean("app_open_on_start", true);
+    }
+
+    public boolean getAppOpenOnResume() {
+        return sharedPreferences.getBoolean("app_open_on_resume", true);
+    }
+
+    public void saveAdPlacementFlags(boolean appOpenOnStart, boolean appOpenOnResume) {
+        editor.putBoolean("app_open_on_start", appOpenOnStart);
+        editor.putBoolean("app_open_on_resume", appOpenOnResume);
+        editor.apply();
     }
 
     public int getNativeAdInterval() {

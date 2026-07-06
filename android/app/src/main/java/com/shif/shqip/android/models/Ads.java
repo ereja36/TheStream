@@ -40,6 +40,8 @@ public class Ads implements Serializable {
     public String wortise_native_unit_id = "";
     public String wortise_app_open_unit_id = "";
     public int interstitial_ad_interval;
+    public int app_open_on_start = 1;
+    public int app_open_on_resume = 1;
     public int native_ad_interval;
     public int native_ad_index;
     public String date_time = "";

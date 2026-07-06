@@ -36,9 +36,6 @@ import androidx.core.view.WindowCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
-import androidx.lifecycle.DefaultLifecycleObserver;
-import androidx.lifecycle.LifecycleOwner;
-import androidx.lifecycle.ProcessLifecycleOwner;
 import androidx.viewpager.widget.ViewPager;
 
 import com.shif.shqip.android.Config;
@@ -75,7 +72,7 @@ import com.google.android.play.core.review.ReviewManagerFactory;
 import com.solodroid.push.sdk.provider.OneSignalPush;
 import com.solodroidx.ads.appopen.AppOpenAd;
 
-public class MainActivity extends AppCompatActivity implements DefaultLifecycleObserver {
+public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     BottomNavigationView navigation;
@@ -122,17 +119,15 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
             return;
         }
 
-        if (Config.FORCE_TO_SHOW_APP_OPEN_AD_ON_START) {
-            ProcessLifecycleOwner.get().getLifecycle().addObserver(this);
-        }
-
         Tools.postDelayed(() -> {
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
-            adsManager.loadAppOpenAd(Constant.APP_OPEN_AD_ON_RESUME, false, () -> {
-            });
+            if (adsPref.getAppOpenOnResume()) {
+                adsManager.loadAppOpenAd(true, false, () -> {
+                });
+            }
             adsManager.loadBannerAd(Constant.BANNER_HOME);
-            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, 1);
+            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
             adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
             adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
         }, 100);
@@ -152,20 +147,6 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
         initExitDialog();
         getScreenDimensions();
         setCustomDialogWidth();
-    }
-
-    @Override
-    public void onStart(@NonNull LifecycleOwner owner) {
-        DefaultLifecycleObserver.super.onStart(owner);
-        Tools.postDelayed(() -> {
-            if (Constant.APP_OPEN_AD_ON_RESUME) {
-                if (AppOpenAd.isAppOpenAdLoaded) {
-                    adsManager.showAppOpenAd(() -> {
-                    });
-                    Log.d(AppOpenAd.TAG, "lifecycleObserver Show App Open Ad");
-                }
-            }
-        }, 100);
     }
 
     public void showInterstitialAd() {
@@ -362,24 +343,22 @@ public class MainActivity extends AppCompatActivity implements DefaultLifecycleO
 
     private void reloadHomeAds() {
         adsManager.loadBannerAd(Constant.BANNER_HOME);
-        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, 1);
-        adsManager.loadAppOpenAd(Constant.APP_OPEN_AD_ON_RESUME, false, () -> {
-        });
+        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
+        if (adsPref.getAppOpenOnResume()) {
+            adsManager.loadAppOpenAd(true, false, () -> {
+            });
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         destroyBannerAd();
-        destroyAppOpenAd();
     }
 
     public void destroyAppOpenAd() {
         AppOpenAd.isAppOpenAdLoaded = false;
-        if (Config.FORCE_TO_SHOW_APP_OPEN_AD_ON_START) {
-            adsManager.destroyAppOpenAd();
-            ProcessLifecycleOwner.get().getLifecycle().removeObserver(this);
-        }
+        adsManager.destroyAppOpenAd();
     }
 
     public void destroyBannerAd() {

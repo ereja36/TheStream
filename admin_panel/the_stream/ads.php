@@ -256,6 +256,8 @@
             'ad_type' => $primaryAd,
             'backup_ads' => $backupAd,
             'interstitial_ad_interval' => clean($_POST['interstitial_ad_interval']),
+            'app_open_on_start' => isset($_POST['app_open_on_start']) ? (int) $_POST['app_open_on_start'] : 1,
+            'app_open_on_resume' => isset($_POST['app_open_on_resume']) ? (int) $_POST['app_open_on_resume'] : 1,
             'native_ad_interval' => clean($_POST['native_ad_interval']),
             'native_ad_index' => clean($_POST['native_ad_index']),
             'test_mode' => clean($_POST['test_mode'])
@@ -1089,10 +1091,38 @@
                                     <div class="form-group">
                                         <div class="col-sm-12">
                                             <div class="form-line">
-                                                <div class="font-12">Interstitial Ad Interval</div>
-                                                <input type="number" class="form-control" name="interstitial_ad_interval" id="interstitial_ad_interval" value="<?php echo $settings_row['interstitial_ad_interval'];?>" required>
+                                                <div class="font-12">App Open Ad on Start</div>
+                                                <select class="form-control show-tick" name="app_open_on_start" id="app_open_on_start">
+                                                    <?php $appOpenStart = !isset($settings_row['app_open_on_start']) || (int) $settings_row['app_open_on_start'] === 1; ?>
+                                                    <option value="1" <?php echo $appOpenStart ? 'selected' : ''; ?>>Enabled — show when app opens</option>
+                                                    <option value="0" <?php echo !$appOpenStart ? 'selected' : ''; ?>>Disabled</option>
+                                                </select>
                                             </div>
-                                            <div class="help-info pull-left"><font color="#337ab7">Displays Interstitial Ad every X clicks in the post list.</font></div>
+                                            <div class="help-info pull-left"><font color="#337ab7">Shows full-screen App Open ad every time the user launches the app.</font></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <div class="col-sm-12">
+                                            <div class="form-line">
+                                                <div class="font-12">App Open Ad on Resume</div>
+                                                <select class="form-control show-tick" name="app_open_on_resume" id="app_open_on_resume">
+                                                    <?php $appOpenResume = !isset($settings_row['app_open_on_resume']) || (int) $settings_row['app_open_on_resume'] === 1; ?>
+                                                    <option value="1" <?php echo $appOpenResume ? 'selected' : ''; ?>>Enabled — show when returning from background</option>
+                                                    <option value="0" <?php echo !$appOpenResume ? 'selected' : ''; ?>>Disabled</option>
+                                                </select>
+                                            </div>
+                                            <div class="help-info pull-left"><font color="#337ab7">Shows App Open ad when user leaves the app and comes back (home button / switch app).</font></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <div class="col-sm-12">
+                                            <div class="form-line">
+                                                <div class="font-12">Interstitial Ad Interval</div>
+                                                <input type="number" min="1" class="form-control" name="interstitial_ad_interval" id="interstitial_ad_interval" value="<?php echo isset($settings_row['interstitial_ad_interval']) ? (int) $settings_row['interstitial_ad_interval'] : 3; ?>" required>
+                                            </div>
+                                            <div class="help-info pull-left"><font color="#337ab7">Show interstitial every X clicks (e.g. 3 = every third click).</font></div>
                                         </div>    
                                     </div>
 
@@ -1106,7 +1136,7 @@
                                         </div>    
                                     </div>
 
-                                    <input type="hidden" class="form-control" name="native_ad_interval" id="native_ad_interval" value="<?php echo $settings_row['native_ad_interval'];?>" required>
+                                    <input type="hidden" class="form-control" name="native_ad_interval" id="native_ad_interval" value="<?php echo isset($settings_row['native_ad_interval']) ? (int) $settings_row['native_ad_interval'] : 6; ?>" required>
 
 
                                     <div class="col-sm-12" style="font-size: 16px; margin-top: 20px;"><b>INFORMATION</b></div>

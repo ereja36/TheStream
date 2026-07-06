@@ -672,6 +672,10 @@ public class Tools {
             );
 
             adsPref.setTestMode(true);
+            adsPref.saveAdPlacementFlags(
+                    ads.app_open_on_start == 0 ? false : true,
+                    ads.app_open_on_resume == 0 ? false : true
+            );
             Log.d("AdNetwork", "Ad Test Mode ON");
         } else {
             adsPref.saveAds(
@@ -717,6 +721,10 @@ public class Tools {
             );
 
             adsPref.setTestMode(false);
+            adsPref.saveAdPlacementFlags(
+                    ads.app_open_on_start == 0 ? false : true,
+                    ads.app_open_on_resume == 0 ? false : true
+            );
             Log.d("AdNetwork", "Ad Test Mode OFF");
         }
     }
