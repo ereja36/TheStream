@@ -7,6 +7,8 @@ import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
@@ -47,9 +49,11 @@ public class MyApplication extends Application {
     SharedPref sharedPref;
     AppOpenAd appOpenAd;
     private boolean openAdsLifecycleRegistered;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Activity currentActivity;
     private boolean resumeAppOpenReady;
     private boolean wasInBackground;
+    private boolean pendingResumeAppOpen;
     private long lastAppOpenShownAt;
 
     @Override
@@ -180,32 +184,44 @@ public class MyApplication extends Application {
         });
     }
 
-    private void showResumeAppOpenIfNeeded() {
-        adsPref = new AdsPref(this);
-        if (!resumeAppOpenReady || !adsPref.getAdStatus() || !adsPref.getAppOpenOnResume()) {
+    private void scheduleResumeAppOpenIfNeeded(@NonNull Activity activity) {
+        if (!pendingResumeAppOpen) {
             return;
         }
-        if (currentActivity == null || currentActivity.isFinishing()
-                || currentActivity instanceof ActivitySplash) {
-            return;
+        pendingResumeAppOpen = false;
+        mainHandler.post(() -> showResumeAppOpenIfNeeded(activity));
+    }
+
+    private void showResumeAppOpenIfNeeded(@NonNull Activity activity) {
+        try {
+            adsPref = new AdsPref(this);
+            if (!resumeAppOpenReady || !adsPref.getAdStatus() || !adsPref.getAppOpenOnResume()) {
+                return;
+            }
+            if (activity.isFinishing() || activity.isDestroyed()
+                    || activity instanceof ActivitySplash) {
+                return;
+            }
+            long now = SystemClock.elapsedRealtime();
+            if (now - lastAppOpenShownAt < MIN_APP_OPEN_GAP_MS) {
+                return;
+            }
+            AdsManager adsManager = new AdsManager(activity);
+            adsManager.loadAppOpenAd(true, true, () -> {
+                recordAppOpenShown();
+                AppOpenAd.isAppOpenAdLoaded = false;
+                preloadAppOpenAd(activity);
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "showResumeAppOpenIfNeeded failed", e);
         }
-        long now = SystemClock.elapsedRealtime();
-        if (now - lastAppOpenShownAt < MIN_APP_OPEN_GAP_MS) {
-            return;
-        }
-        AdsManager adsManager = new AdsManager(currentActivity);
-        adsManager.loadAppOpenAd(true, true, () -> {
-            recordAppOpenShown();
-            AppOpenAd.isAppOpenAdLoaded = false;
-            preloadAppOpenAd(currentActivity);
-        });
     }
 
     private final DefaultLifecycleObserver processLifecycleObserver = new DefaultLifecycleObserver() {
         @Override
         public void onStart(@NonNull LifecycleOwner owner) {
             if (wasInBackground) {
-                showResumeAppOpenIfNeeded();
+                pendingResumeAppOpen = true;
             }
             wasInBackground = false;
         }
@@ -229,13 +245,11 @@ public class MyApplication extends Application {
         @Override
         public void onActivityResumed(@NonNull Activity activity) {
             currentActivity = activity;
+            scheduleResumeAppOpenIfNeeded(activity);
         }
 
         @Override
         public void onActivityPaused(@NonNull Activity activity) {
-            if (currentActivity == activity) {
-                currentActivity = null;
-            }
         }
 
         @Override

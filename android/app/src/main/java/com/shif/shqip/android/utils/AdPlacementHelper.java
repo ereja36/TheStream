@@ -53,9 +53,9 @@ public final class AdPlacementHelper {
     public static int resolveNativeInterval(AdsPref adsPref) {
         int interval = adsPref.getNativeAdInterval();
         if (interval <= 0) {
-            interval = 6;
+            interval = 8;
         }
-        return Math.max(4, interval);
+        return Math.max(6, interval);
     }
 
     public static int resolveNativeStartIndex(AdsPref adsPref) {

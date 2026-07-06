@@ -57,6 +57,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private OnItemClickListener mOnItemClickListener;
     private OnItemOverflowClickListener mOnItemOverflowClickListener;
     boolean scrolling = false;
+    private static final Object NATIVE_AD_BOUND_TAG = new Object();
     SharedPref sharedPref;
     AdsPref adsPref;
     AdsManager adsManager;
@@ -87,10 +88,17 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
         view.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
-                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                    scrolling = true;
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING
+                        || newState == RecyclerView.SCROLL_STATE_SETTLING) {
+                    if (!scrolling) {
+                        scrolling = true;
+                        Glide.with(context).pauseRequests();
+                    }
                 } else if (newState == RecyclerView.SCROLL_STATE_IDLE) {
-                    scrolling = false;
+                    if (scrolling) {
+                        scrolling = false;
+                        Glide.with(context).resumeRequests();
+                    }
                 }
                 super.onScrollStateChanged(recyclerView, newState);
             }
@@ -164,27 +172,13 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
             if (p.channel_type != null && p.channel_type.equals("YOUTUBE")) {
                 if (!p.channel_image.equals("")) {
-                    Glide.with(context)
-                                .load(resolveChannelImage(p))
-                            .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
-                            .placeholder(R.drawable.ic_thumbnail)
-                            .diskCacheStrategy(DiskCacheStrategy.ALL)
-                            .into(vItem.channel_image);
+                    loadChannelImage(vItem.channel_image, resolveChannelImage(p));
                 } else {
-                    Glide.with(context)
-                            .load(Constant.YOUTUBE_IMG_FRONT + p.video_id + Constant.YOUTUBE_IMG_BACK)
-                            .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
-                            .placeholder(R.drawable.ic_thumbnail)
-                            .diskCacheStrategy(DiskCacheStrategy.ALL)
-                            .into(vItem.channel_image);
+                    loadChannelImage(vItem.channel_image,
+                            Constant.YOUTUBE_IMG_FRONT + p.video_id + Constant.YOUTUBE_IMG_BACK);
                 }
             } else {
-                Glide.with(context)
-                        .load(resolveChannelImage(p))
-                        .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
-                        .placeholder(R.drawable.ic_thumbnail)
-                        .diskCacheStrategy(DiskCacheStrategy.ALL)
-                        .into(vItem.channel_image);
+                loadChannelImage(vItem.channel_image, resolveChannelImage(p));
             }
 
             if (sharedPref.getIsDarkTheme()) {
@@ -206,7 +200,10 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             });
 
         } else if (holder instanceof NativeAdViewHolder) {
-            adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
+            if (holder.itemView.getTag() != NATIVE_AD_BOUND_TAG) {
+                holder.itemView.setTag(NATIVE_AD_BOUND_TAG);
+                adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
+            }
         }
 
 //        else if (holder instanceof NativeAdViewHolder) {
@@ -401,6 +398,16 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             if (last_idx < i) last_idx = i;
         }
         return last_idx;
+    }
+
+    private void loadChannelImage(ImageView imageView, String imageUrl) {
+        Glide.with(context)
+                .load(imageUrl)
+                .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
+                .placeholder(R.drawable.ic_thumbnail)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .dontAnimate()
+                .into(imageView);
     }
 
     private String resolveChannelImage(Channel channel) {

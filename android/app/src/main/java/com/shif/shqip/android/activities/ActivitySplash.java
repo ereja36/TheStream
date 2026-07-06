@@ -224,29 +224,46 @@ public class ActivitySplash extends AppCompatActivity {
                     return;
                 }
 
-                DeviceApiHelper.PlaylistSyncResult playlistSync = DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
-                if (playlistSync.blocked) {
-                    sharedPref.clearPlaylistChannels();
-                    runOnUiThread(() -> showBlockedDialog(playlistSync.reason));
-                    return;
-                }
-
-                DeviceApiHelper.PopupConfig popupConfig = DeviceApiHelper.fetchStartupPopup(sharedPref, deviceId);
-                runOnUiThread(() -> {
-                    if (popupConfig.enabled) {
-                        if (isSupportPopup(popupConfig)) {
-                            showSupportPopup(popupConfig, this::showAppOpenAdIfAvailable);
-                        } else {
-                            showStartupPopup(popupConfig, this::showAppOpenAdIfAvailable);
-                        }
-                    } else {
-                        showAppOpenAdIfAvailable();
-                    }
-                });
+                runOnUiThread(this::showAppOpenAdIfAvailable);
+                syncPlaylistAndStartupPopupInBackground();
             } catch (Exception e) {
                 runOnUiThread(this::showAppOpenAdIfAvailable);
             }
         });
+    }
+
+    private void syncPlaylistAndStartupPopupInBackground() {
+        try {
+            DeviceApiHelper.PlaylistSyncResult playlistSync = DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
+            if (playlistSync.blocked) {
+                sharedPref.clearPlaylistChannels();
+                runOnUiThread(() -> {
+                    if (!isFinishing()) {
+                        showBlockedDialog(playlistSync.reason);
+                    }
+                });
+                return;
+            }
+
+            DeviceApiHelper.PopupConfig popupConfig = DeviceApiHelper.fetchStartupPopup(sharedPref, deviceId);
+            if (!popupConfig.enabled || isFinishing()) {
+                return;
+            }
+            runOnUiThread(() -> {
+                if (isFinishing()) {
+                    return;
+                }
+                if (isSupportPopup(popupConfig)) {
+                    showSupportPopup(popupConfig, () -> {
+                    });
+                } else {
+                    showStartupPopup(popupConfig, () -> {
+                    });
+                }
+            });
+        } catch (Exception ignored) {
+            // Startup should continue even if background sync fails.
+        }
     }
 
     private void showAppOpenAdIfAvailable() {
