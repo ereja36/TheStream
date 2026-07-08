@@ -34,6 +34,7 @@ import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
 import com.bumptech.glide.Glide;
@@ -299,8 +300,10 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     public void insertDataWithNativeAd(List<Channel> items) {
         setLoaded();
         int positionStart = getItemCount();
-        for (Channel post : items) {
-            Log.d("item", "TITLE: " + post.channel_name);
+        if (!adsPref.getAdStatus() || !AdPlacementHelper.shouldInsertNativeAds()) {
+            this.items.addAll(items);
+            notifyItemRangeInserted(positionStart, items.size());
+            return;
         }
         if (sharedPref.getChannelViewType() == Constant.CHANNEL_GRID_2_COLUMN) {
             if (items.size() >= Constant.NATIVE_AD_INDEX_2_COLUMNS) {

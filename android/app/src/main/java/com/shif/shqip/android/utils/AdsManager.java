@@ -1,7 +1,5 @@
 package com.shif.shqip.android.utils;
 
-import static com.solodroidx.ads.util.Constant.IRONSOURCE;
-
 import android.app.Activity;
 import android.content.Context;
 import android.view.View;
@@ -118,11 +116,19 @@ public class AdsManager {
     }
 
     public void resumeBannerAd(boolean placement) {
-        if (adsPref.getAdStatus() && !adsPref.getIronSourceBannerId().equals("0")) {
-            if (adsPref.getMainAds().equals(IRONSOURCE) || adsPref.getBackupAds().equals(IRONSOURCE)) {
-                loadBannerAd(placement);
-            }
+        if (adsPref.getAdStatus()) {
+            loadBannerAd(placement);
         }
+    }
+
+    public void reloadAllPlacements() {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        loadBannerAd(Constant.BANNER_HOME);
+        loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
+        loadAppOpenAd(Constant.APP_OPEN_AD_ON_RESUME, false, () -> {
+        });
     }
 
     public void loadInterstitialAd(boolean placement, int interval) {

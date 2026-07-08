@@ -3,7 +3,6 @@ package com.shif.shqip.android.activities;
 import static com.shif.shqip.android.Config.ENABLE_VPN_ACCESS;
 import static com.shif.shqip.android.utils.Constant.LOCALHOST_ADDRESS;
 
-import android.app.Application;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
@@ -31,6 +30,7 @@ import com.shif.shqip.android.models.App;
 import com.shif.shqip.android.models.License;
 import com.shif.shqip.android.models.Settings;
 import com.shif.shqip.android.rests.RestAdapter;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DeviceApiHelper;
@@ -138,6 +138,7 @@ public class ActivitySplash extends AppCompatActivity {
                     ads = resp.ads;
                     license = resp.license;
                     Tools.saveAds(adsPref, ads);
+                    AdPlacementHelper.onRemoteAdsConfigLoaded(ActivitySplash.this);
                     sharedPref.saveCredentials(settings.youtube_api_key, settings.more_apps_url, settings.privacy_policy, app.redirect_url, settings.providers);
                     sharedPref.saveUser(license.item_id, license.item_name, license.buyer, license.license_type);
                     if (app.status != null && app.status.equals("0")) {
@@ -174,9 +175,7 @@ public class ActivitySplash extends AppCompatActivity {
                     return;
                 }
 
-                if (profile.noAds) {
-                    adsPref.setAdStatus(false);
-                }
+                adsPref.setDeviceNoAds(profile.noAds);
 
                 DeviceApiHelper.PlaylistSyncResult playlistSync = DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
                 if (playlistSync.blocked) {
@@ -200,25 +199,25 @@ public class ActivitySplash extends AppCompatActivity {
     }
 
     private void showAppOpenAdIfAvailable() {
+        Runnable continueToMain = () -> {
+            MyApplication.getInstance().markResumeAppOpenReady();
+            startMainActivity();
+            MyApplication.getInstance().preloadAppOpenAd(this);
+        };
+        if (!adsPref.getAdStatus() || !Constant.APP_OPEN_AD_ON_START) {
+            continueToMain.run();
+            Log.d(TAG, "app open on start disabled or ads off");
+            return;
+        }
         if (isForceOpenAds) {
-            if (Constant.APP_OPEN_AD_ON_START) {
-                adsManager.loadAppOpenAd(Constant.APP_OPEN_AD_ON_START, true, () -> {
-                    startMainActivity();
-                    AppOpenAd.isAppOpenAdLoaded = false;
-                    Log.d(TAG, "showAppOpenAdIfAvailable");
-                });
-            } else {
-                startMainActivity();
-                Log.d(TAG, "app open on start disabled");
-            }
+            adsManager.loadAppOpenAd(true, true, () -> {
+                MyApplication.getInstance().recordAppOpenShown();
+                AppOpenAd.isAppOpenAdLoaded = false;
+                continueToMain.run();
+                Log.d(TAG, "showAppOpenAdIfAvailable");
+            });
         } else {
-            if (adsPref.getAdStatus() && Constant.APP_OPEN_AD_ON_START) {
-                Application application = getApplication();
-                ((MyApplication) application).showAdIfAvailable(this, this::startMainActivity);
-            } else {
-                startMainActivity();
-                Log.d(TAG, "startMainActivity");
-            }
+            ((MyApplication) getApplication()).showAdIfAvailable(this, continueToMain);
         }
     }
 
