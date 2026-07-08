@@ -217,7 +217,7 @@ public class ActivitySplash extends AppCompatActivity {
                 Log.d(TAG, "showAppOpenAdIfAvailable");
             });
         } else {
-            ((MyApplication) getApplication()).showAdIfAvailable(this, continueToMain);
+            ((MyApplication) getApplication()).showAdIfAvailable(this, continueToMain::run);
         }
     }
 

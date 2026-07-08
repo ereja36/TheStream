@@ -29,6 +29,34 @@ android {
     lint {
         disable 'GradleDependency', 'GradleDynamicVersion', 'OldTargetApi'
     }
+    signingConfigs {
+        release {
+            def keystorePath = rootProject.file('keystore/shif-shqip-release.jks')
+            if (keystorePath.exists()) {
+                storeFile keystorePath
+                storePassword System.getenv('SHIF_KEYSTORE_PASSWORD') ?: 'ShifShqip2026!'
+                keyAlias 'shifshqip'
+                keyPassword System.getenv('SHIF_KEY_PASSWORD') ?: 'ShifShqip2026!'
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
+            }
+        }
+    }
+    buildTypes {
+        debug {
+            if (rootProject.file('keystore/shif-shqip-release.jks').exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+        release {
+            minifyEnabled false
+            if (rootProject.file('keystore/shif-shqip-release.jks').exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
 }
 
 /* IMPORTANT :

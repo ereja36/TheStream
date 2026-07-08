@@ -6,10 +6,9 @@ public class Config {
 
     // Server Key nga paneli: Settings → kopjo vlerën e enkriptuar
     // Formati: URL_e_panelit_applicationId_com.shif.shqip.android (triple Base64)
-    public static final String SERVER_KEY = "XXXXX";
+    public static final String SERVER_KEY = "WVVoU01HTklUVFpNZVRsb1kwZHJkV015YUhCYWJrNXZZMWRzZDB4dFRuWmlWamxvWTBoQ2MyRlhUbWhrUjJ4MlltdHNhMWd5VG5aaVV6VjZZVWRzYlV4dVRtOWpWMngzVEcxR2RWcElTblpoVjFFOQ==";
 
-    // REST API Key nga paneli: Settings → API Key (ose api-key.php → GENERATE)
-    public static final String REST_API_KEY = "XXXXX";
+    public static final String REST_API_KEY = "shifshqip";
 
     //bottom navigation menu configuration
     public static final boolean SET_CATEGORY_AS_MAIN_MENU = false;
