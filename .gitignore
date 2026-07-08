@@ -1,0 +1,31 @@
+# Android build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/*.iml
+android/app/*.iml
+*.apk
+*.aab
+*.dex
+*.class
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (never commit real credentials)
+admin_panel/the_stream/includes/config.php
+/android/app/google-services.json
+
+# Archives
+*.zip
+
+# Logs
+*.log
