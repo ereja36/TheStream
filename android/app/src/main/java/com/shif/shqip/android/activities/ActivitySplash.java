@@ -224,6 +224,8 @@ public class ActivitySplash extends AppCompatActivity {
                     return;
                 }
 
+                adsPref.setDeviceNoAds(profile.noAds);
+
                 runOnUiThread(this::showAppOpenAdIfAvailable);
                 syncPlaylistAndStartupPopupInBackground();
             } catch (Exception e) {

@@ -23,6 +23,12 @@ public final class AdPlacementHelper {
         }
         MyApplication application = (MyApplication) activity.getApplicationContext();
         application.refreshOpenAds();
+        AdsPref adsPref = new AdsPref(activity);
+        if (adsPref.getAdStatus() && hasValidAdNetwork(adsPref)) {
+            AdsManager adsManager = new AdsManager(activity);
+            adsManager.initializeAd();
+            adsManager.updateConsentStatus();
+        }
     }
 
     public static void showInterstitialBeforeAction(Activity activity) {

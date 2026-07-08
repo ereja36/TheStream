@@ -334,9 +334,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         adsManager.resumeBannerAd(Constant.BANNER_HOME);
-        if (adsAntiblockHelper != null && adsAntiblockHelper.shouldForceAdReloadOnResume()) {
-            reloadHomeAds();
-        }
+        reloadHomeAds();
         PlaylistGuardSession.refreshAsync(sharedPref);
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, null);
     }

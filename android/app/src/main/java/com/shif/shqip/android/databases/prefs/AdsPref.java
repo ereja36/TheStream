@@ -18,7 +18,8 @@ public class AdsPref {
     }
 
     public void saveAds(boolean ad_status, String ad_type, String backup_ads, String admob_publisher_id, String admob_app_id, String admob_banner_unit_id, String admob_interstitial_unit_id, String admob_native_unit_id, String admob_app_open_ad_unit_id, String adManagerBannerUnitId, String adManagerInterstitialUnitId, String adManagerNativeUnitId, String adManagerAppOpenAdUnitId, String fan_banner_unit_id, String fan_interstitial_unit_id, String fan_native_unit_id, String startapp_app_id, String unity_game_id, String unity_banner_placement_id, String unity_interstitial_placement_id, String applovin_banner_ad_unit_id, String applovin_interstitial_ad_unit_id, String applovin_native_ad_manual_unit_id, String applovinAppOpenAdUnitId, String applovin_banner_zone_id, String applovinBannerMrecZoneId, String applovin_interstitial_zone_id, String ironSourceAppKey, String ironSourceBannerId, String ironSourceInterstitialId, String wortiseAppId, String wortiseBannerId, String wortiseInterstitialId, String wortiseNativeId, String wortiseAppOpenId, int interstitial_ad_interval, int native_ad_interval, int native_ad_index, String date_time) {
-        editor.putBoolean("ads_status", ad_status);
+        editor.putBoolean("server_ads_enabled", ad_status);
+        editor.putBoolean("ads_status", ad_status && !getDeviceNoAds());
         editor.putString("ad_type", ad_type);
         editor.putString("backup_ads", backup_ads);
         editor.putString("admob_publisher_id", admob_publisher_id);
@@ -66,7 +67,27 @@ public class AdsPref {
     }
 
     public boolean getTestMode() {
-        return sharedPreferences.getBoolean("test_mode", true);
+        return sharedPreferences.getBoolean("test_mode", false);
+    }
+
+    public boolean getServerAdsEnabled() {
+        return sharedPreferences.getBoolean("server_ads_enabled", true);
+    }
+
+    public boolean getDeviceNoAds() {
+        return sharedPreferences.getBoolean("device_no_ads", false);
+    }
+
+    public void setDeviceNoAds(boolean deviceNoAds) {
+        editor.putBoolean("device_no_ads", deviceNoAds);
+        editor.apply();
+        refreshEffectiveAdStatus();
+    }
+
+    public void refreshEffectiveAdStatus() {
+        boolean enabled = getServerAdsEnabled() && !getDeviceNoAds();
+        editor.putBoolean("ads_status", enabled);
+        editor.apply();
     }
 
     public boolean getAdStatus() {

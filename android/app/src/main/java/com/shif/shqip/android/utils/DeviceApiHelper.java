@@ -115,7 +115,7 @@ public final class DeviceApiHelper {
             JSONObject jsonObject = new JSONObject(response);
             profile.blocked = jsonObject.optInt("blocked", 0) == 1;
             profile.reason = jsonObject.optString("reason", "");
-            profile.noAds = false;
+            profile.noAds = jsonObject.optInt("no_ads", 0) == 1;
         } catch (Exception ignored) {
             // fallback to legacy endpoint
             try {
