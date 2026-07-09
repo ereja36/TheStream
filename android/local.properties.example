@@ -1,0 +1,4 @@
+# Kopjo si local.properties dhe vendos rrugën e Android SDK
+# sdk.dir=/home/ubuntu/android-sdk
+
+sdk.dir=/path/to/your/android-sdk

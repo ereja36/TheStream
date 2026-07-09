@@ -1,0 +1,154 @@
+package com.shif.shqip.android.utils;
+
+import android.content.Context;
+import android.net.Uri;
+import android.text.TextUtils;
+
+import com.google.android.exoplayer2.upstream.DataSpec;
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
+import com.google.android.exoplayer2.upstream.HttpDataSource;
+import com.google.android.exoplayer2.upstream.TransferListener;
+import com.shif.shqip.android.BuildConfig;
+import com.shif.shqip.android.databases.prefs.SharedPref;
+import com.shif.shqip.android.models.PlaylistGuardRule;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Portal playlist/auth on playlist.shifshqip.com; video streams redirect to
+ * shifshqip.com channel-proxy and play directly from the source CDN.
+ */
+@SuppressWarnings("deprecation")
+public final class IptvHttpDataSource implements HttpDataSource {
+
+    private final HttpDataSource delegate;
+    private final Context context;
+    private final SharedPref sharedPref;
+    private final String channelUserAgent;
+
+    private IptvHttpDataSource(
+            HttpDataSource delegate,
+            Context context,
+            SharedPref sharedPref,
+            String channelUserAgent
+    ) {
+        this.delegate = delegate;
+        this.context = context.getApplicationContext();
+        this.sharedPref = sharedPref;
+        this.channelUserAgent = channelUserAgent;
+    }
+
+    @Override
+    public long open(DataSpec dataSpec) throws HttpDataSourceException {
+        String requestUrl = dataSpec.uri != null ? dataSpec.uri.toString() : "";
+        Map<String, String> headers = new HashMap<>();
+        if (dataSpec.httpRequestHeaders != null) {
+            headers.putAll(dataSpec.httpRequestHeaders);
+        }
+        headers.put("Accept", "*/*");
+        headers.put("X-Shif-App", "1");
+        headers.put("X-Requested-With", BuildConfig.APPLICATION_ID);
+
+        if (PlaylistPortalHelper.isPortalUrl(requestUrl)) {
+            headers.put("User-Agent", "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)");
+            if (sharedPref != null && sharedPref.isPortalSessionActive()) {
+                String deviceId = DeviceApiHelper.getLocalDeviceId(context);
+                if (!TextUtils.isEmpty(deviceId)) {
+                    headers.put("X-Device-ID", deviceId);
+                }
+                headers.putAll(PlaylistPortalHelper.buildPortalHeaders(
+                        requestUrl,
+                        "GET",
+                        deviceId,
+                        sharedPref
+                ));
+            }
+        } else {
+            PlaylistGuardRule rule = PlaylistGuardHelper.resolveRule(sharedPref, requestUrl);
+            headers.put("User-Agent", PlaylistGuardHelper.resolveUserAgent(rule, channelUserAgent));
+            Map<String, String> ruleHeaders = PlaylistGuardHelper.buildRequestHeaders(rule);
+            if (ruleHeaders != null) {
+                headers.putAll(ruleHeaders);
+            }
+        }
+
+        return delegate.open(dataSpec.withRequestHeaders(headers));
+    }
+
+    @Override
+    public int read(byte[] buffer, int offset, int length) throws HttpDataSourceException {
+        return delegate.read(buffer, offset, length);
+    }
+
+    @Override
+    public Uri getUri() {
+        return delegate.getUri();
+    }
+
+    @Override
+    public Map<String, List<String>> getResponseHeaders() {
+        return delegate.getResponseHeaders();
+    }
+
+    @Override
+    public void close() throws HttpDataSourceException {
+        delegate.close();
+    }
+
+    @Override
+    public void addTransferListener(TransferListener transferListener) {
+        delegate.addTransferListener(transferListener);
+    }
+
+    @Override
+    public void setRequestProperty(String name, String value) {
+        delegate.setRequestProperty(name, value);
+    }
+
+    @Override
+    public void clearRequestProperty(String name) {
+        delegate.clearRequestProperty(name);
+    }
+
+    @Override
+    public void clearAllRequestProperties() {
+        delegate.clearAllRequestProperties();
+    }
+
+    @Override
+    public int getResponseCode() {
+        return delegate.getResponseCode();
+    }
+
+    public static final class Factory implements HttpDataSource.Factory {
+
+        private final Context context;
+        private final SharedPref sharedPref;
+        private final String channelUserAgent;
+
+        public Factory(Context context, SharedPref sharedPref, String channelUserAgent) {
+            this.context = context.getApplicationContext();
+            this.sharedPref = sharedPref;
+            this.channelUserAgent = channelUserAgent;
+        }
+
+        @Override
+        public HttpDataSource createDataSource() {
+            DefaultHttpDataSource.Factory delegateFactory = StreamPlaybackHelper.configureHttpFactory(
+                    new DefaultHttpDataSource.Factory());
+            return new IptvHttpDataSource(
+                    delegateFactory.createDataSource(),
+                    context,
+                    sharedPref,
+                    channelUserAgent
+            );
+        }
+
+        @Override
+        public HttpDataSource.Factory setDefaultRequestProperties(Map<String, String> defaultRequestProperties) {
+            return this;
+        }
+    }
+}

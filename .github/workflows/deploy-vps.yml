@@ -1,0 +1,106 @@
+name: Deploy VPS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'cursor/**']
+    paths:
+      - 'admin_panel/**'
+      - 'android/**'
+      - 'playlist_portal/**'
+      - 'database/migrations/**'
+      - 'deploy/**'
+      - '.github/workflows/deploy-vps.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          SSH_PRIVATE_KEY_FALLBACK: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          KEY="${SSH_PRIVATE_KEY:-$SSH_PRIVATE_KEY_FALLBACK}"
+          if [ -z "$KEY" ]; then
+            echo "No SSH key secret — will try VPS_PASSWORD if set"
+            echo "HAS_SSH_KEY=false" >> $GITHUB_ENV
+          else
+            mkdir -p ~/.ssh
+            printf '%s\n' "$KEY" > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            HOST="${VPS_HOST:-57.128.254.213}"
+            USER="${VPS_USER:-root}"
+            ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+            echo "VPS_HOST=$HOST" >> $GITHUB_ENV
+            echo "VPS_USER=$USER" >> $GITHUB_ENV
+            echo "HAS_SSH_KEY=true" >> $GITHUB_ENV
+          fi
+
+      - name: Fetch release keystore from VPS
+        if: env.HAS_SSH_KEY == 'true'
+        env:
+          VPS_HOST: ${{ env.VPS_HOST }}
+          VPS_USER: ${{ env.VPS_USER }}
+        run: |
+          mkdir -p android/keystore
+          scp "${VPS_USER}@${VPS_HOST}:/var/www/shifshqip-private/shif-shqip-release.jks" \
+            android/keystore/shif-shqip-release.jks
+
+      - name: Build release APK
+        working-directory: android
+        env:
+          SERVER_KEY: ${{ secrets.SERVER_KEY }}
+          REST_API_KEY: ${{ secrets.REST_API_KEY }}
+          SHIF_KEYSTORE_PASSWORD: ${{ secrets.SHIF_KEYSTORE_PASSWORD }}
+          SHIF_KEY_PASSWORD: ${{ secrets.SHIF_KEY_PASSWORD }}
+        run: |
+          if [ -n "$SERVER_KEY" ] && [ -n "$REST_API_KEY" ]; then
+            sed -i "s|SERVER_KEY = \"XXXXX\"|SERVER_KEY = \"$SERVER_KEY\"|" app/src/main/java/com/shif/shqip/android/Config.java
+            sed -i "s|REST_API_KEY = \"XXXXX\"|REST_API_KEY = \"$REST_API_KEY\"|" app/src/main/java/com/shif/shqip/android/Config.java
+          fi
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Deploy panel/API/APK (SSH key)
+        if: env.HAS_SSH_KEY == 'true'
+        env:
+          DB_PASS: ${{ secrets.VPS_DB_PASSWORD }}
+          REST_API_KEY: ${{ secrets.REST_API_KEY }}
+        run: |
+          chmod +x deploy/deploy-vps.sh
+          VPS_HOST="${VPS_HOST}" VPS_USER="${VPS_USER}" DB_PASS="${DB_PASS}" REST_API_KEY="${REST_API_KEY}" \
+            ./deploy/deploy-vps.sh
+
+      - name: Deploy panel/API/APK (password)
+        if: env.HAS_SSH_KEY != 'true'
+        env:
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+          DB_PASS: ${{ secrets.VPS_DB_PASSWORD }}
+          REST_API_KEY: ${{ secrets.REST_API_KEY }}
+        run: |
+          if [ -z "${VPS_PASSWORD}" ]; then
+            echo "::error::Add GitHub secret VPS_SSH_PRIVATE_KEY or VPS_PASSWORD to enable deploy."
+            exit 1
+          fi
+          chmod +x deploy/deploy-with-password.sh deploy/deploy-vps.sh
+          REST_API_KEY="${REST_API_KEY}" ./deploy/deploy-with-password.sh
+
+      - name: Verify live API
+        env:
+          REST_API_KEY: ${{ secrets.REST_API_KEY }}
+        run: |
+          curl -fsS "https://api.shifshqip.com/api/api.php?get_config&package_name=com.shif.shqip.android&api_key=${REST_API_KEY:-shifshqip}" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); s=d.get('settings',{}); assert 'player_brand_text' in s, 'migration 014 missing'; print('ok', s.get('player_brand_text'), s.get('app_integrity_enabled'))"
