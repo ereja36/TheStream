@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 61
-        versionName = "6.9.41"
+        versionCode = 62
+        versionName = "6.9.42"
         multiDexEnabled = true
     }
     compileOptions {
@@ -84,7 +84,7 @@ dependencies {
 	implementation 'com.google.android.play:app-update:2.1.0'
 
     //Firebase
-    implementation platform('com.google.firebase:firebase-bom:34.5.0')
+    implementation platform('com.google.firebase:firebase-bom:34.15.0')
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-messaging'
 

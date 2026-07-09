@@ -122,14 +122,11 @@ public class MainActivity extends AppCompatActivity {
         Tools.postDelayed(() -> {
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
-            if (adsPref.getAppOpenOnResume()) {
-                adsManager.loadAppOpenAd(true, false, () -> {
-                });
-            }
             adsManager.loadBannerAd(Constant.BANNER_HOME);
             adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
             adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
             adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
+            MyApplication.getInstance().preloadAppOpenAd(this);
         }, 100);
 
         initComponent();
@@ -340,12 +337,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void reloadHomeAds() {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        adsManager.initializeAd();
         adsManager.loadBannerAd(Constant.BANNER_HOME);
         adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
-        if (adsPref.getAppOpenOnResume()) {
-            adsManager.loadAppOpenAd(true, false, () -> {
-            });
-        }
+        adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
     }
 
     @Override

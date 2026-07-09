@@ -225,6 +225,9 @@ public class ActivitySplash extends AppCompatActivity {
                 }
 
                 adsPref.setDeviceNoAds(profile.noAds);
+                if (adsPref.getAdStatus()) {
+                    AdPlacementHelper.onRemoteAdsConfigLoaded(ActivitySplash.this);
+                }
 
                 runOnUiThread(this::showAppOpenAdIfAvailable);
                 syncPlaylistAndStartupPopupInBackground();
