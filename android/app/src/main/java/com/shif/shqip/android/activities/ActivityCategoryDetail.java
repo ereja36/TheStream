@@ -37,7 +37,6 @@ import com.shif.shqip.android.models.Category;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
-import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.CategoryAdsBootstrap;
 import com.shif.shqip.android.utils.CategoryDisplayHelper;
@@ -127,7 +126,6 @@ public class ActivityCategoryDetail extends AppCompatActivity {
 
         adapterChannel.setOnItemClickListener((v, obj, position) -> {
             Tools.startPlayer(ActivityCategoryDetail.this, v, obj);
-            AdPlacementHelper.showInterstitialBeforeAction(ActivityCategoryDetail.this);
         });
 
         adapterChannel.setOnItemOverflowClickListener((view, obj, position) -> {

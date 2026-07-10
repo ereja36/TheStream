@@ -107,7 +107,6 @@ public class FragmentRecent extends Fragment {
 
         adapterChannel.setOnItemClickListener((v, obj, position) -> {
             Tools.startPlayer(activity, v, obj);
-            AdPlacementHelper.showInterstitialBeforeAction(activity);
             AdPlacementHelper.pauseHomeBanner(activity);
         });
 

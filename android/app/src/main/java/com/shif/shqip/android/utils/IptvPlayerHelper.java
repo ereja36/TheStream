@@ -32,21 +32,16 @@ import java.util.Locale;
 @SuppressWarnings("deprecation")
 public final class IptvPlayerHelper {
 
-  /** HLS.js maxBufferLength: 60 */
-  private static final int LIVE_MIN_BUFFER_MS = 8_000;
-  private static final int LIVE_MAX_BUFFER_MS = 50_000;
-  private static final int BUFFER_FOR_PLAYBACK_MS = 2_500;
-  private static final int BUFFER_AFTER_REBUFFER_MS = 5_000;
+  /** Tuned for fast channel open — minimal buffer before first frame. */
+  private static final int LIVE_MIN_BUFFER_MS = 2_500;
+  private static final int LIVE_MAX_BUFFER_MS = 30_000;
+  private static final int BUFFER_FOR_PLAYBACK_MS = 750;
+  private static final int BUFFER_AFTER_REBUFFER_MS = 2_500;
 
-  /**
-   * ~4 x 6s HLS window (~24s). Stay ~2 segments behind the live edge so new
-   * segments keep loading ahead of the playhead instead of buffering to the
-   * back of the window and stalling when old segments drop off.
-   */
-  private static final long LIVE_TARGET_OFFSET_MS = 12_000;
-  private static final long LIVE_MIN_OFFSET_MS = 6_000;
-  private static final long LIVE_MAX_OFFSET_MS = 18_000;
-  private static final long LIVE_SEEK_BACK_MS = 10_000;
+  private static final long LIVE_TARGET_OFFSET_MS = 5_000;
+  private static final long LIVE_MIN_OFFSET_MS = 2_000;
+  private static final long LIVE_MAX_OFFSET_MS = 10_000;
+  private static final long LIVE_SEEK_BACK_MS = 6_000;
 
   private static final int HLS_MIN_LOADABLE_RETRY_COUNT = 5;
 
@@ -121,7 +116,7 @@ public final class IptvPlayerHelper {
           MediaItem mediaItem
   ) {
     return new HlsMediaSource.Factory(dataSourceFactory)
-            .setAllowChunklessPreparation(false)
+            .setAllowChunklessPreparation(true)
             .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(HLS_MIN_LOADABLE_RETRY_COUNT))
             .createMediaSource(mediaItem);
   }
@@ -144,12 +139,9 @@ public final class IptvPlayerHelper {
     return MediaItem.fromUri(uri);
   }
 
-  /** One-time nudge toward a safe offset on first READY (no periodic seeks). */
+  /** No initial seek — ExoPlayer picks live edge; avoids re-buffer on first frame. */
   public static Player.Listener createLiveOffsetListener(ExoPlayer player, String playbackUrl) {
-    if (!isLiveStream(playbackUrl) || player == null) {
-      return new Player.Listener() {};
-    }
-    return new LiveOffsetGuard(player);
+    return new Player.Listener() {};
   }
 
   public static long bufferedAheadMs(ExoPlayer player) {
@@ -202,30 +194,5 @@ public final class IptvPlayerHelper {
       return C.TYPE_HLS;
     }
     return type;
-  }
-
-  private static final class LiveOffsetGuard implements Player.Listener {
-
-    private final ExoPlayer player;
-    private boolean startAdjusted;
-
-    LiveOffsetGuard(ExoPlayer player) {
-      this.player = player;
-    }
-
-    @Override
-    public void onPlaybackStateChanged(int state) {
-      if (state == Player.STATE_READY && !startAdjusted) {
-        long duration = player.getDuration();
-        if (duration > 0 && duration != C.TIME_UNSET) {
-          long position = player.getCurrentPosition();
-          long ahead = duration - position;
-          if (ahead < 4_000 || ahead > 20_000) {
-            player.seekTo(Math.max(0, duration - LIVE_SEEK_BACK_MS));
-          }
-        }
-        startAdjusted = true;
-      }
-    }
   }
 }

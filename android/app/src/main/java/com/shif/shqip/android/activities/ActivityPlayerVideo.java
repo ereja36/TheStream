@@ -101,6 +101,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private final ExecutorService epgExecutor = Executors.newSingleThreadExecutor();
     private int autoRetryCount = 0;
     private boolean destroyed = false;
+    private boolean epgLoadScheduled = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -141,19 +142,27 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
         progressBar = findViewById(R.id.progress_bar);
         progressBar.setVisibility(View.VISIBLE);
-        new Thread(() -> {
-            String resolved = StreamPlaybackHelper.resolvePlaybackUrl(
+
+        if (StreamPlaybackHelper.canPlayDirectly(sharedPref, sourceStreamUrl)) {
+            video_url = StreamPlaybackHelper.resolvePlaybackUrl(
                     sharedPref, sourceStreamUrl, epgChannelId);
-            runOnUiThread(() -> {
-                if (TextUtils.isEmpty(resolved)) {
-                    errorDialog();
-                    return;
-                }
-                video_url = resolved;
-                autoRetryCount = 0;
-                initializePlayer();
-            });
-        }).start();
+            autoRetryCount = 0;
+            initializePlayer();
+        } else {
+            new Thread(() -> {
+                String resolved = StreamPlaybackHelper.resolvePlaybackUrl(
+                        sharedPref, sourceStreamUrl, epgChannelId);
+                runOnUiThread(() -> {
+                    if (TextUtils.isEmpty(resolved)) {
+                        errorDialog();
+                        return;
+                    }
+                    video_url = resolved;
+                    autoRetryCount = 0;
+                    initializePlayer();
+                });
+            }).start();
+        }
     }
 
     private void initializePlayer() {
@@ -182,9 +191,14 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         attachPlayerListener();
         setupControls();
         handleOnBackPressed();
-        if (sharedPref.isPlayerEpgEnabled()) {
-            loadEpgInfo();
+    }
+
+    private void scheduleEpgLoad() {
+        if (epgLoadScheduled || !sharedPref.isPlayerEpgEnabled()) {
+            return;
         }
+        epgLoadScheduled = true;
+        loadEpgInfo();
     }
 
     private void startExoPlayback() {
@@ -289,6 +303,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                         progressBar.setVisibility(View.GONE);
                         contentLoaded = true;
                         autoRetryCount = 0;
+                        scheduleEpgLoad();
                         break;
                     case Player.STATE_BUFFERING:
                         if (!Config.ENABLE_LOOPING_MODE) {

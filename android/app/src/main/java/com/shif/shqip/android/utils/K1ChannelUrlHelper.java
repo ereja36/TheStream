@@ -2,6 +2,7 @@ package com.shif.shqip.android.utils;
 
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.LruCache;
 
 import com.shif.shqip.android.BuildConfig;
 import com.shif.shqip.android.databases.prefs.SharedPref;
@@ -23,8 +24,23 @@ public final class K1ChannelUrlHelper {
     private static final String TAG = "K1ChannelUrlHelper";
     private static final String PORTAL_CHANNEL_API =
             "https://playlist.shifshqip.com/k1/app-measurement/collect/shifshqip/u/";
+    private static final int K1_CONNECT_TIMEOUT_MS = 5_000;
+    private static final int K1_READ_TIMEOUT_MS = 10_000;
+    private static final long CACHE_TTL_MS = 45_000;
+
+    private static final LruCache<String, CacheEntry> URL_CACHE = new LruCache<>(48);
 
     private K1ChannelUrlHelper() {
+    }
+
+    private static final class CacheEntry {
+        final String url;
+        final long expiresAt;
+
+        CacheEntry(String url, long expiresAt) {
+            this.url = url;
+            this.expiresAt = expiresAt;
+        }
     }
 
     public static boolean looksLikeK1Slug(String value) {
@@ -39,12 +55,25 @@ public final class K1ChannelUrlHelper {
         if (!looksLikeK1Slug(slug) || sharedPref == null) {
             return "";
         }
+        String key = slug.trim().toLowerCase(Locale.US);
+        CacheEntry cached = URL_CACHE.get(key);
+        if (cached != null && cached.expiresAt > System.currentTimeMillis()) {
+            return cached.url;
+        }
+        String resolved = fetchPlayableUrl(sharedPref, key);
+        if (!TextUtils.isEmpty(resolved)) {
+            URL_CACHE.put(key, new CacheEntry(resolved, System.currentTimeMillis() + CACHE_TTL_MS));
+        }
+        return resolved;
+    }
+
+    private static String fetchPlayableUrl(SharedPref sharedPref, String slug) {
         HttpURLConnection connection = null;
         try {
-            String encoded = java.net.URLEncoder.encode(slug.trim(), "UTF-8");
+            String encoded = java.net.URLEncoder.encode(slug, "UTF-8");
             connection = (HttpURLConnection) new URL(PORTAL_CHANNEL_API + encoded).openConnection();
-            connection.setConnectTimeout(StreamPlaybackHelper.CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(StreamPlaybackHelper.READ_TIMEOUT_MS);
+            connection.setConnectTimeout(K1_CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(K1_READ_TIMEOUT_MS);
             connection.setRequestMethod("GET");
             connection.setInstanceFollowRedirects(true);
             connection.setRequestProperty("Accept", "application/json");

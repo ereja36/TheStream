@@ -20,12 +20,13 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
         void onStallHardRecover();
     }
 
-    private static final long STALL_GRACE_MS = 8_000;
-    private static final long LOW_BUFFER_GRACE_MS = 3_000;
-    private static final long LOW_BUFFER_THRESHOLD_MS = 3_000;
-    private static final long BUFFER_POLL_MS = 2_000;
+    private static final long STALL_GRACE_MS = 12_000;
+    private static final long LOW_BUFFER_GRACE_MS = 4_000;
+    private static final long LOW_BUFFER_THRESHOLD_MS = 1_500;
+    private static final long BUFFER_POLL_MS = 3_000;
     private static final long PROGRESS_EPSILON_MS = 200;
-    private static final int MAX_STALL_RECOVERIES = 4;
+    private static final int MAX_STALL_RECOVERIES = 2;
+    private static final long STARTUP_GRACE_MS = 15_000;
 
     private final ExoPlayer player;
     private final Callback callback;
@@ -36,6 +37,7 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
     private int stallRecoveries;
     private boolean stallTimerScheduled;
     private boolean bufferWatchScheduled;
+    private long readySinceMs;
 
     private final Runnable stallCheckRunnable = new Runnable() {
         @Override
@@ -118,6 +120,7 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
             clearStallWatch();
             stallRecoveries = 0;
             checkpointPositionMs = player.getCurrentPosition();
+            readySinceMs = System.currentTimeMillis();
         } else if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) {
             clearStallWatch();
         }
@@ -142,6 +145,9 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
     }
 
     private void triggerSoftRecover() {
+        if (readySinceMs > 0 && System.currentTimeMillis() - readySinceMs < STARTUP_GRACE_MS) {
+            return;
+        }
         stallRecoveries++;
         if (stallRecoveries <= MAX_STALL_RECOVERIES) {
             softRecover();
