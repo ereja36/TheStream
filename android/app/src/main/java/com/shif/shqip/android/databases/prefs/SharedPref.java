@@ -27,6 +27,7 @@ public class SharedPref {
 
     private static final String KEY_PLAYLIST_URL = "playlist_url";
     private static final String KEY_PLAYLIST_CHANNELS = "playlist_channels";
+    private static final String KEY_PLAYLIST_DATA_VERSION = "playlist_data_version";
     private static final String KEY_DESIGN_ID = "design_id";
     private static final String KEY_PLAYLIST_GUARD = "playlist_guard_rules";
     private static final String KEY_APP_LOGO_URL = "app_logo_url";
@@ -314,6 +315,7 @@ public class SharedPref {
     public void savePlaylistChannels(List<Channel> channels) {
         Gson gson = new Gson();
         editor.putString(KEY_PLAYLIST_CHANNELS, gson.toJson(channels));
+        bumpPlaylistDataVersion();
         editor.apply();
     }
 
@@ -332,7 +334,16 @@ public class SharedPref {
 
     public void clearPlaylistChannels() {
         editor.remove(KEY_PLAYLIST_CHANNELS);
+        bumpPlaylistDataVersion();
         editor.apply();
+    }
+
+    public long getPlaylistDataVersion() {
+        return sharedPreferences.getLong(KEY_PLAYLIST_DATA_VERSION, 0L);
+    }
+
+    public void bumpPlaylistDataVersion() {
+        editor.putLong(KEY_PLAYLIST_DATA_VERSION, getPlaylistDataVersion() + 1L);
     }
 
     public List<Category> getPlaylistCategories() {

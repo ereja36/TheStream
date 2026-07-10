@@ -4,12 +4,11 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.FrameLayout;
-import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -25,11 +24,15 @@ import com.shif.shqip.android.fragments.FragmentFavorite;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
+import com.shif.shqip.android.utils.AdPlacementHelper;
+import com.shif.shqip.android.utils.AdsAntiblockHelper;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.AppIntegrityHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
+import com.shif.shqip.android.utils.PlaylistRefreshHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import java.util.ArrayList;
@@ -41,6 +44,8 @@ import retrofit2.Response;
 
 public class ActivityMainV3 extends AppCompatActivity {
 
+    private static final String TAG_FAVORITES = "v3_favorites";
+
     private SharedPref sharedPref;
     private AdsPref adsPref;
     private AdapterChannelCardV3 featuredAdapter;
@@ -49,6 +54,7 @@ public class ActivityMainV3 extends AppCompatActivity {
     private View scrollContent;
     private TextView emptyMessage;
     private AdsManager adsManager;
+    private AdsAntiblockHelper adsAntiblockHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,8 +63,14 @@ public class ActivityMainV3 extends AppCompatActivity {
         sharedPref = new SharedPref(this);
         adsPref = new AdsPref(this);
         adsManager = new AdsManager(this);
+        adsAntiblockHelper = new AdsAntiblockHelper(this);
         setContentView(R.layout.activity_main_v3);
         DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_nav);
+
+        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)) {
+            finishAffinity();
+            return;
+        }
 
         overlayContainer = findViewById(R.id.overlay_container);
         scrollContent = findViewById(R.id.scroll_home);
@@ -88,7 +100,8 @@ public class ActivityMainV3 extends AppCompatActivity {
         Tools.postDelayed(() -> {
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
-            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
+            AdPlacementHelper.loadHomePlacementAds(this, adsManager, adsPref);
+            adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
         }, 100);
         setupBottomNav();
         loadChannels();
@@ -100,13 +113,43 @@ public class ActivityMainV3 extends AppCompatActivity {
         }
     }
 
+    public void destroyBannerAd() {
+        if (adsManager != null) {
+            adsManager.destroyBannerAd();
+        }
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
+        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)) {
+            finishAffinity();
+            return;
+        }
+        if (adsPref.getAdStatus()) {
+            adsManager.resumeBannerAd(Constant.BANNER_HOME);
+            if (adsAntiblockHelper.shouldForceAdReloadOnResume()) {
+                reloadHomeAds();
+            }
+        }
+        PlaylistRefreshHelper.refreshOnResume(this, sharedPref, this::loadChannels);
         InboxNotificationHelper.pollAndShow(this, sharedPref);
         InboxNotificationHelper.handleOpenIntent(this, sharedPref, getIntent());
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, () ->
                 DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref));
+    }
+
+    @Override
+    protected void onDestroy() {
+        destroyBannerAd();
+        super.onDestroy();
+    }
+
+    private void reloadHomeAds() {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        AdPlacementHelper.loadHomePlacementAds(this, adsManager, adsPref);
     }
 
     private void setupBottomNav() {
@@ -137,10 +180,13 @@ public class ActivityMainV3 extends AppCompatActivity {
     private void showFavorites() {
         overlayContainer.setVisibility(View.VISIBLE);
         scrollContent.setVisibility(View.GONE);
-        getSupportFragmentManager()
-                .beginTransaction()
-                .replace(R.id.overlay_container, new FragmentFavorite())
-                .commitAllowingStateLoss();
+        Fragment existing = getSupportFragmentManager().findFragmentByTag(TAG_FAVORITES);
+        if (existing == null) {
+            getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.overlay_container, new FragmentFavorite(), TAG_FAVORITES)
+                    .commit();
+        }
     }
 
     private void loadChannels() {

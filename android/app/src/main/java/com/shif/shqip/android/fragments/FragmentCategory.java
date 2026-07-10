@@ -33,6 +33,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Category;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.Tools;
 import com.facebook.shimmer.ShimmerFrameLayout;
@@ -101,8 +102,8 @@ public class FragmentCategory extends Fragment {
             Intent intent = new Intent(activity, ActivityCategoryDetail.class);
             intent.putExtra(EXTRA_OBJC, obj);
             startActivity(intent);
-            ((MainActivity) activity).showInterstitialAd();
-            ((MainActivity) activity).destroyBannerAd();
+            AdPlacementHelper.showInterstitialBeforeAction(activity);
+            AdPlacementHelper.pauseHomeBanner(activity);
         });
 
         // on swipe list

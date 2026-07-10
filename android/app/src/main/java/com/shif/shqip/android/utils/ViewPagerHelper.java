@@ -30,7 +30,7 @@ public class ViewPagerHelper {
     public void setupViewPagerDefault(ViewPager viewPager, BottomNavigationView navigation, TextView titleToolbar) {
         viewPager.setVisibility(View.VISIBLE);
         viewPager.setAdapter(new AdapterNavigationDefault(activity.getSupportFragmentManager()));
-        viewPager.setOffscreenPageLimit(pagerNumber);
+        viewPager.setOffscreenPageLimit(1);
         navigation.setOnItemSelectedListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.navigation_home) {
@@ -82,7 +82,7 @@ public class ViewPagerHelper {
     public void setupViewPagerCategory(ViewPager viewPager, BottomNavigationView navigation, TextView titleToolbar) {
         viewPager.setVisibility(View.VISIBLE);
         viewPager.setAdapter(new AdapterNavigationCategory(activity.getSupportFragmentManager()));
-        viewPager.setOffscreenPageLimit(pagerNumber);
+        viewPager.setOffscreenPageLimit(1);
         navigation.setOnItemSelectedListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.navigation_category) {
@@ -134,7 +134,7 @@ public class ViewPagerHelper {
     public void setupViewPagerRtlDefault(RtlViewPager viewPager, BottomNavigationView navigation, TextView titleToolbar) {
         viewPager.setVisibility(View.VISIBLE);
         viewPager.setAdapter(new AdapterNavigationDefault(activity.getSupportFragmentManager()));
-        viewPager.setOffscreenPageLimit(pagerNumber);
+        viewPager.setOffscreenPageLimit(1);
         navigation.setOnItemSelectedListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.navigation_home) {
@@ -186,7 +186,7 @@ public class ViewPagerHelper {
     public void setupViewPagerRtlCategory(RtlViewPager viewPager, BottomNavigationView navigation, TextView titleToolbar) {
         viewPager.setVisibility(View.VISIBLE);
         viewPager.setAdapter(new AdapterNavigationCategory(activity.getSupportFragmentManager()));
-        viewPager.setOffscreenPageLimit(pagerNumber);
+        viewPager.setOffscreenPageLimit(1);
         navigation.setOnItemSelectedListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.navigation_category) {

@@ -22,13 +22,13 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.activities.ActivityChannelDetail;
-import com.shif.shqip.android.activities.MainActivity;
 import com.shif.shqip.android.adapters.AdapterFavorite;
 import com.shif.shqip.android.databases.dao.AppDatabase;
 import com.shif.shqip.android.databases.dao.ChannelEntity;
 import com.shif.shqip.android.databases.dao.DAO;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.Tools;
 
@@ -128,10 +128,8 @@ public class FragmentFavorite extends Fragment {
             Intent intent = new Intent(activity, ActivityChannelDetail.class);
             intent.putExtra(Constant.EXTRA_OBJC, obj);
             startActivity(intent);
-            if (activity instanceof MainActivity) {
-                ((MainActivity) activity).showInterstitialAd();
-                ((MainActivity) activity).destroyBannerAd();
-            }
+            AdPlacementHelper.showInterstitialBeforeAction(activity);
+            AdPlacementHelper.pauseHomeBanner(activity);
         });
 
         adapterFavorite.setOnItemOverflowClickListener((view, obj, position) -> {

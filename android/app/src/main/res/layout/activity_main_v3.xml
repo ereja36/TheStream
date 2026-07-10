@@ -12,7 +12,7 @@
         android:layout_height="match_parent"
         android:clipToPadding="false"
         android:paddingTop="72dp"
-        android:paddingBottom="88dp">
+        android:paddingBottom="140dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -137,16 +137,27 @@
             android:tint="@color/v3_accent" />
     </LinearLayout>
 
-    <com.google.android.material.bottomnavigation.BottomNavigationView
-        android:id="@+id/bottom_nav"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:background="@color/v3_surface"
-        android:elevation="12dp"
-        app:itemIconTint="@color/v3_accent"
-        app:itemTextColor="@color/v3_text_secondary"
-        app:menu="@menu/navigation_default" />
+        android:orientation="vertical">
+
+        <com.solodroidx.ads.ui.BannerAdView
+            android:id="@+id/bannerAdView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottom_nav"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/v3_surface"
+            android:elevation="12dp"
+            app:itemIconTint="@color/v3_accent"
+            app:itemTextColor="@color/v3_text_secondary"
+            app:menu="@menu/navigation_default" />
+    </LinearLayout>
 
     <FrameLayout
         android:id="@+id/overlay_container"

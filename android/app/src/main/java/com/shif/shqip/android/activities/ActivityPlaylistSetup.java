@@ -566,7 +566,8 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
                 playlistSource,
                 playlistName,
                 channels == null ? 0 : channels.size(),
-                inferPlaylistType(playlistSource)
+                inferPlaylistType(playlistSource),
+                channels
         );
         if (!registerResult.success) {
             if (registerResult.blocked) {

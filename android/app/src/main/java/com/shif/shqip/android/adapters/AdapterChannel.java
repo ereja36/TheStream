@@ -200,10 +200,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             });
 
         } else if (holder instanceof NativeAdViewHolder) {
-            if (holder.itemView.getTag() != NATIVE_AD_BOUND_TAG) {
-                holder.itemView.setTag(NATIVE_AD_BOUND_TAG);
-                adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
-            }
+            adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
         }
 
 //        else if (holder instanceof NativeAdViewHolder) {

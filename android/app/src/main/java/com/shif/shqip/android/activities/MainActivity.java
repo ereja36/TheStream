@@ -45,6 +45,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.fragments.FragmentCategory;
 import com.shif.shqip.android.fragments.FragmentFavorite;
 import com.shif.shqip.android.fragments.FragmentRecent;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsAntiblockHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.AppBarLayoutBehavior;
@@ -52,6 +53,7 @@ import com.shif.shqip.android.utils.AppIntegrityHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
+import com.shif.shqip.android.utils.PlaylistRefreshHelper;
 import com.shif.shqip.android.utils.RtlViewPager;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.ViewPagerHelper;
@@ -113,8 +115,7 @@ public class MainActivity extends AppCompatActivity {
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
 
-        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)
-                || !AppIntegrityHelper.isAdsConfigTrusted(this, sharedPref)) {
+        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)) {
             finishAffinity();
             return;
         }
@@ -122,9 +123,7 @@ public class MainActivity extends AppCompatActivity {
         Tools.postDelayed(() -> {
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
-            adsManager.loadBannerAd(Constant.BANNER_HOME);
-            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
-            adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+            AdPlacementHelper.loadHomePlacementAds(this, adsManager, adsPref);
             adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
             MyApplication.getInstance().preloadAppOpenAd(this);
         }, 100);
@@ -325,25 +324,30 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)
-                || !AppIntegrityHelper.isAdsConfigTrusted(this, sharedPref)) {
+        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)) {
             finishAffinity();
             return;
         }
-        adsManager.resumeBannerAd(Constant.BANNER_HOME);
-        reloadHomeAds();
+        if (adsPref.getAdStatus()) {
+            adsManager.resumeBannerAd(Constant.BANNER_HOME);
+            if (adsAntiblockHelper.shouldForceAdReloadOnResume()) {
+                reloadHomeAds();
+            }
+        }
+        PlaylistRefreshHelper.refreshOnResume(this, sharedPref, this::onPlaylistDataUpdated);
         PlaylistGuardSession.refreshAsync(sharedPref);
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, null);
+    }
+
+    private void onPlaylistDataUpdated() {
+        // Fragments observe playlist version in onResume and reload when needed.
     }
 
     private void reloadHomeAds() {
         if (!adsPref.getAdStatus()) {
             return;
         }
-        adsManager.initializeAd();
-        adsManager.loadBannerAd(Constant.BANNER_HOME);
-        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
-        adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+        AdPlacementHelper.loadHomePlacementAds(this, adsManager, adsPref);
     }
 
     @Override

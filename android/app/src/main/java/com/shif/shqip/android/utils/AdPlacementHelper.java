@@ -28,6 +28,24 @@ public final class AdPlacementHelper {
             AdsManager adsManager = new AdsManager(activity);
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
+            loadHomePlacementAds(activity, adsManager, adsPref);
+        }
+    }
+
+    public static void loadHomePlacementAds(Activity activity, AdsManager adsManager, AdsPref adsPref) {
+        if (activity == null || adsManager == null || adsPref == null || !adsPref.getAdStatus()) {
+            return;
+        }
+        adsManager.loadBannerAd(Constant.BANNER_HOME);
+        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
+        adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+    }
+
+    public static void pauseHomeBanner(Activity activity) {
+        if (activity instanceof MainActivity) {
+            ((MainActivity) activity).destroyBannerAd();
+        } else if (activity instanceof ActivityMainV3) {
+            ((ActivityMainV3) activity).destroyBannerAd();
         }
     }
 
@@ -61,7 +79,7 @@ public final class AdPlacementHelper {
         if (interval <= 0) {
             interval = 8;
         }
-        return Math.max(6, interval);
+        return Math.max(4, interval);
     }
 
     public static int resolveNativeStartIndex(AdsPref adsPref) {

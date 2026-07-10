@@ -41,6 +41,7 @@ import com.shif.shqip.android.utils.EpgHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.IptvPlayerHelper;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
+import com.shif.shqip.android.utils.PlaylistRefreshHelper;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
 
@@ -132,6 +133,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         if (featuredChannel != null && heroPlayer != null) {
             resumeHeroPreview();
         }
+        PlaylistRefreshHelper.refreshOnResume(this, sharedPref, this::loadChannels);
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, () ->
                 DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref));
     }

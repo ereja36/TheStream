@@ -5,6 +5,8 @@ import android.net.Uri;
 import android.provider.Settings;
 import android.text.TextUtils;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.shif.shqip.android.BuildConfig;
 import com.shif.shqip.android.Config;
 import com.shif.shqip.android.databases.prefs.SharedPref;
@@ -28,6 +30,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.lang.reflect.Type;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -71,12 +74,14 @@ public final class DeviceApiHelper {
         public String reason = "";
         public List<Channel> channels = new ArrayList<>();
         public int playlistCount = 0;
+        public boolean channelsUpdated = false;
     }
 
     public static class DevicePlaylist {
         public String playlistName = "";
         public String playlistType = "";
         public String playlistSource = "";
+        public String channelsSnapshot = "";
         public int status = 1;
     }
 
@@ -241,6 +246,10 @@ public final class DeviceApiHelper {
     }
 
     public static RegisterResult registerDevicePlaylist(SharedPref sharedPref, String deviceId, String playlistSource, String playlistName, int channelsCount, String playlistType) {
+        return registerDevicePlaylist(sharedPref, deviceId, playlistSource, playlistName, channelsCount, playlistType, null);
+    }
+
+    public static RegisterResult registerDevicePlaylist(SharedPref sharedPref, String deviceId, String playlistSource, String playlistName, int channelsCount, String playlistType, List<Channel> channels) {
         RegisterResult result = new RegisterResult();
         HttpURLConnection connection = null;
         try {
@@ -260,6 +269,10 @@ public final class DeviceApiHelper {
                     + "&channels_count=" + channelsCount
                     + "&app_version=" + urlEncode(BuildConfig.VERSION_NAME)
                     + "&status=1";
+            String snapshot = buildChannelsSnapshot(channels);
+            if (!TextUtils.isEmpty(snapshot)) {
+                payload += "&channels_snapshot=" + urlEncode(snapshot);
+            }
             try (OutputStream outputStream = connection.getOutputStream()) {
                 outputStream.write(payload.getBytes(StandardCharsets.UTF_8));
             }
@@ -362,7 +375,17 @@ public final class DeviceApiHelper {
                     continue;
                 }
                 String source = playlist.playlistSource == null ? "" : playlist.playlistSource.trim();
-                if (TextUtils.isEmpty(source) || source.startsWith("content://")) {
+                boolean isLocalSource = source.startsWith("content://");
+                if (TextUtils.isEmpty(source)) {
+                    if (!TextUtils.isEmpty(playlist.channelsSnapshot)) {
+                        List<Channel> snapshotChannels = parseChannelsSnapshot(playlist.channelsSnapshot);
+                        appendUniqueChannels(merged, urls, snapshotChannels);
+                    }
+                    continue;
+                }
+                if (isLocalSource) {
+                    List<Channel> snapshotChannels = parseChannelsSnapshot(playlist.channelsSnapshot);
+                    appendUniqueChannels(merged, urls, snapshotChannels);
                     continue;
                 }
                 source = PlaylistPortalHelper.resolvePortalUrl(source, sharedPref);
@@ -383,18 +406,18 @@ public final class DeviceApiHelper {
                     // Keep trying other playlist sources.
                 }
 
-                for (Channel channel : parsedChannels) {
-                    String key = normalizeUrl(channel.channel_url);
-                    if (!TextUtils.isEmpty(key) && urls.add(key)) {
-                        merged.add(channel);
-                    }
+                if (parsedChannels.isEmpty() && !TextUtils.isEmpty(playlist.channelsSnapshot)) {
+                    parsedChannels = parseChannelsSnapshot(playlist.channelsSnapshot);
                 }
+
+                appendUniqueChannels(merged, urls, parsedChannels);
             }
 
             resequenceChannelIds(merged);
             syncResult.channels = merged;
             if (!merged.isEmpty()) {
                 sharedPref.savePlaylistChannels(merged);
+                syncResult.channelsUpdated = true;
                 if (!fetchResult.hideSource && !TextUtils.isEmpty(firstSource)) {
                     sharedPref.savePlaylistUrl(firstSource);
                 }
@@ -447,6 +470,7 @@ public final class DeviceApiHelper {
             playlist.playlistName = item.optString("playlist_name", "");
             playlist.playlistType = item.optString("playlist_type", "");
             playlist.playlistSource = item.optString("playlist_source", "");
+            playlist.channelsSnapshot = item.optString("channels_snapshot", "");
             playlist.status = item.optInt("status", 1);
             result.playlists.add(playlist);
         }
@@ -990,6 +1014,49 @@ public final class DeviceApiHelper {
             fetchUrlContent(endpoint, "POST", payload, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
         } catch (Exception ignored) {
             // ignore ack errors
+        }
+    }
+
+    private static String buildChannelsSnapshot(List<Channel> channels) {
+        if (channels == null || channels.isEmpty()) {
+            return "";
+        }
+        try {
+            int limit = Math.min(channels.size(), 2500);
+            List<Channel> slice = channels.subList(0, limit);
+            String json = new Gson().toJson(slice);
+            if (json.length() > 450000) {
+                return "";
+            }
+            return json;
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private static List<Channel> parseChannelsSnapshot(String snapshot) {
+        if (TextUtils.isEmpty(snapshot)) {
+            return new ArrayList<>();
+        }
+        try {
+            Type type = new TypeToken<ArrayList<Channel>>() {
+            }.getType();
+            List<Channel> channels = new Gson().fromJson(snapshot, type);
+            return channels == null ? new ArrayList<>() : channels;
+        } catch (Exception ignored) {
+            return new ArrayList<>();
+        }
+    }
+
+    private static void appendUniqueChannels(List<Channel> merged, Set<String> urls, List<Channel> parsedChannels) {
+        if (parsedChannels == null || parsedChannels.isEmpty()) {
+            return;
+        }
+        for (Channel channel : parsedChannels) {
+            String key = normalizeUrl(channel.channel_url);
+            if (!TextUtils.isEmpty(key) && urls.add(key)) {
+                merged.add(channel);
+            }
         }
     }
 }

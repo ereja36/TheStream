@@ -27,7 +27,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.activities.ActivityChannelDetail;
-import com.shif.shqip.android.activities.MainActivity;
 import com.shif.shqip.android.adapters.AdapterChannel;
 import com.shif.shqip.android.callbacks.CallbackChannel;
 import com.shif.shqip.android.databases.prefs.SharedPref;
@@ -35,6 +34,7 @@ import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.facebook.shimmer.ShimmerFrameLayout;
 
@@ -59,6 +59,7 @@ public class FragmentRecent extends Fragment {
     private SharedPref sharedPref;
     private Activity activity;
     Tools tools;
+    private long loadedPlaylistVersion = -1L;
 
     @Override
     public void onAttach(@NonNull Context context) {
@@ -104,8 +105,8 @@ public class FragmentRecent extends Fragment {
             Intent intent = new Intent(activity, ActivityChannelDetail.class);
             intent.putExtra(Constant.EXTRA_OBJC, obj);
             startActivity(intent);
-            ((MainActivity) activity).showInterstitialAd();
-            ((MainActivity) activity).destroyBannerAd();
+            AdPlacementHelper.showInterstitialBeforeAction(activity);
+            AdPlacementHelper.pauseHomeBanner(activity);
         });
 
         adapterChannel.setOnItemOverflowClickListener((view, obj, position) -> {
@@ -134,6 +135,17 @@ public class FragmentRecent extends Fragment {
         }
 
         return root_view;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        long version = sharedPref.getPlaylistDataVersion();
+        if (version != loadedPlaylistVersion && sharedPref.hasPlaylistChannels()) {
+            loadedPlaylistVersion = version;
+            adapterChannel.resetListData();
+            requestAction(1);
+        }
     }
 
     public void setLoadMore(int current_page) {

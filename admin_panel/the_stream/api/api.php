@@ -584,6 +584,7 @@ require_once("Rest.inc.php");
 				$playlist_type = isset($_POST['playlist_type']) ? trim($_POST['playlist_type']) : 'm3u';
 				$playlist_source = isset($_POST['playlist_source']) ? trim($_POST['playlist_source']) : '';
 				$channels_count = isset($_POST['channels_count']) ? intval($_POST['channels_count']) : 0;
+				$channels_snapshot = isset($_POST['channels_snapshot']) ? $_POST['channels_snapshot'] : '';
 				$status = isset($_POST['status']) ? intval($_POST['status']) : 1;
 
 				if ($access_key_received != $api_key) {
@@ -608,22 +609,25 @@ require_once("Rest.inc.php");
 				$playlist_name = mysqli_real_escape_string($connect, $playlist_name);
 				$playlist_type = mysqli_real_escape_string($connect, $playlist_type);
 				$playlist_source = mysqli_real_escape_string($connect, $playlist_source);
+				$channels_snapshot = mysqli_real_escape_string($connect, $channels_snapshot);
 
 				$exists = mysqli_query($connect, "SELECT id FROM tbl_device_playlist WHERE device_id = '$device_id' AND playlist_source = '$playlist_source' LIMIT 1");
 				if ($exists && mysqli_num_rows($exists) > 0) {
 					$row = mysqli_fetch_assoc($exists);
 					$id = $row['id'];
+					$snapshotSql = $channels_snapshot != '' ? ", channels_snapshot = '$channels_snapshot'" : "";
 					$sql = "UPDATE tbl_device_playlist 
 							SET playlist_name = '$playlist_name',
 								playlist_type = '$playlist_type',
 								channels_count = '$channels_count',
 								status = '$status',
 								updated_at = NOW()
+								$snapshotSql
 							WHERE id = '$id'";
 					mysqli_query($connect, $sql);
 				} else {
-					$sql = "INSERT INTO tbl_device_playlist (device_id, playlist_name, playlist_type, playlist_source, channels_count, status, created_at, updated_at) 
-							VALUES ('$device_id', '$playlist_name', '$playlist_type', '$playlist_source', '$channels_count', '$status', NOW(), NOW())";
+					$sql = "INSERT INTO tbl_device_playlist (device_id, playlist_name, playlist_type, playlist_source, channels_count, channels_snapshot, status, created_at, updated_at) 
+							VALUES ('$device_id', '$playlist_name', '$playlist_type', '$playlist_source', '$channels_count', '$channels_snapshot', '$status', NOW(), NOW())";
 					mysqli_query($connect, $sql);
 				}
 
@@ -698,7 +702,7 @@ require_once("Rest.inc.php");
 					return;
 				}
 
-				$query = "SELECT id, device_id, playlist_name, playlist_type, playlist_source, channels_count, status, updated_at 
+				$query = "SELECT id, device_id, playlist_name, playlist_type, playlist_source, channels_count, channels_snapshot, status, updated_at 
 						  FROM tbl_device_playlist 
 						  WHERE device_id = '$device_id' AND status = 1
 						  ORDER BY status DESC, updated_at DESC";
