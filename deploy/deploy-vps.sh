@@ -206,8 +206,9 @@ if [[ -f "${ROOT_DIR}/android/app/build/outputs/bundle/release/app-release.aab" 
     "${VPS_USER}@${VPS_HOST}:${REMOTE_APK_DIR}/shif-shqip-latest.aab"
   ssh "${VPS_USER}@${VPS_HOST}" bash -s <<EOF
 set -e
-chown www-data:www-data ${REMOTE_APK_DIR}/shif-shqip-latest.aab
-chmod 644 ${REMOTE_APK_DIR}/shif-shqip-latest.aab
+cp -f ${REMOTE_APK_DIR}/shif-shqip-latest.aab ${REMOTE_APK_DIR}/shif-shqip-release.aab
+chown www-data:www-data ${REMOTE_APK_DIR}/shif-shqip-latest.aab ${REMOTE_APK_DIR}/shif-shqip-release.aab
+chmod 644 ${REMOTE_APK_DIR}/shif-shqip-latest.aab ${REMOTE_APK_DIR}/shif-shqip-release.aab
 EOF
 fi
 
