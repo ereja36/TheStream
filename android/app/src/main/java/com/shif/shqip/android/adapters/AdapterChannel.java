@@ -36,6 +36,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.CategoryDisplayHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
@@ -163,7 +164,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
             vItem.channel_name.setText(p.channel_name);
 
-            vItem.channel_category.setText(p.category_name);
+            vItem.channel_category.setText(CategoryDisplayHelper.displayName(p.category_name));
             if (Config.ENABLE_CHANNEL_LIST_CATEGORY_NAME) {
                 vItem.channel_category.setVisibility(View.VISIBLE);
             } else {

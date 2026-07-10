@@ -10,6 +10,7 @@ import android.text.TextUtils;
 
 import com.shif.shqip.android.BuildConfig;
 import com.shif.shqip.android.Config;
+import com.shif.shqip.android.utils.CategoryDisplayHelper;
 import com.shif.shqip.android.models.Category;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.models.PlaylistGuardRule;
@@ -391,10 +392,7 @@ public class SharedPref {
     }
 
     private String sanitizeCategoryName(String categoryName) {
-        if (TextUtils.isEmpty(categoryName)) {
-            return "TV";
-        }
-        return categoryName.trim();
+        return CategoryDisplayHelper.displayName(categoryName);
     }
 
     public void setGlobalPlaylistActive(boolean active) {

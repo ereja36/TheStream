@@ -431,6 +431,8 @@ public class ActivitySplash extends AppCompatActivity {
             finish();
         };
         if (adsPref.getAdStatus() && adsPref.getAppOpenOnStart()) {
+            adsManager.initializeAd();
+            adsManager.updateConsentStatus();
             adsManager.loadAppOpenAd(true, true, () -> {
                 AppOpenAd.isAppOpenAdLoaded = false;
                 launch.run();

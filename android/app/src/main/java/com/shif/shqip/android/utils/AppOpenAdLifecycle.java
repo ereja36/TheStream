@@ -25,7 +25,7 @@ import com.solodroidx.ads.appopen.AppOpenAd;
 public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Application.ActivityLifecycleCallbacks {
 
     private static final String TAG = "AppOpenAdLifecycle";
-    private static final long MIN_GAP_MS = 1_500L;
+    private static final long MIN_GAP_MS = 300L;
 
     private final MyApplication application;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -89,6 +89,8 @@ public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Appli
                 return;
             }
             AdsManager adsManager = new AdsManager(activity);
+            adsManager.initializeAd();
+            adsManager.updateConsentStatus();
             adsManager.loadAppOpenAd(true, true, () -> {
                 lastShownAt = SystemClock.elapsedRealtime();
                 AppOpenAd.isAppOpenAdLoaded = false;

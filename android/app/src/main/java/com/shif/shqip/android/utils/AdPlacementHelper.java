@@ -75,19 +75,11 @@ public final class AdPlacementHelper {
     }
 
     public static int resolveNativeInterval(AdsPref adsPref) {
-        int interval = adsPref.getNativeAdInterval();
-        if (interval <= 0) {
-            interval = 8;
-        }
-        return Math.max(4, interval);
+        return 3;
     }
 
     public static int resolveNativeStartIndex(AdsPref adsPref) {
-        int index = adsPref.getNativeAdIndex();
-        if (index <= 0) {
-            index = 4;
-        }
-        return Math.max(2, index);
+        return 3;
     }
 
     public static boolean hasValidAdNetwork(AdsPref adsPref) {

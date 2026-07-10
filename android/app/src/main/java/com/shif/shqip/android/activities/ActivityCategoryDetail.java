@@ -38,6 +38,7 @@ import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.CategoryDisplayHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 import com.shif.shqip.android.utils.Tools;
@@ -81,6 +82,9 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         adsManager = new AdsManager(this);
         adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
         adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
+        adsManager.initializeAd();
+        adsManager.updateConsentStatus();
+        adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
 
         category = (Category) getIntent().getSerializableExtra(Constant.EXTRA_OBJC);
         if (category == null) {
@@ -192,7 +196,7 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         final Toolbar toolbar = findViewById(R.id.toolbar);
         String title = PlaylistNavigationHelper.isAllChannelsCategory(category)
                 ? getString(R.string.title_all_channels)
-                : category.category_name;
+                : CategoryDisplayHelper.displayName(category.category_name);
         Tools.setupToolbar(this, toolbar, title, true);
     }
 

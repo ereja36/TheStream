@@ -36,6 +36,7 @@ import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsAntiblockHelper;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.CategoryDisplayHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
@@ -92,7 +93,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         adsAntiblockHelper = new AdsAntiblockHelper(this);
         setContentView(R.layout.activity_main_v2);
         DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_container,
-                R.id.scroll_home, R.id.bottom_nav_pill);
+                R.id.scroll_home, 0);
 
         categorySections = findViewById(R.id.category_sections);
         emptyMessage = findViewById(R.id.empty_message);
@@ -106,12 +107,10 @@ public class ActivityMainV2 extends AppCompatActivity {
         setupBottomNav();
         bringChromeToFront();
         DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
-        Tools.postDelayed(() -> {
-            adsManager.initializeAd();
-            adsManager.updateConsentStatus();
-            AdPlacementHelper.loadHomePlacementAds(this, adsManager, adsPref);
-            adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
-        }, 100);
+        adsManager.initializeAd();
+        adsManager.updateConsentStatus();
+        AdPlacementHelper.loadHomePlacementAds(this, adsManager, adsPref);
+        adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
         loadChannels();
     }
 
@@ -272,7 +271,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         Button watchButton = findViewById(R.id.btn_watch);
 
         heroTitle.setText(channel.channel_name);
-        heroSubtitle.setText(TextUtils.isEmpty(channel.category_name) ? "TV" : channel.category_name);
+        heroSubtitle.setText(CategoryDisplayHelper.displayName(channel.category_name));
         heroEpg.setVisibility(View.GONE);
 
         String imageUrl = resolveImageUrl(channel.channel_image);
