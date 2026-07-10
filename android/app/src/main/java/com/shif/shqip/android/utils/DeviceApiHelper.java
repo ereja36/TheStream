@@ -331,7 +331,7 @@ public final class DeviceApiHelper {
     public static PlaylistSyncResult refreshPlaylistChannelsFromApi(SharedPref sharedPref, String deviceId) {
         PlaylistSyncResult syncResult = new PlaylistSyncResult();
         try {
-            PlaylistGuardSession.refreshBlocking(sharedPref);
+            PlaylistGuardSession.refreshAsync(sharedPref);
             DeviceProfile profile = fetchDeviceProfile(sharedPref, deviceId);
             if (profile.blocked) {
                 syncResult.blocked = true;

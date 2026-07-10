@@ -41,9 +41,7 @@ import com.shif.shqip.android.models.Settings;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
-import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsAntiblockHelper;
-import com.shif.shqip.android.utils.AppIntegrityHelper;
 import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.DeviceApiHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
@@ -149,7 +147,6 @@ public class ActivitySplash extends AppCompatActivity {
                     ads = resp.ads;
                     license = resp.license;
                     Tools.saveAds(adsPref, ads);
-                    AdPlacementHelper.onRemoteAdsConfigLoaded(ActivitySplash.this);
                     boolean serverAdsOn = ads != null && "on".equalsIgnoreCase(ads.ad_status);
                     sharedPref.saveCredentials(
                             settings.youtube_api_key,
@@ -171,14 +168,6 @@ public class ActivitySplash extends AppCompatActivity {
                             serverAdsOn
                     );
                     adsAntiblockHelper.applyServerScript(settings.ads_antiblock_script);
-                    if (!AppIntegrityHelper.isAppAllowed(getApplicationContext(), sharedPref)) {
-                        showIntegrityBlockedDialog();
-                        return;
-                    }
-                    if (!AppIntegrityHelper.isAdsConfigTrusted(getApplicationContext(), sharedPref)) {
-                        showIntegrityBlockedDialog();
-                        return;
-                    }
                     DeviceApiHelper.reportDeviceOpen(sharedPref, deviceId);
                     sharedPref.saveUser(license.item_id, license.item_name, license.buyer, license.license_type);
                     if (app.design_id != null) {
@@ -213,42 +202,28 @@ public class ActivitySplash extends AppCompatActivity {
     }
 
     private void handleStartupState() {
-        startupExecutor.execute(() -> {
-            try {
-                PlaylistGuardSession.refreshBlocking(sharedPref);
-                DeviceApiHelper.DeviceProfile profile = DeviceApiHelper.fetchDeviceProfile(sharedPref, deviceId);
-                if (profile.blocked) {
-                    sharedPref.clearPlaylistChannels();
-                    runOnUiThread(() -> showBlockedDialog(profile.reason));
-                    return;
-                }
-                adsPref.setDeviceNoAds(profile.noAds);
-                if (adsPref.getAdStatus()) {
-                    runOnUiThread(() -> AdPlacementHelper.onRemoteAdsConfigLoaded(ActivitySplash.this));
-                }
-                runOnUiThread(this::showAppOpenAdIfAvailable);
-                syncPlaylistAndStartupPopupInBackground();
-            } catch (Exception e) {
-                runOnUiThread(this::showAppOpenAdIfAvailable);
-            }
-        });
+        startMainActivity();
+        startupExecutor.execute(this::syncPlaylistAndStartupPopupInBackground);
     }
 
     private void syncPlaylistAndStartupPopupInBackground() {
         try {
+            DeviceApiHelper.DeviceProfile profile = DeviceApiHelper.fetchDeviceProfile(sharedPref, deviceId);
+            if (profile.blocked) {
+                sharedPref.clearPlaylistChannels();
+                return;
+            }
+            adsPref.setDeviceNoAds(profile.noAds);
+            adsPref.refreshEffectiveAdStatus();
+            PlaylistGuardSession.refreshAsync(sharedPref);
             DeviceApiHelper.PlaylistSyncResult playlistSync = DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
             if (playlistSync.blocked) {
                 sharedPref.clearPlaylistChannels();
-                runOnUiThread(() -> {
-                    if (!isFinishing()) {
-                        showBlockedDialog(playlistSync.reason);
-                    }
-                });
                 return;
             }
 
             DeviceApiHelper.PopupConfig popupConfig = DeviceApiHelper.fetchStartupPopup(sharedPref, deviceId);
-            if (!popupConfig.enabled || isFinishing()) {
+            if (!popupConfig.enabled) {
                 return;
             }
             runOnUiThread(() -> {
@@ -268,31 +243,12 @@ public class ActivitySplash extends AppCompatActivity {
         }
     }
 
-    private void showAppOpenAdIfAvailable() {
-        Runnable continueToMain = () -> {
-            MyApplication.getInstance().markResumeAppOpenReady();
-            startMainActivity();
-            MyApplication.getInstance().preloadAppOpenAd(this);
-        };
-        if (adsPref.getAdStatus() && adsPref.getAppOpenOnStart()) {
-            adsManager.loadAppOpenAd(true, true, () -> {
-                MyApplication.getInstance().recordAppOpenShown();
-                AppOpenAd.isAppOpenAdLoaded = false;
-                continueToMain.run();
-                Log.d(TAG, "showAppOpenAdIfAvailable");
-            });
-        } else {
-            continueToMain.run();
-            Log.d(TAG, "app open on start disabled");
-        }
-    }
-
     private void showIntegrityBlockedDialog() {
         new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.integrity_blocked_title)
                 .setMessage(R.string.integrity_blocked_message)
                 .setCancelable(false)
-                .setPositiveButton(R.string.dialog_ok, (dialog, which) -> finishAffinity())
+                .setPositiveButton(R.string.dialog_ok, (dialog, which) -> startMainActivity())
                 .show();
     }
 
@@ -303,7 +259,7 @@ public class ActivitySplash extends AppCompatActivity {
                 .setMessage(getString(R.string.device_blocked_message, safeReason))
                 .setCancelable(false)
                 .setPositiveButton(R.string.dialog_ok, (dialog, which) -> {
-                    finishAffinity();
+                    startMainActivity();
                 })
                 .show();
     }
@@ -452,7 +408,14 @@ public class ActivitySplash extends AppCompatActivity {
         }
     }
 
+    private boolean mainStarted;
+
     private void startMainActivity() {
+        if (mainStarted || isFinishing()) {
+            return;
+        }
+        mainStarted = true;
+        MyApplication.getInstance().markResumeAppOpenReady();
         InboxNotificationHelper.pollAndShow(this, sharedPref);
         Intent intent;
         if (sharedPref.hasPlaylistChannels()) {

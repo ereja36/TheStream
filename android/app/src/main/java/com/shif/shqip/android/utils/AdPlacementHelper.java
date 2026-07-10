@@ -22,7 +22,7 @@ public final class AdPlacementHelper {
             return;
         }
         MyApplication application = (MyApplication) activity.getApplicationContext();
-        application.refreshOpenAds();
+        application.markResumeAppOpenReady();
         AdsPref adsPref = new AdsPref(activity);
         if (adsPref.getAdStatus() && hasValidAdNetwork(adsPref)) {
             AdsManager adsManager = new AdsManager(activity);

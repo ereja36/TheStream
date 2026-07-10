@@ -119,7 +119,6 @@ public class MainActivity extends AppCompatActivity {
             adsManager.updateConsentStatus();
             AdPlacementHelper.loadHomePlacementAds(this, adsManager, adsPref);
             adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
-            MyApplication.getInstance().preloadAppOpenAd(this);
         }, 100);
 
         initComponent();

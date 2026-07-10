@@ -151,12 +151,6 @@ public final class DesignUiHelper {
                         }
                         if (!remoteDesign.equals(localDesign)) {
                             sharedPref.saveDesignId(remoteDesign);
-                            Intent intent = DesignRouter.getMainActivityIntent(activity);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-                            activity.startActivity(intent);
-                            activity.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
-                            activity.finish();
-                            return;
                         }
                         if (onSameDesign != null) {
                             onSameDesign.run();

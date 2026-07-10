@@ -254,7 +254,6 @@ public class ActivityMainV2 extends AppCompatActivity {
         watchButton.setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         findViewById(R.id.hero_container).setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         loadHeroEpg(channel, heroEpg);
-        startHeroPreview(channel);
     }
 
     private void startHeroPreview(Channel channel) {
@@ -284,20 +283,24 @@ public class ActivityMainV2 extends AppCompatActivity {
         if (heroPreview == null || channel == null || heroPreviewChannel == null) {
             return;
         }
-        heroPlayer = IptvPlayerHelper.createPlayer(this);
-        heroPlayer.setVolume(0f);
-        heroPreview.setPlayer(heroPlayer);
-        heroPreview.setUseController(false);
+        try {
+            heroPlayer = IptvPlayerHelper.createPlayer(this);
+            heroPlayer.setVolume(0f);
+            heroPreview.setPlayer(heroPlayer);
+            heroPreview.setUseController(false);
 
-        DefaultDataSource.Factory factory = IptvPlayerHelper.createDataSourceFactory(
-                this, sharedPref, channel.channel_url, channel.user_agent);
-        MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(playbackUrl, factory);
-        heroPlayer.setMediaSource(mediaSource);
-        heroPlayer.prepare();
-        heroPlayer.setPlayWhenReady(true);
-        heroPreview.setVisibility(View.VISIBLE);
-        findViewById(R.id.hero_image).setVisibility(View.GONE);
-        bringChromeToFront();
+            DefaultDataSource.Factory factory = IptvPlayerHelper.createDataSourceFactory(
+                    this, sharedPref, channel.channel_url, channel.user_agent);
+            MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(playbackUrl, factory);
+            heroPlayer.setMediaSource(mediaSource);
+            heroPlayer.prepare();
+            heroPlayer.setPlayWhenReady(true);
+            heroPreview.setVisibility(View.VISIBLE);
+            findViewById(R.id.hero_image).setVisibility(View.GONE);
+            bringChromeToFront();
+        } catch (Exception ignored) {
+            releaseHeroPreview();
+        }
     }
 
     private void pauseHeroPreview() {
