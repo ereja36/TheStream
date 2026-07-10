@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 65
-        versionName = "6.9.45"
+        versionCode = 66
+        versionName = "6.9.46"
         multiDexEnabled = true
     }
     compileOptions {
@@ -32,6 +32,7 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+            excludes += ['**/libdatastore_shared_counter.so']
         }
     }
     signingConfigs {

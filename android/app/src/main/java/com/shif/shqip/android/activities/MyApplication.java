@@ -57,13 +57,40 @@ public class MyApplication extends Application {
     private boolean wasInBackground;
     private boolean pendingResumeAppOpen;
     private long lastAppOpenShownAt;
+    private volatile boolean deferredSdksInitialized;
 
     @Override
     public void onCreate() {
         super.onCreate();
         mInstance = this;
+        installUncaughtExceptionHandler();
         sharedPref = new SharedPref(this);
         Tools.applyNightMode(sharedPref.getIsDarkTheme());
+    }
+
+    private void installUncaughtExceptionHandler() {
+        final Thread.UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            Log.e(TAG, "Uncaught exception in thread " + thread.getName(), throwable);
+            if (thread != Looper.getMainLooper().getThread()) {
+                return;
+            }
+            if (defaultHandler != null) {
+                defaultHandler.uncaughtException(thread, throwable);
+            }
+        });
+    }
+
+    public void initDeferredSdks() {
+        if (deferredSdksInitialized) {
+            return;
+        }
+        synchronized (this) {
+            if (deferredSdksInitialized) {
+                return;
+            }
+            deferredSdksInitialized = true;
+        }
         adsPref = new AdsPref(this);
         try {
             initAnalytics();
@@ -312,6 +339,9 @@ public class MyApplication extends Application {
     };
 
     public void showAdIfAvailable(@NonNull Activity activity, @NonNull OnShowAdCompleteListener onShowAdCompleteListener) {
+        if (adsPref == null) {
+            adsPref = new AdsPref(this);
+        }
         if (!adsPref.getAppOpenOnStart()) {
             onShowAdCompleteListener.onShowAdComplete();
             return;
