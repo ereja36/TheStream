@@ -222,29 +222,25 @@ public class FragmentRecent extends Fragment {
     }
 
     private void requestPlaylistChannels(final int page_no) {
+        if (page_no > 1) {
+            adapterChannel.setLoaded();
+            return;
+        }
         showFailedView(false, "");
         showNoItemView(false);
-        if (page_no == 1) {
-            swipeProgress(true);
-        } else {
-            adapterChannel.setLoading();
-        }
-        new Handler().postDelayed(() -> {
+        swipeProgress(true);
+        recyclerView.post(() -> {
             List<Channel> playlistChannels = sharedPref.getPlaylistChannels();
             post_total = playlistChannels.size();
-            int start = Math.max(0, (page_no - 1) * Config.LOAD_MORE);
-            int end = Math.min(post_total, start + Config.LOAD_MORE);
-            if (start >= end) {
+            if (playlistChannels.isEmpty()) {
                 adapterChannel.setLoaded();
                 swipeProgress(false);
-                if (page_no == 1) {
-                    showNoItemView(true);
-                }
+                showNoItemView(true);
                 return;
             }
-            List<Channel> pageChannels = new ArrayList<>(playlistChannels.subList(start, end));
-            displayApiResult(pageChannels);
-        }, Constant.DELAY_TIME);
+            displayApiResult(new ArrayList<>(playlistChannels));
+            adapterChannel.setLoaded();
+        });
     }
 
     @Override

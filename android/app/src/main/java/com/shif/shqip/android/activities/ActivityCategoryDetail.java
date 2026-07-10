@@ -108,6 +108,8 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         if (sharedPref.hasPlaylistChannels()) {
             recyclerView.setLayoutManager(new StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL));
             recyclerView.setPadding(0, padding, 0, padding);
+            recyclerView.setItemViewCacheSize(32);
+            recyclerView.setHasFixedSize(true);
         } else if (sharedPref.getChannelViewType() == CHANNEL_LIST_DEFAULT) {
             recyclerView.setPadding(0, padding, 0, padding);
         } else {
@@ -171,6 +173,10 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     }
 
     public void setLoadMore(int current_page) {
+        if (sharedPref.hasPlaylistChannels()) {
+            adapterChannel.setLoaded();
+            return;
+        }
         Log.d("page", "currentPage: " + current_page);
         // Assuming final total items equal to real post items plus the ad
         int totalItemBeforeAds = (adapterChannel.getItemCount() - current_page);
@@ -268,14 +274,14 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     }
 
     private void requestPlaylistChannels(final int page_no) {
+        if (page_no > 1) {
+            adapterChannel.setLoaded();
+            return;
+        }
         showFailedView(false, "");
         showNoItemView(false);
-        if (page_no == 1) {
-            swipeProgress(true);
-        } else {
-            adapterChannel.setLoading();
-        }
-        new Handler().postDelayed(() -> {
+        swipeProgress(true);
+        recyclerView.post(() -> {
             List<Channel> playlistByCategory;
             if (PlaylistNavigationHelper.isAllChannelsCategory(category)) {
                 playlistByCategory = sharedPref.getPlaylistChannels();
@@ -283,19 +289,15 @@ public class ActivityCategoryDetail extends AppCompatActivity {
                 playlistByCategory = sharedPref.getPlaylistChannelsByCategory(category.category_name);
             }
             post_total = playlistByCategory.size();
-            int start = Math.max(0, (page_no - 1) * Config.LOAD_MORE);
-            int end = Math.min(post_total, start + Config.LOAD_MORE);
-            if (start >= end) {
+            if (playlistByCategory.isEmpty()) {
                 adapterChannel.setLoaded();
                 swipeProgress(false);
-                if (page_no == 1) {
-                    showNoItemView(true);
-                }
+                showNoItemView(true);
                 return;
             }
-            List<Channel> pageChannels = new ArrayList<>(playlistByCategory.subList(start, end));
-            displayApiResult(pageChannels);
-        }, Constant.DELAY_TIME);
+            displayApiResult(new ArrayList<>(playlistByCategory));
+            adapterChannel.setLoaded();
+        });
     }
 
     private void showFailedView(boolean show, String message) {
