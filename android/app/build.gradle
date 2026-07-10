@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 66
-        versionName = "6.9.46"
+        versionCode = 67
+        versionName = "6.9.47"
         multiDexEnabled = true
     }
     compileOptions {
@@ -95,10 +95,14 @@ dependencies {
     implementation 'com.google.firebase:firebase-messaging'
 
     //Ad Network Sdk options
-    implementation 'com.github.solodroid-dev.ads:admob-ads-sdk:1.+'
+    implementation('com.github.solodroid-dev.ads:admob-ads-sdk:1.+') {
+        exclude group: 'androidx.datastore'
+    }
 
     //Push notification
-    implementation 'com.github.solodroid-dev.push:notification-sdk:1.+'
+    implementation('com.github.solodroid-dev.push:notification-sdk:1.+') {
+        exclude group: 'androidx.datastore'
+    }
 
     //youtube player
     implementation 'com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0'
