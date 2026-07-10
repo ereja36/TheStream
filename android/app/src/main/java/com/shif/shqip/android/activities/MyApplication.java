@@ -5,7 +5,6 @@ import static com.solodroidx.ads.util.Constant.AD_STATUS_ON;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
-import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -49,8 +48,6 @@ public class MyApplication extends Application {
     AdsPref adsPref;
     SharedPref sharedPref;
     AppOpenAd appOpenAd;
-    AppOpenAdMob appOpenAdMob;
-    AppOpenAdManager appOpenAdManager;
     private boolean openAdsLifecycleRegistered;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Activity currentActivity;
@@ -141,17 +138,11 @@ public class MyApplication extends Application {
         if (!adsPref.getAdStatus() || TextUtils.isEmpty(mainAds) || "0".equals(mainAds)) {
             return;
         }
-        if (appOpenAdMob == null) {
-            appOpenAdMob = new AppOpenAdMob();
-        }
-        if (appOpenAdManager == null) {
-            appOpenAdManager = new AppOpenAdManager();
-        }
         if (appOpenAd == null) {
             appOpenAd = new AppOpenAd();
         }
-        appOpenAd.initAppOpenAdMob(appOpenAdMob)
-                .initAppOpenAdManager(appOpenAdManager)
+        appOpenAd.initAppOpenAdMob(new AppOpenAdMob())
+                .initAppOpenAdManager(new AppOpenAdManager())
                 .initAppOpenAdAppLovin(new AppOpenAdAppLovin())
                 .initAppOpenAdWortise(new AppOpenAdWortise())
                 .initAppOpenAdPangle(new AppOpenAdPangle())
@@ -181,27 +172,11 @@ public class MyApplication extends Application {
 
     public void preloadAppOpenAd(@Nullable Activity activity) {
         Activity host = activity != null ? activity : currentActivity;
-        Context context = host != null ? host : getApplicationContext();
+        if (host == null || host.isFinishing()) {
+            return;
+        }
         adsPref = new AdsPref(this);
         if (!adsPref.getAdStatus()) {
-            return;
-        }
-        String mainAds = adsPref.getMainAds();
-        if ("admob".equals(mainAds) || "fan_bidding_admob".equals(mainAds)) {
-            String unitId = adsPref.getAdMobAppOpenAdId();
-            if (!TextUtils.isEmpty(unitId) && !"0".equals(unitId) && appOpenAdMob != null) {
-                appOpenAdMob.loadAd(context, unitId);
-            }
-            return;
-        }
-        if ("google_ad_manager".equals(mainAds) || "fan_bidding_ad_manager".equals(mainAds)) {
-            String unitId = adsPref.getAdManagerAppOpenAdId();
-            if (!TextUtils.isEmpty(unitId) && !"0".equals(unitId) && appOpenAdManager != null) {
-                appOpenAdManager.loadAd(context, unitId);
-            }
-            return;
-        }
-        if (host == null || host.isFinishing()) {
             return;
         }
         AdsManager adsManager = new AdsManager(host);
@@ -231,30 +206,12 @@ public class MyApplication extends Application {
             if (now - lastAppOpenShownAt < MIN_APP_OPEN_GAP_MS) {
                 return;
             }
-            OnShowAdCompleteListener onComplete = () -> {
+            AdsManager adsManager = new AdsManager(activity);
+            adsManager.loadAppOpenAd(true, true, () -> {
                 recordAppOpenShown();
                 AppOpenAd.isAppOpenAdLoaded = false;
                 preloadAppOpenAd(activity);
-            };
-            String mainAds = adsPref.getMainAds();
-            if (("admob".equals(mainAds) || "fan_bidding_admob".equals(mainAds))
-                    && appOpenAdMob != null) {
-                String unitId = adsPref.getAdMobAppOpenAdId();
-                if (!TextUtils.isEmpty(unitId) && !"0".equals(unitId)) {
-                    appOpenAdMob.showAdIfAvailable(activity, unitId, onComplete);
-                    return;
-                }
-            }
-            if (("google_ad_manager".equals(mainAds) || "fan_bidding_ad_manager".equals(mainAds))
-                    && appOpenAdManager != null) {
-                String unitId = adsPref.getAdManagerAppOpenAdId();
-                if (!TextUtils.isEmpty(unitId) && !"0".equals(unitId)) {
-                    appOpenAdManager.showAdIfAvailable(activity, unitId, onComplete);
-                    return;
-                }
-            }
-            AdsManager adsManager = new AdsManager(activity);
-            adsManager.loadAppOpenAd(true, true, onComplete);
+            });
         } catch (Exception e) {
             Log.e(TAG, "showResumeAppOpenIfNeeded failed", e);
         }
@@ -272,7 +229,6 @@ public class MyApplication extends Application {
         @Override
         public void onStop(@NonNull LifecycleOwner owner) {
             wasInBackground = true;
-            preloadAppOpenAd(currentActivity);
         }
     };
 

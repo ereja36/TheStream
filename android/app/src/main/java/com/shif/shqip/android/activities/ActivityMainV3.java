@@ -27,7 +27,6 @@ import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsAntiblockHelper;
 import com.shif.shqip.android.utils.AdsManager;
-import com.shif.shqip.android.utils.AppIntegrityHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
@@ -66,11 +65,6 @@ public class ActivityMainV3 extends AppCompatActivity {
         adsAntiblockHelper = new AdsAntiblockHelper(this);
         setContentView(R.layout.activity_main_v3);
         DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_nav);
-
-        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)) {
-            finishAffinity();
-            return;
-        }
 
         overlayContainer = findViewById(R.id.overlay_container);
         scrollContent = findViewById(R.id.scroll_home);
@@ -122,10 +116,6 @@ public class ActivityMainV3 extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)) {
-            finishAffinity();
-            return;
-        }
         if (adsPref.getAdStatus()) {
             adsManager.resumeBannerAd(Constant.BANNER_HOME);
             if (adsAntiblockHelper.shouldForceAdReloadOnResume()) {

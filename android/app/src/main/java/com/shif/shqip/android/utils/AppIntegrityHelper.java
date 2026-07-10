@@ -53,7 +53,7 @@ public final class AppIntegrityHelper {
             return true;
         }
         AdsPref adsPref = new AdsPref(context.getApplicationContext());
-        return adsPref.getAdStatus();
+        return adsPref.getServerAdsEnabled();
     }
 
     public static String currentSigningSha256(Context context) {

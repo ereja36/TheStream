@@ -213,7 +213,6 @@ public class ActivitySplash extends AppCompatActivity {
     }
 
     private void handleStartupState() {
-        showAppOpenAdIfAvailable();
         startupExecutor.execute(() -> {
             try {
                 PlaylistGuardSession.refreshBlocking(sharedPref);
@@ -227,20 +226,27 @@ public class ActivitySplash extends AppCompatActivity {
                 if (adsPref.getAdStatus()) {
                     runOnUiThread(() -> AdPlacementHelper.onRemoteAdsConfigLoaded(ActivitySplash.this));
                 }
-                DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
-                showStartupPopupInBackground();
-            } catch (Exception ignored) {
-                try {
-                    DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
-                } catch (Exception ignoredToo) {
-                    // Keep cached playlist if sync fails.
-                }
+                runOnUiThread(this::showAppOpenAdIfAvailable);
+                syncPlaylistAndStartupPopupInBackground();
+            } catch (Exception e) {
+                runOnUiThread(this::showAppOpenAdIfAvailable);
             }
         });
     }
 
-    private void showStartupPopupInBackground() {
+    private void syncPlaylistAndStartupPopupInBackground() {
         try {
+            DeviceApiHelper.PlaylistSyncResult playlistSync = DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
+            if (playlistSync.blocked) {
+                sharedPref.clearPlaylistChannels();
+                runOnUiThread(() -> {
+                    if (!isFinishing()) {
+                        showBlockedDialog(playlistSync.reason);
+                    }
+                });
+                return;
+            }
+
             DeviceApiHelper.PopupConfig popupConfig = DeviceApiHelper.fetchStartupPopup(sharedPref, deviceId);
             if (!popupConfig.enabled || isFinishing()) {
                 return;
@@ -258,12 +264,8 @@ public class ActivitySplash extends AppCompatActivity {
                 }
             });
         } catch (Exception ignored) {
-            // Startup should continue even if popup fetch fails.
+            // Startup should continue even if background sync fails.
         }
-    }
-
-    private void syncPlaylistAndStartupPopupInBackground() {
-        showStartupPopupInBackground();
     }
 
     private void showAppOpenAdIfAvailable() {

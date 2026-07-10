@@ -49,7 +49,6 @@ import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsAntiblockHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.AppBarLayoutBehavior;
-import com.shif.shqip.android.utils.AppIntegrityHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
@@ -114,11 +113,6 @@ public class MainActivity extends AppCompatActivity {
         viewPagerHelper = new ViewPagerHelper(this);
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
-
-        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)) {
-            finishAffinity();
-            return;
-        }
 
         Tools.postDelayed(() -> {
             adsManager.initializeAd();
@@ -324,10 +318,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (!AppIntegrityHelper.isAppAllowed(this, sharedPref)) {
-            finishAffinity();
-            return;
-        }
         if (adsPref.getAdStatus()) {
             adsManager.resumeBannerAd(Constant.BANNER_HOME);
             if (adsAntiblockHelper.shouldForceAdReloadOnResume()) {

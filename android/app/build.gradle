@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 70
-        versionName = "6.9.50"
+        versionCode = 71
+        versionName = "6.9.51"
         multiDexEnabled = true
     }
     compileOptions {
@@ -67,9 +67,9 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
-    implementation 'androidx.lifecycle:lifecycle-process:2.9.4'
-    implementation 'androidx.lifecycle:lifecycle-runtime:2.9.4'
-    implementation 'androidx.lifecycle:lifecycle-common-java8:2.9.4'
+    implementation 'androidx.lifecycle:lifecycle-process:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-common-java8:2.7.0'
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'androidx.multidex:multidex:2.0.1'
