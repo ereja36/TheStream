@@ -14,6 +14,9 @@ import com.shif.shqip.android.databases.prefs.AdsPref;
  */
 public final class AdPlacementHelper {
 
+    public static final int INTERSTITIAL_EVERY_CLICKS = 3;
+    private static final int NATIVE_PRELOAD_COUNT = 4;
+
     private AdPlacementHelper() {
     }
 
@@ -36,9 +39,29 @@ public final class AdPlacementHelper {
         if (activity == null || adsManager == null || adsPref == null || !adsPref.getAdStatus()) {
             return;
         }
+        int interval = resolveInterstitialInterval(adsPref);
         adsManager.loadBannerAd(Constant.BANNER_HOME);
-        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
-        adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, interval);
+        preloadNativeAds(activity, adsManager, NATIVE_PRELOAD_COUNT);
+    }
+
+    public static void preloadNativeAds(Activity activity, AdsManager primary, int count) {
+        if (activity == null || primary == null || count <= 0) {
+            return;
+        }
+        AdsPref adsPref = new AdsPref(activity);
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        primary.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+        for (int i = 1; i < count; i++) {
+            AdsManager extra = new AdsManager(activity);
+            extra.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+        }
+    }
+
+    public static int resolveInterstitialInterval(AdsPref adsPref) {
+        return INTERSTITIAL_EVERY_CLICKS;
     }
 
     public static void pauseHomeBanner(Activity activity) {
@@ -59,6 +82,13 @@ public final class AdPlacementHelper {
         if (!adsPref.getAdStatus()) {
             return;
         }
+        int interval = resolveInterstitialInterval(adsPref);
+        int counter = adsPref.getInterstitialAdCounter();
+        if (counter < interval) {
+            adsPref.updateInterstitialAdCounter(counter + 1);
+            return;
+        }
+        adsPref.updateInterstitialAdCounter(1);
         if (activity instanceof MainActivity) {
             ((MainActivity) activity).showInterstitialAd();
         } else if (activity instanceof ActivityMainV2) {
@@ -67,7 +97,7 @@ public final class AdPlacementHelper {
             ((ActivityMainV3) activity).showInterstitialAd();
         } else {
             AdsManager adsManager = new AdsManager(activity);
-            adsManager.loadInterstitialAd(true, adsPref.getInterstitialAdInterval());
+            adsManager.loadInterstitialAd(true, interval);
             adsManager.showInterstitialAd();
         }
     }

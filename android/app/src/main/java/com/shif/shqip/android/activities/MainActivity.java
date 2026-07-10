@@ -135,6 +135,9 @@ public class MainActivity extends AppCompatActivity {
 
     public void showInterstitialAd() {
         adsManager.showInterstitialAd();
+        adsManager.loadInterstitialAd(
+                Constant.INTERSTITIAL_AD_CHANNEL_LIST,
+                AdPlacementHelper.resolveInterstitialInterval(adsPref));
     }
 
     public void initComponent() {

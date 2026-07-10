@@ -41,8 +41,9 @@ import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.EpgHelper;
-import com.shif.shqip.android.utils.InboxNotificationHelper;
+import com.shif.shqip.android.utils.NativeAdSlotHelper;
 import com.shif.shqip.android.utils.HomeAdsBootstrap;
+import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.IptvPlayerHelper;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 import com.shif.shqip.android.utils.PlaylistRefreshHelper;
@@ -83,6 +84,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     private AdsAntiblockHelper adsAntiblockHelper;
     private boolean allChannelsNativeBound;
     private boolean heroMuted = true;
+    private final List<AdsManager> nativeSlotManagers = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -107,13 +109,17 @@ public class ActivityMainV2 extends AppCompatActivity {
         setupBottomNav();
         bringChromeToFront();
         DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
-        HomeAdsBootstrap.init(this, adsManager, adsPref, adsAntiblockHelper);
+        HomeAdsBootstrap.initFast(this, adsManager, adsPref, adsAntiblockHelper);
+        bindAllChannelsNativeAd();
         loadChannels();
     }
 
     public void showInterstitialAd() {
         if (adsManager != null) {
             adsManager.showInterstitialAd();
+            adsManager.loadInterstitialAd(
+                    Constant.INTERSTITIAL_AD_CHANNEL_LIST,
+                    AdPlacementHelper.resolveInterstitialInterval(adsPref));
         }
     }
 
@@ -127,6 +133,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     protected void onDestroy() {
         destroyBannerAd();
         releaseHeroPreview();
+        nativeSlotManagers.clear();
         super.onDestroy();
         epgExecutor.shutdownNow();
         heroExecutor.shutdownNow();
@@ -174,10 +181,19 @@ public class ActivityMainV2 extends AppCompatActivity {
         ImageButton navFavorites = findViewById(R.id.nav_favorites);
 
         navHome.setOnClickListener(v -> showHome());
-        navCategories.setOnClickListener(v -> showCategories());
-        navFavorites.setOnClickListener(v -> showFavoritesOverlay());
+        navCategories.setOnClickListener(v -> {
+            AdPlacementHelper.showInterstitialBeforeAction(this);
+            showCategories();
+        });
+        navFavorites.setOnClickListener(v -> {
+            AdPlacementHelper.showInterstitialBeforeAction(this);
+            showFavoritesOverlay();
+        });
 
-        findViewById(R.id.banner_all_channels).setOnClickListener(v -> showAllChannels());
+        findViewById(R.id.banner_all_channels).setOnClickListener(v -> {
+            AdPlacementHelper.showInterstitialBeforeAction(this);
+            showAllChannels();
+        });
     }
 
     private void showCategories() {
@@ -247,7 +263,6 @@ public class ActivityMainV2 extends AppCompatActivity {
             emptyMessage.setVisibility(View.GONE);
             featuredChannel = allChannels.get(0);
             bindHero(featuredChannel);
-            bindAllChannelsNativeAd();
             categorySections.post(this::buildCategorySections);
         } catch (Exception e) {
             showEmpty();
@@ -307,7 +322,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         }
         heroExecutor.execute(() -> {
             try {
-                Thread.sleep(1200);
+                Thread.sleep(2500);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
@@ -498,6 +513,7 @@ public class ActivityMainV2 extends AppCompatActivity {
             adapter.setItems(categoryChannels);
 
             section.findViewById(R.id.category_header).setOnClickListener(v -> {
+                AdPlacementHelper.showInterstitialBeforeAction(this);
                 Intent intent = new Intent(this, ActivityCategoryDetail.class);
                 intent.putExtra(Constant.EXTRA_OBJC, category);
                 startActivity(intent);
@@ -505,11 +521,6 @@ public class ActivityMainV2 extends AppCompatActivity {
 
             categorySections.addView(section);
             sectionIndex++;
-            if (sectionIndex % 2 == 0) {
-                addNativeAdSlot();
-            }
-        }
-        if (sectionIndex % 2 != 0) {
             addNativeAdSlot();
         }
     }
@@ -529,8 +540,10 @@ public class ActivityMainV2 extends AppCompatActivity {
         int horizontal = (int) getResources().getDimension(R.dimen.spacing_middle);
         nativeHost.setPadding(horizontal, 0, horizontal, 0);
         parent.addView(nativeHost, bannerIndex + 1);
-        Tools.setNativeAdStyle(this, nativeHost, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
-        adsManager.loadNativeAdView(nativeHost, Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+        AdsManager slot = NativeAdSlotHelper.mount(this, nativeHost);
+        if (slot != null) {
+            nativeSlotManagers.add(slot);
+        }
         allChannelsNativeBound = true;
     }
 
@@ -549,8 +562,10 @@ public class ActivityMainV2 extends AppCompatActivity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
         categorySections.addView(wrapper);
-        Tools.setNativeAdStyle(this, nativeHost, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
-        adsManager.loadNativeAdView(nativeHost, Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+        AdsManager slot = NativeAdSlotHelper.mount(this, nativeHost);
+        if (slot != null) {
+            nativeSlotManagers.add(slot);
+        }
     }
 
     private List<Category> buildCategoriesFromChannels(List<Channel> channels) {

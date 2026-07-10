@@ -32,6 +32,7 @@ import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.HomeAdsBootstrap;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
+import com.shif.shqip.android.utils.NativeAdSlotHelper;
 import com.shif.shqip.android.utils.PlaylistRefreshHelper;
 import com.shif.shqip.android.utils.Tools;
 
@@ -92,20 +93,18 @@ public class ActivityMainV3 extends AppCompatActivity {
                 startActivity(new Intent(this, ActivitySettings.class)));
 
         DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
-        HomeAdsBootstrap.init(this, adsManager, adsPref, adsAntiblockHelper);
+        HomeAdsBootstrap.initFast(this, adsManager, adsPref, adsAntiblockHelper);
         setupBottomNav();
-        View root = findViewById(R.id.design_root);
-        if (root != null) {
-            root.post(this::bindHomeNativeAds);
-        } else {
-            bindHomeNativeAds();
-        }
+        bindHomeNativeAds();
         loadChannels();
     }
 
     public void showInterstitialAd() {
         if (adsManager != null) {
             adsManager.showInterstitialAd();
+            adsManager.loadInterstitialAd(
+                    Constant.INTERSTITIAL_AD_CHANNEL_LIST,
+                    AdPlacementHelper.resolveInterstitialInterval(adsPref));
         }
     }
 
@@ -140,8 +139,7 @@ public class ActivityMainV3 extends AppCompatActivity {
         if (host == null) {
             return;
         }
-        Tools.setNativeAdStyle(this, host, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
-        adsManager.loadNativeAdView(host, Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+        NativeAdSlotHelper.mount(this, host);
     }
 
     private void reloadHomeAds() {
@@ -160,10 +158,12 @@ public class ActivityMainV3 extends AppCompatActivity {
                 return true;
             }
             if (id == R.id.navigation_category) {
+                AdPlacementHelper.showInterstitialBeforeAction(this);
                 startActivity(new Intent(this, ActivityPlaylistCategories.class));
                 return true;
             }
             if (id == R.id.navigation_favorite) {
+                AdPlacementHelper.showInterstitialBeforeAction(this);
                 showFavorites();
                 return true;
             }

@@ -23,14 +23,14 @@ public final class CategoryAdsBootstrap {
     }
 
     public static void init(AppCompatActivity activity, AdsManager adsManager, AdsPref adsPref) {
+        initFast(activity, adsManager, adsPref);
+    }
+
+    public static void initFast(AppCompatActivity activity, AdsManager adsManager, AdsPref adsPref) {
         if (activity == null || adsManager == null || adsPref == null) {
             return;
         }
-        View anchor = activity.findViewById(R.id.parent_view);
-        if (anchor == null) {
-            anchor = activity.getWindow().getDecorView();
-        }
-        anchor.post(() -> initNow(activity, adsManager, adsPref));
+        initNow(activity, adsManager, adsPref);
     }
 
     private static void initNow(Activity activity, AdsManager adsManager, AdsPref adsPref) {
@@ -41,8 +41,8 @@ public final class CategoryAdsBootstrap {
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
             adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
-            adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
-            adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+            adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, AdPlacementHelper.resolveInterstitialInterval(adsPref));
+            AdPlacementHelper.preloadNativeAds(activity, adsManager, 3);
         } catch (Exception e) {
             Log.e(TAG, "Category ads init failed", e);
         }

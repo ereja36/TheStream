@@ -21,6 +21,20 @@ public final class HomeAdsBootstrap {
 
     public static void init(AppCompatActivity activity, AdsManager adsManager, AdsPref adsPref,
                             AdsAntiblockHelper antiblockHelper) {
+        initFast(activity, adsManager, adsPref, antiblockHelper);
+    }
+
+    /** Immediate ad SDK + banner/native/interstitial preload (Design 2 smooth start). */
+    public static void initFast(AppCompatActivity activity, AdsManager adsManager, AdsPref adsPref,
+                                AdsAntiblockHelper antiblockHelper) {
+        if (activity == null || adsManager == null || adsPref == null) {
+            return;
+        }
+        initNow(activity, adsManager, adsPref, antiblockHelper);
+    }
+
+    private static void initLegacyPost(AppCompatActivity activity, AdsManager adsManager, AdsPref adsPref,
+                                       AdsAntiblockHelper antiblockHelper) {
         if (activity == null || adsManager == null || adsPref == null) {
             return;
         }
