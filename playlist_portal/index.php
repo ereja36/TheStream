@@ -101,9 +101,22 @@ if ($path['channel'] === 'r' && $path['stream'] !== '') {
     if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
         PortalService::deny('invalid_entry');
     }
-    $finalUrl = PortalService::resolvePlaybackRedirectUrl($portal, $entryUrl);
+    $finalUrl = PortalService::resolveToDirectCdnUrl($portal, $entryUrl);
+    if ($finalUrl === '') {
+        $finalUrl = PortalService::resolvePlaybackRedirectUrl($portal, $entryUrl);
+    }
     if ($finalUrl === '') {
         PortalService::deny('resolve_failed');
+    }
+    if (PortalService::wantsDirectResolve($headers) || !PortalService::isBrowserClient($headers)) {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+        echo json_encode(array(
+            'ok' => true,
+            'mode' => 'direct',
+            'url' => $finalUrl
+        ), JSON_UNESCAPED_SLASHES);
+        exit;
     }
     if (!PortalService::redirectToStreamUrl($finalUrl)) {
         PortalService::deny('resolve_failed');

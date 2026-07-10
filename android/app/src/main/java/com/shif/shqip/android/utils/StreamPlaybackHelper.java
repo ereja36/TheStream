@@ -6,8 +6,6 @@ import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import android.text.TextUtils;
 
-import java.util.Locale;
-
 public final class StreamPlaybackHelper {
 
     public static final int AUTO_RETRY_MAX = 6;
@@ -26,55 +24,62 @@ public final class StreamPlaybackHelper {
     }
 
     /**
-     * True when ExoPlayer can start immediately without blocking HTTP resolution.
+     * True only for real CDN stream URLs — never portal /r/ or VPS proxy URLs.
      */
     public static boolean canPlayDirectly(SharedPref sharedPref, String sourceUrl) {
-        if (TextUtils.isEmpty(sourceUrl)) {
-            return false;
-        }
-        if (sharedPref != null && sharedPref.isPortalSessionActive()) {
-            if (PlaylistPortalHelper.isPortalResolveUrl(sourceUrl)) {
-                return true;
-            }
-            if (PlaylistPortalHelper.isUpstreamStreamUrl(sourceUrl)
-                    || PlaylistPortalHelper.isPortalStreamEndpoint(sourceUrl)) {
-                return true;
-            }
-        }
-        return isDirectStreamUrl(sourceUrl);
+        return PortalResolveHelper.isDirectCdnUrl(sourceUrl);
     }
 
     /**
-     * Returns a play URL. Playlist/channel entry URLs stay sealed on the portal;
-     * resolved playback goes directly to shifshqip.com channel-proxy.
+     * Returns a direct CDN play URL. Portal obfuscation is resolved once on the server;
+     * video traffic goes straight to the stream source afterward.
      */
     public static String resolvePlaybackUrl(SharedPref sharedPref, String sourceUrl, String k1Slug) {
         if (TextUtils.isEmpty(sourceUrl)) {
             return sourceUrl;
         }
 
-        if (sharedPref != null && sharedPref.isPortalSessionActive()) {
-            if (PlaylistPortalHelper.isPortalResolveUrl(sourceUrl)) {
-                return sourceUrl;
-            }
-            if (PlaylistPortalHelper.isUpstreamStreamUrl(sourceUrl)
-                    || PlaylistPortalHelper.isPortalStreamEndpoint(sourceUrl)) {
-                return sourceUrl;
-            }
+        if (PortalResolveHelper.isDirectCdnUrl(sourceUrl)) {
+            return sourceUrl.trim();
         }
 
-        if (isDirectStreamUrl(sourceUrl)) {
-            return K1PlaybackHelper.optimizePlaybackUrl(sourceUrl);
+        if (sharedPref != null && sharedPref.isPortalSessionActive()) {
+            if (PlaylistPortalHelper.isPortalResolveUrl(sourceUrl)
+                    || PlaylistPortalHelper.isUpstreamStreamUrl(sourceUrl)
+                    || K1PlaybackHelper.isK1ProxyUrl(sourceUrl)) {
+                String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, sourceUrl);
+                if (!TextUtils.isEmpty(direct) && PortalResolveHelper.isDirectCdnUrl(direct)) {
+                    return direct;
+                }
+            }
         }
 
         if (!TextUtils.isEmpty(k1Slug)) {
             String portalUrl = K1ChannelUrlHelper.resolvePlayableUrl(sharedPref, k1Slug);
             if (!TextUtils.isEmpty(portalUrl)) {
+                if (PortalResolveHelper.isDirectCdnUrl(portalUrl)) {
+                    return portalUrl;
+                }
+                String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, portalUrl);
+                if (!TextUtils.isEmpty(direct)) {
+                    return direct;
+                }
                 return portalUrl;
             }
         }
 
-        return K1PlaybackHelper.optimizePlaybackUrl(resolveForPlayback(sharedPref, sourceUrl));
+        String resolved = resolveForPlayback(sharedPref, sourceUrl);
+        if (!TextUtils.isEmpty(resolved) && PortalResolveHelper.isDirectCdnUrl(resolved)) {
+            return resolved;
+        }
+        if (!TextUtils.isEmpty(resolved)) {
+            String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, resolved);
+            if (!TextUtils.isEmpty(direct)) {
+                return direct;
+            }
+            return resolved;
+        }
+        return sourceUrl.trim();
     }
 
     public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl) {
@@ -83,20 +88,6 @@ public final class StreamPlaybackHelper {
 
     public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl, String k1Slug) {
         return resolvePlaybackUrl(sharedPref, sourceUrl, k1Slug);
-    }
-
-    private static boolean isDirectStreamUrl(String url) {
-        String lower = url.toLowerCase(Locale.US);
-        if (lower.contains("/channel-proxy/")
-                || lower.contains("/channel/")
-                || lower.contains("/proxy/")
-                || lower.contains("/r/")) {
-            return true;
-        }
-        return lower.contains(".m3u8")
-                || lower.contains(".mpd")
-                || lower.startsWith("rtsp://")
-                || lower.startsWith("rtmp://");
     }
 
     public static DefaultHttpDataSource.Factory configureHttpFactory(DefaultHttpDataSource.Factory factory) {

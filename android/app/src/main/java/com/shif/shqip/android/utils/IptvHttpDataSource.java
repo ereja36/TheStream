@@ -17,8 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Portal playlist/auth on playlist.shifshqip.com; video streams redirect to
- * shifshqip.com channel-proxy and play directly from the source CDN.
+ * Portal auth on playlist.shifshqip.com; resolved streams play directly from CDN.
  */
 @SuppressWarnings("deprecation")
 public final class IptvHttpDataSource implements HttpDataSource {

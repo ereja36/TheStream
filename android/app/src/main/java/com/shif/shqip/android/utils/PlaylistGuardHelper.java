@@ -83,9 +83,7 @@ public final class PlaylistGuardHelper {
                     || isUpstreamSegmentUrl(requestUrl)) {
                 return PlaylistPortalHelper.buildPortalStreamRule(sharedPref);
             }
-            return null;
-        }
-        if (PlaylistPortalHelper.isPortalUrl(requestUrl)) {
+        } else if (PlaylistPortalHelper.isPortalUrl(requestUrl)) {
             return null;
         }
         if (PlaylistPortalHelper.isPortalStreamUrl(requestUrl, sharedPref)) {
@@ -217,13 +215,16 @@ public final class PlaylistGuardHelper {
         }
         if (sharedPref != null && sharedPref.isPortalSessionActive()) {
             if (PlaylistPortalHelper.isPortalResolveUrl(urlString)) {
-                return urlString;
+                return PortalResolveHelper.resolveToDirectUrl(sharedPref, urlString);
             }
             if (PlaylistPortalHelper.isUpstreamStreamUrl(urlString)
-                    || PlaylistPortalHelper.isPortalStreamEndpoint(urlString)) {
+                    || K1PlaybackHelper.isK1ProxyUrl(urlString)) {
+                String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, urlString);
+                return TextUtils.isEmpty(direct) ? urlString : direct;
+            }
+            if (PortalResolveHelper.isDirectCdnUrl(urlString)) {
                 return urlString;
             }
-            return "";
         }
         try {
             return resolvePlaybackUrl(sharedPref, urlString);
@@ -521,11 +522,7 @@ public final class PlaylistGuardHelper {
     }
 
     private static boolean isFinalChannelUrl(String url) {
-        if (TextUtils.isEmpty(url)) {
-            return false;
-        }
-        String lower = url.toLowerCase(Locale.US);
-        return lower.contains("/channel/") || lower.contains("/channel-proxy/") || lower.contains("/proxy/");
+        return PortalResolveHelper.isDirectCdnUrl(url);
     }
 
     private static boolean isDirectStreamUrl(String url) {

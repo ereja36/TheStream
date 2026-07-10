@@ -67,9 +67,19 @@ final class PortalService
             'x_device_id' => isset($_SERVER['HTTP_X_DEVICE_ID']) ? $_SERVER['HTTP_X_DEVICE_ID'] : '',
             'x_shif_stream_proxy' => isset($_SERVER['HTTP_X_SHIF_STREAM_PROXY']) ? $_SERVER['HTTP_X_SHIF_STREAM_PROXY'] : '',
             'x_shif_timestamp' => isset($_SERVER['HTTP_X_SHIF_TIMESTAMP']) ? $_SERVER['HTTP_X_SHIF_TIMESTAMP'] : '',
-            'x_shif_signature' => isset($_SERVER['HTTP_X_SHIF_SIGNATURE']) ? $_SERVER['HTTP_X_SHIF_SIGNATURE'] : ''
+            'x_shif_signature' => isset($_SERVER['HTTP_X_SHIF_SIGNATURE']) ? $_SERVER['HTTP_X_SHIF_SIGNATURE'] : '',
+            'x_shif_resolve' => isset($_SERVER['HTTP_X_SHIF_RESOLVE']) ? $_SERVER['HTTP_X_SHIF_RESOLVE'] : ''
         );
         return $headers;
+    }
+
+    public static function wantsDirectResolve($headers)
+    {
+        if (!is_array($headers)) {
+            return false;
+        }
+        $mode = isset($headers['x_shif_resolve']) ? strtolower(trim((string) $headers['x_shif_resolve'])) : '';
+        return $mode === 'direct';
     }
 
     public static function isBrowserClient($headers)
@@ -194,18 +204,125 @@ final class PortalService
     }
 
     /**
-     * Match k1 web player: use channel-proxy URLs instead of direct /channel/.
+     * Keep upstream URLs unchanged — video must not be forced through channel-proxy.
      */
     public static function optimizeK1PlaybackUrl($url)
     {
+        return trim((string) $url);
+    }
+
+    public static function isOurInfrastructureUrl($url)
+    {
+        $lower = strtolower(trim((string) $url));
+        if ($lower === '') {
+            return false;
+        }
+        if (strpos($lower, 'playlist.shifshqip.com') !== false) {
+            return true;
+        }
+        if (strpos($lower, 'shifshqip.com') === false) {
+            return false;
+        }
+        return strpos($lower, '/k1/channel-proxy/') !== false
+            || strpos($lower, '/k1/proxy/') !== false
+            || strpos($lower, '/k1/channel/') !== false
+            || strpos($lower, '/k1/playlist/') !== false
+            || strpos($lower, '/app-measurement/collect/') !== false;
+    }
+
+    public static function isDirectCdnUrl($url)
+    {
         $url = trim((string) $url);
-        if ($url === '') {
+        if ($url === '' || !preg_match('#^https?://#i', $url)) {
+            return false;
+        }
+        if (self::isOurInfrastructureUrl($url)) {
+            return false;
+        }
+        $lower = strtolower($url);
+        if (strpos($lower, '.m3u8') !== false || strpos($lower, '.mpd') !== false || strpos($lower, '.m3u') !== false) {
+            return true;
+        }
+        if (preg_match('#^https?://[^/]+:\d+/.+#i', $url)) {
+            return true;
+        }
+        return strpos($lower, '/live/') !== false || strpos($lower, '/hls/') !== false;
+    }
+
+    /**
+     * Resolve once on the portal server; client streams directly from the CDN afterward.
+     */
+    public static function resolveToDirectCdnUrl($portal, $url, $depth = 0)
+    {
+        $url = trim((string) $url);
+        if ($url === '' || $depth > 10) {
+            return '';
+        }
+        if (self::isDirectCdnUrl($url)) {
             return $url;
         }
-        if (strpos($url, '/k1/channel/') !== false && strpos($url, '/k1/channel-proxy/') === false) {
-            return str_replace('/k1/channel/', '/k1/channel-proxy/', $url);
+        if (self::isK1ChannelProxyUrl($url)
+            || (strpos(strtolower($url), '/k1/channel/') !== false && strpos(strtolower($url), 'shifshqip.com') !== false)) {
+            $direct = self::unwrapProxyManifest($portal, $url);
+            if ($direct !== '') {
+                return $direct;
+            }
         }
-        return $url;
+        if (self::isK1PlaylistEntryUrl($url) || strpos(strtolower($url), '/k1/channel/') !== false) {
+            $resolved = self::resolveStreamEntryUrl($portal, $url);
+            if ($resolved !== '' && strcasecmp($resolved, $url) !== 0) {
+                return self::resolveToDirectCdnUrl($portal, $resolved, $depth + 1);
+            }
+        }
+        if (!preg_match('#^https?://#i', $url)) {
+            return '';
+        }
+        $resolved = self::resolveStreamEntryUrl($portal, $url);
+        if ($resolved !== '' && strcasecmp($resolved, $url) !== 0) {
+            return self::resolveToDirectCdnUrl($portal, $resolved, $depth + 1);
+        }
+        return self::isDirectCdnUrl($url) ? $url : '';
+    }
+
+    public static function unwrapProxyManifest($portal, $proxyUrl)
+    {
+        $proxyUrl = trim((string) $proxyUrl);
+        if ($proxyUrl === '') {
+            return '';
+        }
+        $upstream = self::fetchUpstream($portal, $proxyUrl);
+        if (!$upstream['ok'] || empty($upstream['body'])) {
+            return '';
+        }
+        $body = (string) $upstream['body'];
+        if (stripos($body, '#EXTM3U') === false) {
+            $json = json_decode($body, true);
+            if (is_array($json)) {
+                foreach (array('direct_url', 'upstream_url', 'cdn_url', 'stream_url', 'url') as $key) {
+                    if (!empty($json[$key]) && self::isDirectCdnUrl($json[$key])) {
+                        return trim((string) $json[$key]);
+                    }
+                }
+            }
+            return '';
+        }
+        foreach (preg_split('/\r?\n/', $body) as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#') {
+                continue;
+            }
+            $candidate = self::resolveRelativeUrl($line, $proxyUrl);
+            if (self::isDirectCdnUrl($candidate)) {
+                return $candidate;
+            }
+            if (strpos(strtolower($candidate), '.m3u8') !== false && !self::isOurInfrastructureUrl($candidate)) {
+                $nested = self::resolveToDirectCdnUrl($portal, $candidate, 1);
+                if ($nested !== '') {
+                    return $nested;
+                }
+            }
+        }
+        return '';
     }
 
     /**
@@ -227,9 +344,12 @@ final class PortalService
         if (!is_array($json) || empty($json['ok'])) {
             return '';
         }
-        $url = isset($json['url']) ? trim((string) $json['url']) : '';
-        if ($url === '' && !empty($json['proxy_url'])) {
-            $url = trim((string) $json['proxy_url']);
+        $url = '';
+        foreach (array('direct_url', 'upstream_url', 'cdn_url', 'url', 'proxy_url') as $key) {
+            if (!empty($json[$key])) {
+                $url = trim((string) $json[$key]);
+                break;
+            }
         }
         if ($url === '') {
             return '';
@@ -237,7 +357,8 @@ final class PortalService
         if ($url[0] === '/') {
             $url = 'https://shifshqip.com' . $url;
         }
-        return self::resolvePlaybackRedirectUrl($portal, $url);
+        $direct = self::resolveToDirectCdnUrl($portal, $url);
+        return $direct !== '' ? $direct : self::resolvePlaybackRedirectUrl($portal, $url);
     }
 
     public static function isK1ChannelProxyUrl($url)
@@ -253,7 +374,7 @@ final class PortalService
     }
 
     /**
-     * Resolve playlist entry URLs to channel-proxy; pass channel-proxy through.
+     * Resolve playlist entry URLs to a direct CDN stream URL when possible.
      */
     public static function resolvePlaybackRedirectUrl($portal, $url)
     {
@@ -261,15 +382,9 @@ final class PortalService
         if ($url === '' || !preg_match('#^https?://#i', $url)) {
             return '';
         }
-        $url = self::optimizeK1PlaybackUrl($url);
-        if (self::isK1ChannelProxyUrl($url)) {
-            return $url;
-        }
-        if (self::isK1PlaylistEntryUrl($url) || strpos(strtolower($url), '/k1/channel/') !== false) {
-            $resolved = self::resolveStreamEntryUrl($portal, $url);
-            if ($resolved !== '') {
-                return $resolved;
-            }
+        $direct = self::resolveToDirectCdnUrl($portal, $url);
+        if ($direct !== '') {
+            return $direct;
         }
         return $url;
     }
@@ -291,10 +406,6 @@ final class PortalService
         if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
             return '';
         }
-        if (self::isK1ChannelProxyUrl($entryUrl)) {
-            return self::optimizeK1PlaybackUrl($entryUrl);
-        }
-
         $referer = !empty($portal['outbound_referer']) ? $portal['outbound_referer'] : '';
         if ($referer === '' && !empty($portal['source_url'])) {
             $referer = $portal['source_url'];
@@ -349,11 +460,11 @@ final class PortalService
         curl_close($ch);
 
         if ($status >= 300 && $status < 400 && $redirectLocation !== '') {
-            return self::optimizeK1PlaybackUrl(self::resolveRelativeUrl($redirectLocation, $entryUrl));
+            return self::resolveRelativeUrl($redirectLocation, $entryUrl);
         }
 
         if (preg_match('#Redirecting to\s+(/[^\s"\'<>]+)#i', (string) $body, $matches)) {
-            return self::optimizeK1PlaybackUrl(self::resolveRelativeUrl($matches[1], $entryUrl));
+            return self::resolveRelativeUrl($matches[1], $entryUrl);
         }
 
         return '';
