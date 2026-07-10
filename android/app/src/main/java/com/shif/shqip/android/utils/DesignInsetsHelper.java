@@ -36,14 +36,20 @@ public final class DesignInsetsHelper {
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             if (topBar != null) {
-                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) topBar.getLayoutParams();
-                lp.topMargin = bars.top + extraTopDp;
-                topBar.setLayoutParams(lp);
+                ViewGroup.LayoutParams rawTop = topBar.getLayoutParams();
+                if (rawTop instanceof ViewGroup.MarginLayoutParams) {
+                    ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) rawTop;
+                    lp.topMargin = bars.top + extraTopDp;
+                    topBar.setLayoutParams(lp);
+                }
             }
             if (bottomBar != null) {
-                ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) bottomBar.getLayoutParams();
-                lp.bottomMargin = bars.bottom + extraBottomDp;
-                bottomBar.setLayoutParams(lp);
+                ViewGroup.LayoutParams rawBottom = bottomBar.getLayoutParams();
+                if (rawBottom instanceof ViewGroup.MarginLayoutParams) {
+                    ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) rawBottom;
+                    lp.bottomMargin = bars.bottom + extraBottomDp;
+                    bottomBar.setLayoutParams(lp);
+                }
             }
             bringChromeToFront(topBar, bottomBar);
             return insets;

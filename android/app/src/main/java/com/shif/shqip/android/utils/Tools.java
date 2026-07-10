@@ -131,7 +131,14 @@ public class Tools {
     }
 
     public static void applyDesignSystemBars(Activity activity, boolean lightBars) {
-        int bgColor = ContextCompat.getColor(activity, R.color.v2_bg);
+        SharedPref sharedPref = new SharedPref(activity);
+        int bgColor;
+        String designId = sharedPref.getDesignId();
+        if ("v3".equals(designId)) {
+            bgColor = ContextCompat.getColor(activity, R.color.v3_surface);
+        } else {
+            bgColor = ContextCompat.getColor(activity, R.color.v2_bg);
+        }
         activity.getWindow().setStatusBarColor(bgColor);
         activity.getWindow().setNavigationBarColor(bgColor);
         WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView())

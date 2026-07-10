@@ -64,7 +64,7 @@ public class ActivityMainV3 extends AppCompatActivity {
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
         setContentView(R.layout.activity_main_v3);
-        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_nav);
+        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_container);
 
         overlayContainer = findViewById(R.id.overlay_container);
         scrollContent = findViewById(R.id.scroll_home);
@@ -175,7 +175,7 @@ public class ActivityMainV3 extends AppCompatActivity {
             getSupportFragmentManager()
                     .beginTransaction()
                     .replace(R.id.overlay_container, new FragmentFavorite(), TAG_FAVORITES)
-                    .commit();
+                    .commitAllowingStateLoss();
         }
     }
 
@@ -204,17 +204,20 @@ public class ActivityMainV3 extends AppCompatActivity {
     }
 
     private void applyChannels(List<Channel> channels) {
-        List<Channel> list = channels == null ? new ArrayList<>() : channels;
+        List<Channel> list = channels == null ? new ArrayList<>() : new ArrayList<>(channels);
         if (list.isEmpty()) {
             showEmpty();
             return;
         }
         emptyMessage.setVisibility(View.GONE);
         int featuredCount = Math.min(8, list.size());
-        featuredAdapter.setItems(list.subList(0, featuredCount));
-        gridAdapter.setItems(list);
+        featuredAdapter.setItems(new ArrayList<>(list.subList(0, featuredCount)));
+        int gridLimit = Math.min(36, list.size());
+        gridAdapter.setItems(new ArrayList<>(list.subList(0, gridLimit)));
         TextView subtitle = findViewById(R.id.v3_subtitle);
-        subtitle.setText(list.size() + " channels ready to stream");
+        if (subtitle != null) {
+            subtitle.setText(list.size() + " channels ready to stream");
+        }
     }
 
     private void showEmpty() {

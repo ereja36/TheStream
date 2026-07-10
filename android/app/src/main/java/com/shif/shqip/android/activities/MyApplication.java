@@ -12,6 +12,7 @@ import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.utils.Tools;
+import com.shif.shqip.android.utils.AppOpenAdLifecycle;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -26,6 +27,7 @@ public class MyApplication extends Application {
     AdsPref adsPref;
     SharedPref sharedPref;
     private boolean resumeAppOpenReady;
+    private AppOpenAdLifecycle appOpenAdLifecycle;
 
     @Override
     public void onCreate() {
@@ -43,6 +45,12 @@ public class MyApplication extends Application {
             initNotification();
         } catch (Exception e) {
             Log.e(TAG, "initNotification failed", e);
+        }
+        try {
+            appOpenAdLifecycle = new AppOpenAdLifecycle(this);
+            appOpenAdLifecycle.register();
+        } catch (Exception e) {
+            Log.e(TAG, "appOpenAdLifecycle failed", e);
         }
     }
 

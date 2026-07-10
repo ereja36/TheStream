@@ -414,17 +414,30 @@ public class ActivitySplash extends AppCompatActivity {
         if (mainStarted || isFinishing()) {
             return;
         }
-        mainStarted = true;
-        MyApplication.getInstance().markResumeAppOpenReady();
-        InboxNotificationHelper.pollAndShow(this, sharedPref);
-        Intent intent;
-        if (sharedPref.hasPlaylistChannels()) {
-            intent = DesignRouter.getMainActivityIntent(getApplicationContext());
+        Runnable launch = () -> {
+            if (mainStarted || isFinishing()) {
+                return;
+            }
+            mainStarted = true;
+            MyApplication.getInstance().markResumeAppOpenReady();
+            InboxNotificationHelper.pollAndShow(this, sharedPref);
+            Intent intent;
+            if (sharedPref.hasPlaylistChannels()) {
+                intent = DesignRouter.getMainActivityIntent(getApplicationContext());
+            } else {
+                intent = new Intent(getApplicationContext(), ActivityPlaylistSetup.class);
+            }
+            startActivity(intent);
+            finish();
+        };
+        if (adsPref.getAdStatus() && adsPref.getAppOpenOnStart()) {
+            adsManager.loadAppOpenAd(true, true, () -> {
+                AppOpenAd.isAppOpenAdLoaded = false;
+                launch.run();
+            });
         } else {
-            intent = new Intent(getApplicationContext(), ActivityPlaylistSetup.class);
+            launch.run();
         }
-        startActivity(intent);
-        finish();
     }
 
     @Override
