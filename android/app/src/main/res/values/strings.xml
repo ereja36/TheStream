@@ -3,7 +3,7 @@
 
     <!--application name-->
     <string name="app_name">Shif Shqip</string>
-    <string name="app_copyright">Copyright &#169; 2026 Shif Shqip\nTë gjitha të drejtat e rezervuara</string>
+    <string name="app_copyright">Copyright &#169; 2026 Shif Shqip\nAll rights reserved</string>
     <string name="email_feedback_report">shifshqip@gmail.com</string>
 
     <!--share-->
@@ -134,17 +134,19 @@
     <string name="msg_do_not_show">Don\'t show it again</string>
 
     <!--playlist setup-->
-    <string name="playlist_setup_title">Shto Playlist</string>
-    <string name="playlist_setup_subtitle">Vendos burimin IPTV për të filluar shikimin. Mund të përdorësh URL M3U, skedar lokal, ose URL direkte stream.</string>
-    <string name="playlist_setup_note">Këshillë: Aplikacioni importon të gjitha kanalet nga M3U. Lidhjet portal zgjidhen automatikisht.</string>
-    <string name="playlist_device_id_label">ID e Pajisjes</string>
-    <string name="playlist_copy_device_id">Kopjo ID-në</string>
-    <string name="playlist_add">Shto Playlist</string>
-    <string name="playlist_open_file">Hap Skedarin</string>
+    <string name="playlist_setup_title">Add Playlist</string>
+    <string name="playlist_setup_subtitle">Set your IPTV source to start watching. You can use an M3U URL, local file, or direct stream URL.</string>
+    <string name="playlist_setup_note">Tip: The app imports all channels from M3U. Portal links are resolved automatically.</string>
+    <string name="playlist_device_id_label">Device ID</string>
+    <string name="playlist_copy_device_id">Copy ID</string>
+    <string name="playlist_add">Add Playlist</string>
+    <string name="playlist_open_file">Open File</string>
     <string name="playlist_add_xtream">Xtream Codes</string>
-    <string name="playlist_play_url">Luaj URL</string>
-    <string name="playlist_setup_note_short">Importo kanalet nga M3U, Xtream ose skedar lokal.</string>
-    <string name="playlist_managed_by_admin">Playlista juaj menaxhohet nga administratori. Burimi i listës nuk shfaqet në aplikacion.</string>
+    <string name="playlist_play_url">Play URL</string>
+    <string name="playlist_setup_note_short">Import channels from M3U, Xtream, or a local file.</string>
+    <string name="playlist_managed_by_admin">Your playlist is managed by the administrator. The playlist source is hidden in the app.</string>
+    <string name="player_mute">Mute preview</string>
+    <string name="player_unmute">Unmute preview</string>
     <string name="player_epg_button">EPG</string>
     <string name="player_rotate_sensor">Auto rotate</string>
     <string name="playlist_manage_title">Manage Playlists</string>
@@ -169,21 +171,21 @@
     <string name="playlist_play_url_dialog_message">Paste a direct stream URL (m3u8, mpd, mp4, etc).</string>
     <string name="playlist_xtream_dialog_message">Enter Xtream server URL, username and password.</string>
     <string name="playlist_website_dialog_message">Paste website/portal URL for device-based playlist lookup.</string>
-    <string name="playlist_loading">Duke ngarkuar playlistën...</string>
-    <string name="playlist_saved">Playlista u ruajt me sukses</string>
-    <string name="playlist_device_id_copied">ID e pajisjes u kopjua</string>
-    <string name="playlist_error_empty_url">Ju lutem vendosni një URL të vlefshme</string>
-    <string name="playlist_error_invalid_file">Format playliste ose skedar i pavlefshëm</string>
-    <string name="playlist_error_download">Dështoi shkarkimi i playlistës</string>
-    <string name="playlist_error_xtream_fields">Vendos serverin, përdoruesin dhe fjalëkalimin</string>
-    <string name="playlist_error_no_new_channels">Nuk u gjetën kanale të reja nga ky burim</string>
-    <string name="playlist_error_portal_empty">Nuk ka playlist për këtë pajisje ende. ID: %1$s</string>
-    <string name="playlist_error_device_banned">Kjo pajisje është bllokuar. %1$s</string>
-    <string name="playlist_sync_required">Playlista nuk u lidh me panelin e serverit.</string>
-    <string name="device_blocked_title">Pajisja e Bllokuar</string>
-    <string name="integrity_blocked_title">Aplikacioni nuk mund të hapet</string>
-    <string name="integrity_blocked_message">Ky version i aplikacionit nuk është i autorizuar. Shkarko versionin zyrtar nga shifshqip.com.</string>
-    <string name="device_blocked_message">Kjo pajisje është bllokuar nga paneli.\n\nArsyeja: %1$s</string>
+    <string name="playlist_loading">Loading playlist...</string>
+    <string name="playlist_saved">Playlist saved successfully</string>
+    <string name="playlist_device_id_copied">Device ID copied</string>
+    <string name="playlist_error_empty_url">Please enter a valid URL</string>
+    <string name="playlist_error_invalid_file">Invalid playlist format or file</string>
+    <string name="playlist_error_download">Failed to download playlist</string>
+    <string name="playlist_error_xtream_fields">Enter server, username and password</string>
+    <string name="playlist_error_no_new_channels">No new channels found from this source</string>
+    <string name="playlist_error_portal_empty">No playlist for this device yet. ID: %1$s</string>
+    <string name="playlist_error_device_banned">This device is blocked. %1$s</string>
+    <string name="playlist_sync_required">Playlist was not linked to the server panel.</string>
+    <string name="device_blocked_title">Device Blocked</string>
+    <string name="integrity_blocked_title">App cannot open</string>
+    <string name="integrity_blocked_message">This app version is not authorized. Download the official release from shifshqip.com.</string>
+    <string name="device_blocked_message">This device has been blocked by the admin panel.\n\nReason: %1$s</string>
     <string name="popup_open_link">Open Link</string>
     <string name="popup_close">Close</string>
     <string name="epg_now_format">Now: %1$s</string>

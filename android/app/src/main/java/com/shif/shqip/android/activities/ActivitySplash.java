@@ -78,7 +78,7 @@ public class ActivitySplash extends AppCompatActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Tools.transparentStatusBarNavigation(ActivitySplash.this);
+        Tools.getDesignTheme(this);
         setContentView(R.layout.activity_splash);
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);

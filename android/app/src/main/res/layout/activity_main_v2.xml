@@ -21,7 +21,7 @@
             <FrameLayout
                 android:id="@+id/hero_container"
                 android:layout_width="match_parent"
-                android:layout_height="280dp">
+                android:layout_height="300dp">
 
                 <ImageView
                     android:id="@+id/hero_image"
@@ -44,7 +44,22 @@
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:background="@drawable/bg_v2_hero_gradient" />
+                    android:background="@drawable/bg_v2_hero_gradient"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <ImageButton
+                    android:id="@+id/btn_hero_mute"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_gravity="top|end"
+                    android:layout_margin="16dp"
+                    android:background="@drawable/bg_v2_glass_nav_pill"
+                    android:contentDescription="@string/player_mute"
+                    android:padding="8dp"
+                    android:src="@android:drawable/ic_lock_silent_mode"
+                    android:tint="@color/color_white"
+                    android:visibility="gone" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -116,7 +131,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_margin="16dp"
-                android:background="@drawable/bg_v2_category_header"
+                android:background="@drawable/bg_v2_glass_panel"
                 android:orientation="vertical"
                 android:padding="18dp">
 
@@ -180,7 +195,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_marginEnd="12dp"
-        android:background="@drawable/bg_v2_nav_pill"
+        android:background="@drawable/bg_v2_glass_nav_pill"
         android:elevation="24dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
@@ -238,7 +253,7 @@
         android:layout_width="wrap_content"
         android:layout_height="56dp"
         android:layout_gravity="bottom|center_horizontal"
-        android:background="@drawable/bg_v2_nav_pill"
+        android:background="@drawable/bg_v2_glass_nav_pill"
         android:elevation="24dp"
         android:gravity="center"
         android:orientation="horizontal"

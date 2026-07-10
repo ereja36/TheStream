@@ -106,7 +106,10 @@ public class Tools {
         } else {
             context.setTheme(R.style.AppTheme);
         }
-        EdgeToEdge.enable((ComponentActivity) context);
+        if (context instanceof ComponentActivity) {
+            ComponentActivity activity = (ComponentActivity) context;
+            WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), true);
+        }
     }
 
     public static void getDesignTheme(Context context) {

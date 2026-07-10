@@ -80,6 +80,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     private AdsManager adsManager;
     private AdsAntiblockHelper adsAntiblockHelper;
     private boolean allChannelsNativeBound;
+    private boolean heroMuted = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,11 +91,14 @@ public class ActivityMainV2 extends AppCompatActivity {
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
         setContentView(R.layout.activity_main_v2);
-        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_container);
+        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_container,
+                R.id.scroll_home, R.id.bottom_nav_pill);
 
         categorySections = findViewById(R.id.category_sections);
         emptyMessage = findViewById(R.id.empty_message);
         overlayContainer = findViewById(R.id.overlay_container);
+        overlayContainer.setClickable(false);
+        overlayContainer.setFocusable(false);
         scrollHome = findViewById(R.id.scroll_home);
         heroPreview = findViewById(R.id.hero_preview);
 
@@ -214,7 +218,8 @@ public class ActivityMainV2 extends AppCompatActivity {
     private void bringChromeToFront() {
         View topActions = findViewById(R.id.top_actions);
         View bottomNav = findViewById(R.id.bottom_nav_pill);
-        DesignInsetsHelper.bringChromeToFront(topActions, bottomNav);
+        View bottomContainer = findViewById(R.id.bottom_container);
+        DesignInsetsHelper.bringChromeToFront(topActions, bottomContainer, bottomNav);
     }
 
     private void loadChannels() {
@@ -281,6 +286,43 @@ public class ActivityMainV2 extends AppCompatActivity {
         watchButton.setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         findViewById(R.id.hero_container).setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
         loadHeroEpg(channel, heroEpg);
+        setupHeroMuteButton();
+        scheduleHeroPreview(channel);
+    }
+
+    private void setupHeroMuteButton() {
+        ImageButton muteButton = findViewById(R.id.btn_hero_mute);
+        if (muteButton == null) {
+            return;
+        }
+        muteButton.setOnClickListener(v -> {
+            heroMuted = !heroMuted;
+            if (heroPlayer != null) {
+                heroPlayer.setVolume(heroMuted ? 0f : 1f);
+            }
+            muteButton.setImageResource(heroMuted
+                    ? android.R.drawable.ic_lock_silent_mode
+                    : android.R.drawable.ic_lock_silent_mode_off);
+        });
+    }
+
+    private void scheduleHeroPreview(Channel channel) {
+        heroExecutor.execute(() -> {
+            try {
+                Thread.sleep(600);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (isFinishing()) {
+                return;
+            }
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed()) {
+                    startHeroPreview(channel);
+                }
+            });
+        });
     }
 
     private void startHeroPreview(Channel channel) {
@@ -312,7 +354,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         }
         try {
             heroPlayer = IptvPlayerHelper.createPlayer(this);
-            heroPlayer.setVolume(0f);
+            heroPlayer.setVolume(heroMuted ? 0f : 1f);
             heroPreview.setPlayer(heroPlayer);
             heroPreview.setUseController(false);
 
@@ -324,6 +366,10 @@ public class ActivityMainV2 extends AppCompatActivity {
             heroPlayer.setPlayWhenReady(true);
             heroPreview.setVisibility(View.VISIBLE);
             findViewById(R.id.hero_image).setVisibility(View.GONE);
+            ImageButton muteButton = findViewById(R.id.btn_hero_mute);
+            if (muteButton != null) {
+                muteButton.setVisibility(View.VISIBLE);
+            }
             bringChromeToFront();
         } catch (Exception ignored) {
             releaseHeroPreview();
@@ -357,6 +403,10 @@ public class ActivityMainV2 extends AppCompatActivity {
         }
         if (heroPreview != null) {
             heroPreview.setVisibility(View.GONE);
+        }
+        ImageButton muteButton = findViewById(R.id.btn_hero_mute);
+        if (muteButton != null) {
+            muteButton.setVisibility(View.GONE);
         }
     }
 
@@ -410,6 +460,7 @@ public class ActivityMainV2 extends AppCompatActivity {
             AdapterChannelCardV2 adapter = new AdapterChannelCardV2(this);
             adapter.setOnChannelClickListener(channel -> Tools.startPlayer(this, recyclerView, channel));
             recyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+            recyclerView.setNestedScrollingEnabled(false);
             recyclerView.setNestedScrollingEnabled(false);
             recyclerView.setAdapter(adapter);
             adapter.setItems(categoryChannels);
