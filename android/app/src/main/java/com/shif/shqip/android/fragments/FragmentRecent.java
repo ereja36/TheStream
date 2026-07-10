@@ -26,7 +26,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
-import com.shif.shqip.android.activities.ActivityChannelDetail;
 import com.shif.shqip.android.adapters.AdapterChannel;
 import com.shif.shqip.android.callbacks.CallbackChannel;
 import com.shif.shqip.android.databases.prefs.SharedPref;
@@ -35,11 +34,14 @@ import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.AdPlacementHelper;
+import com.shif.shqip.android.utils.PlaylistListHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.facebook.shimmer.ShimmerFrameLayout;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -60,6 +62,8 @@ public class FragmentRecent extends Fragment {
     private Activity activity;
     Tools tools;
     private long loadedPlaylistVersion = -1L;
+    private List<Channel> playlistSource = new ArrayList<>();
+    private final ExecutorService playlistExecutor = Executors.newSingleThreadExecutor();
 
     @Override
     public void onAttach(@NonNull Context context) {
@@ -102,9 +106,7 @@ public class FragmentRecent extends Fragment {
         recyclerView.setAdapter(adapterChannel);
 
         adapterChannel.setOnItemClickListener((v, obj, position) -> {
-            Intent intent = new Intent(activity, ActivityChannelDetail.class);
-            intent.putExtra(Constant.EXTRA_OBJC, obj);
-            startActivity(intent);
+            Tools.startPlayer(activity, v, obj);
             AdPlacementHelper.showInterstitialBeforeAction(activity);
             AdPlacementHelper.pauseHomeBanner(activity);
         });
@@ -119,6 +121,7 @@ public class FragmentRecent extends Fragment {
         swipeRefreshLayout.setOnRefreshListener(() -> {
             if (callbackCall != null && callbackCall.isExecuted()) callbackCall.cancel();
             adapterChannel.resetListData();
+            playlistSource.clear();
             requestAction(1);
         });
 
@@ -149,12 +152,7 @@ public class FragmentRecent extends Fragment {
     }
 
     public void setLoadMore(int current_page) {
-        if (sharedPref.hasPlaylistChannels()) {
-            adapterChannel.setLoaded();
-            return;
-        }
         Log.d("page", "currentPage: " + current_page);
-        // Assuming final total items equal to real post items plus the ad
         int totalItemBeforeAds = (adapterChannel.getItemCount() - current_page);
         if (post_total > totalItemBeforeAds && current_page != 0) {
             int next_page = current_page + 1;
@@ -226,25 +224,57 @@ public class FragmentRecent extends Fragment {
     }
 
     private void requestPlaylistChannels(final int page_no) {
-        if (page_no > 1) {
-            adapterChannel.setLoaded();
-            return;
-        }
         showFailedView(false, "");
         showNoItemView(false);
-        swipeProgress(true);
-        recyclerView.post(() -> {
-            List<Channel> playlistChannels = sharedPref.getPlaylistChannels();
-            post_total = playlistChannels.size();
-            if (playlistChannels.isEmpty()) {
-                adapterChannel.setLoaded();
-                swipeProgress(false);
-                showNoItemView(true);
+        if (page_no == 1) {
+            swipeProgress(true);
+            if (playlistSource.isEmpty()) {
+                playlistExecutor.execute(() -> {
+                    List<Channel> loaded = sharedPref.getPlaylistChannels();
+                    List<Channel> snapshot = loaded == null ? new ArrayList<>() : new ArrayList<>(loaded);
+                    if (!isAdded()) {
+                        return;
+                    }
+                    activity.runOnUiThread(() -> {
+                        if (!isAdded()) {
+                            return;
+                        }
+                        playlistSource = snapshot;
+                        post_total = playlistSource.size();
+                        if (playlistSource.isEmpty()) {
+                            adapterChannel.setLoaded();
+                            swipeProgress(false);
+                            showNoItemView(true);
+                            return;
+                        }
+                        deliverPlaylistPage(1);
+                        if (PlaylistListHelper.hasMorePages(playlistSource, 1)) {
+                            recyclerView.post(() -> deliverPlaylistPage(2));
+                        }
+                    });
+                });
                 return;
             }
-            displayApiResult(new ArrayList<>(playlistChannels));
+        } else if (page_no > 1) {
+            adapterChannel.setLoading();
+        }
+        deliverPlaylistPage(page_no);
+    }
+
+    private void deliverPlaylistPage(int pageNo) {
+        List<Channel> pageChannels = PlaylistListHelper.slicePage(playlistSource, pageNo);
+        if (pageChannels.isEmpty()) {
             adapterChannel.setLoaded();
-        });
+            swipeProgress(false);
+            if (pageNo == 1) {
+                showNoItemView(true);
+            }
+            return;
+        }
+        displayApiResult(pageChannels);
+        if (!PlaylistListHelper.hasMorePages(playlistSource, pageNo)) {
+            adapterChannel.setLoaded();
+        }
     }
 
     @Override
@@ -255,6 +285,7 @@ public class FragmentRecent extends Fragment {
             callbackCall.cancel();
         }
         lyt_shimmer.stopShimmer();
+        playlistExecutor.shutdownNow();
     }
 
     private void showFailedView(boolean show, String message) {

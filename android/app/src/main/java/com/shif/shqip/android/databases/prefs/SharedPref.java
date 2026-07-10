@@ -313,20 +313,33 @@ public class SharedPref {
         return playlistUrl != null && !playlistUrl.trim().isEmpty();
     }
 
+    private static List<Channel> playlistMemoryCache;
+    private static long playlistMemoryCacheVersion = -1L;
+
     public void savePlaylistChannels(List<Channel> channels) {
         Gson gson = new Gson();
         editor.putString(KEY_PLAYLIST_CHANNELS, gson.toJson(channels));
         bumpPlaylistDataVersion();
         editor.apply();
+        invalidatePlaylistMemoryCache();
     }
 
     public List<Channel> getPlaylistChannels() {
+        long version = getPlaylistDataVersion();
+        if (playlistMemoryCache != null && playlistMemoryCacheVersion == version) {
+            return playlistMemoryCache;
+        }
         Gson gson = new Gson();
         String json = sharedPreferences.getString(KEY_PLAYLIST_CHANNELS, null);
         Type type = new TypeToken<ArrayList<Channel>>() {
         }.getType();
         List<Channel> channels = gson.fromJson(json, type);
-        return channels == null ? new ArrayList<>() : channels;
+        if (channels == null) {
+            channels = new ArrayList<>();
+        }
+        playlistMemoryCache = channels;
+        playlistMemoryCacheVersion = version;
+        return playlistMemoryCache;
     }
 
     public boolean hasPlaylistChannels() {
@@ -337,6 +350,12 @@ public class SharedPref {
         editor.remove(KEY_PLAYLIST_CHANNELS);
         bumpPlaylistDataVersion();
         editor.apply();
+        invalidatePlaylistMemoryCache();
+    }
+
+    private static void invalidatePlaylistMemoryCache() {
+        playlistMemoryCache = null;
+        playlistMemoryCacheVersion = -1L;
     }
 
     public long getPlaylistDataVersion() {

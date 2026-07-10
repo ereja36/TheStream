@@ -202,8 +202,28 @@ public class ActivitySplash extends AppCompatActivity {
     }
 
     private void handleStartupState() {
-        startMainActivity();
-        startupExecutor.execute(this::syncPlaylistAndStartupPopupInBackground);
+        if (sharedPref.hasPlaylistChannels()) {
+            startMainActivity();
+            startupExecutor.execute(this::syncPlaylistAndStartupPopupInBackground);
+            return;
+        }
+        startupExecutor.execute(() -> {
+            try {
+                DeviceApiHelper.PlaylistSyncResult syncResult =
+                        DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
+                if (syncResult.blocked) {
+                    sharedPref.clearPlaylistChannels();
+                }
+            } catch (Exception ignored) {
+                // Continue with cached or empty playlist.
+            }
+            runOnUiThread(() -> {
+                if (!isFinishing() && !mainStarted) {
+                    startMainActivity();
+                }
+            });
+            syncStartupPopupInBackground();
+        });
     }
 
     private void syncPlaylistAndStartupPopupInBackground() {
@@ -216,11 +236,28 @@ public class ActivitySplash extends AppCompatActivity {
             adsPref.setDeviceNoAds(profile.noAds);
             adsPref.refreshEffectiveAdStatus();
             PlaylistGuardSession.refreshAsync(sharedPref);
-            DeviceApiHelper.PlaylistSyncResult playlistSync = DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
+            DeviceApiHelper.PlaylistSyncResult playlistSync =
+                    DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
             if (playlistSync.blocked) {
                 sharedPref.clearPlaylistChannels();
                 return;
             }
+        } catch (Exception ignored) {
+            // Keep cached playlist on sync errors.
+        }
+        syncStartupPopupInBackground();
+    }
+
+    private void syncStartupPopupInBackground() {
+        try {
+            DeviceApiHelper.DeviceProfile profile = DeviceApiHelper.fetchDeviceProfile(sharedPref, deviceId);
+            if (profile.blocked) {
+                sharedPref.clearPlaylistChannels();
+                return;
+            }
+            adsPref.setDeviceNoAds(profile.noAds);
+            adsPref.refreshEffectiveAdStatus();
+            PlaylistGuardSession.refreshAsync(sharedPref);
 
             DeviceApiHelper.PopupConfig popupConfig = DeviceApiHelper.fetchStartupPopup(sharedPref, deviceId);
             if (!popupConfig.enabled) {
@@ -239,7 +276,7 @@ public class ActivitySplash extends AppCompatActivity {
                 }
             });
         } catch (Exception ignored) {
-            // Startup should continue even if background sync fails.
+            // Popup is optional.
         }
     }
 

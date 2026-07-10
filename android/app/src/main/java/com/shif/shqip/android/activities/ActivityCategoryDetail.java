@@ -37,15 +37,20 @@ import com.shif.shqip.android.models.Category;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.CategoryAdsBootstrap;
 import com.shif.shqip.android.utils.CategoryDisplayHelper;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.PlaylistListHelper;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.facebook.shimmer.ShimmerFrameLayout;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -67,6 +72,8 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     CoordinatorLayout parent_view;
     Tools tools;
     OnBackPressedDispatcher onBackPressedDispatcher;
+    private List<Channel> playlistSource = new ArrayList<>();
+    private final ExecutorService playlistExecutor = Executors.newSingleThreadExecutor();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,11 +87,7 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         adsPref = new AdsPref(this);
 
         adsManager = new AdsManager(this);
-        adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
-        adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
-        adsManager.initializeAd();
-        adsManager.updateConsentStatus();
-        adsManager.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+        CategoryAdsBootstrap.init(this, adsManager, adsPref);
 
         category = (Category) getIntent().getSerializableExtra(Constant.EXTRA_OBJC);
         if (category == null) {
@@ -112,24 +115,19 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         if (sharedPref.hasPlaylistChannels()) {
             recyclerView.setLayoutManager(new StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL));
             recyclerView.setPadding(0, padding, 0, padding);
-            recyclerView.setItemViewCacheSize(32);
+            recyclerView.setItemViewCacheSize(24);
         } else if (sharedPref.getChannelViewType() == CHANNEL_LIST_DEFAULT) {
             recyclerView.setPadding(0, padding, 0, padding);
         } else {
             recyclerView.setPadding(padding, padding, padding, padding);
         }
 
-        //set data and list adapter
         adapterChannel = new AdapterChannel(this, recyclerView, new ArrayList<>());
         recyclerView.setAdapter(adapterChannel);
 
-        // on item list clicked
         adapterChannel.setOnItemClickListener((v, obj, position) -> {
-            Intent intent = new Intent(getApplicationContext(), ActivityChannelDetail.class);
-            intent.putExtra(Constant.EXTRA_OBJC, obj);
-            startActivity(intent);
-            adsManager.showInterstitialAd();
-            adsManager.destroyBannerAd();
+            Tools.startPlayer(ActivityCategoryDetail.this, v, obj);
+            AdPlacementHelper.showInterstitialBeforeAction(ActivityCategoryDetail.this);
         });
 
         adapterChannel.setOnItemOverflowClickListener((view, obj, position) -> {
@@ -137,13 +135,12 @@ public class ActivityCategoryDetail extends AppCompatActivity {
             });
         });
 
-        // detect when scroll reach bottom
         adapterChannel.setOnLoadMoreListener(this::setLoadMore);
 
-        // on swipe list
         swipeRefreshLayout.setOnRefreshListener(() -> {
             if (callbackCall != null && callbackCall.isExecuted()) callbackCall.cancel();
             adapterChannel.resetListData();
+            playlistSource.clear();
             requestAction(1);
         });
 
@@ -161,7 +158,6 @@ public class ActivityCategoryDetail extends AppCompatActivity {
 
         setupToolbar();
         handleOnBackPressed();
-
     }
 
     public void handleOnBackPressed() {
@@ -176,12 +172,7 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     }
 
     public void setLoadMore(int current_page) {
-        if (sharedPref.hasPlaylistChannels()) {
-            adapterChannel.setLoaded();
-            return;
-        }
         Log.d("page", "currentPage: " + current_page);
-        // Assuming final total items equal to real post items plus the ad
         int totalItemBeforeAds = (adapterChannel.getItemCount() - current_page);
         if (post_total > totalItemBeforeAds && current_page != 0) {
             int next_page = current_page + 1;
@@ -223,7 +214,7 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     private void displayApiResult(final List<Channel> channels) {
         adapterChannel.insertDataWithNativeAd(channels);
         swipeProgress(false);
-        if (channels.size() == 0) {
+        if (channels.isEmpty() && adapterChannel.getItemCount() == 0) {
             showNoItemView(true);
         }
     }
@@ -277,30 +268,59 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     }
 
     private void requestPlaylistChannels(final int page_no) {
-        if (page_no > 1) {
-            adapterChannel.setLoaded();
-            return;
-        }
         showFailedView(false, "");
         showNoItemView(false);
-        swipeProgress(true);
-        recyclerView.post(() -> {
-            List<Channel> playlistByCategory;
-            if (PlaylistNavigationHelper.isAllChannelsCategory(category)) {
-                playlistByCategory = sharedPref.getPlaylistChannels();
-            } else {
-                playlistByCategory = sharedPref.getPlaylistChannelsByCategory(category.category_name);
-            }
-            post_total = playlistByCategory.size();
-            if (playlistByCategory.isEmpty()) {
-                adapterChannel.setLoaded();
-                swipeProgress(false);
-                showNoItemView(true);
+        if (page_no == 1) {
+            swipeProgress(true);
+            if (playlistSource.isEmpty()) {
+                playlistExecutor.execute(() -> {
+                    List<Channel> loaded;
+                    if (PlaylistNavigationHelper.isAllChannelsCategory(category)) {
+                        loaded = sharedPref.getPlaylistChannels();
+                    } else {
+                        loaded = sharedPref.getPlaylistChannelsByCategory(category.category_name);
+                    }
+                    List<Channel> snapshot = loaded == null ? new ArrayList<>() : new ArrayList<>(loaded);
+                    runOnUiThread(() -> {
+                        if (isFinishing()) {
+                            return;
+                        }
+                        playlistSource = snapshot;
+                        post_total = playlistSource.size();
+                        if (playlistSource.isEmpty()) {
+                            adapterChannel.setLoaded();
+                            swipeProgress(false);
+                            showNoItemView(true);
+                            return;
+                        }
+                        deliverPlaylistPage(1);
+                        if (PlaylistListHelper.hasMorePages(playlistSource, 1)) {
+                            recyclerView.post(() -> deliverPlaylistPage(2));
+                        }
+                    });
+                });
                 return;
             }
-            displayApiResult(new ArrayList<>(playlistByCategory));
+        } else if (page_no > 1) {
+            adapterChannel.setLoading();
+        }
+        deliverPlaylistPage(page_no);
+    }
+
+    private void deliverPlaylistPage(int pageNo) {
+        List<Channel> pageChannels = PlaylistListHelper.slicePage(playlistSource, pageNo);
+        if (pageChannels.isEmpty()) {
             adapterChannel.setLoaded();
-        });
+            swipeProgress(false);
+            if (pageNo == 1) {
+                showNoItemView(true);
+            }
+            return;
+        }
+        displayApiResult(pageChannels);
+        if (!PlaylistListHelper.hasMorePages(playlistSource, pageNo)) {
+            adapterChannel.setLoaded();
+        }
     }
 
     private void showFailedView(boolean show, String message) {
@@ -376,6 +396,7 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         }
         lyt_shimmer.stopShimmer();
         adsManager.destroyBannerAd();
+        playlistExecutor.shutdownNow();
     }
 
 }

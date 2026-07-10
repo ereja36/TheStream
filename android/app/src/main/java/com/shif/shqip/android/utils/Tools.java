@@ -557,7 +557,7 @@ public class Tools {
             boolean needsGuardRefresh = channel.channel_type == null
                     || (!"YOUTUBE".equals(channel.channel_type) && !"EMBED".equals(channel.channel_type));
             if (needsGuardRefresh) {
-                PlaylistGuardSession.refreshBlocking(sharedPref);
+                PlaylistGuardSession.refreshIfStale(sharedPref);
             }
             Intent intent;
             if (channel.channel_type != null && channel.channel_type.equals("YOUTUBE")) {

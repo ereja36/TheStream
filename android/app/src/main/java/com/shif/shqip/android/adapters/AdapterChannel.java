@@ -149,9 +149,11 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             }
         } else if (viewType == VIEW_AD) {
             vh = adsManager.createNativeAdViewHolder(context, parent);
+            applyStaggeredSpan(vh, true);
         } else {
             View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.row_loading, parent, false);
             vh = new ProgressViewHolder(v);
+            applyStaggeredSpan(vh, true);
         }
         return vh;
     }
@@ -201,70 +203,32 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             });
 
         } else if (holder instanceof NativeAdViewHolder) {
-            adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
+            try {
+                adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
+            } catch (Exception e) {
+                Log.e("AdapterChannel", "native bind failed", e);
+            }
         }
-
-//        else if (holder instanceof NativeAdViewHolder) {
-//
-//            final NativeAdViewHolder vItem = (NativeAdViewHolder) holder;
-//
-//            if (Constant.NATIVE_AD_CHANNEL_LIST) {
-//                int padding;
-//                int margin;
-//                if (sharedPref.getChannelViewType() == Constant.CHANNEL_LIST_DEFAULT) {
-//                    padding = context.getResources().getDimensionPixelOffset(R.dimen.grid_space_channel);
-//                    margin = context.getResources().getDimensionPixelOffset(R.dimen.spacing_middle);
-//                } else {
-//                    padding = context.getResources().getDimensionPixelOffset(R.dimen.grid_space_channel);
-//                    margin = context.getResources().getDimensionPixelOffset(R.dimen.grid_space_channel);
-//                }
-//
-//                vItem.loadNativeAd(context,
-//                        adsPref.getAdStatus(),
-//                        1,
-//                        adsPref.getMainAds(),
-//                        adsPref.getBackupAds(),
-//                        adsPref.getAdMobNativeId(),
-//                        adsPref.getAdManagerNativeId(),
-//                        adsPref.getFanNativeId(),
-//                        adsPref.getAppLovinNativeAdManualUnitId(),
-//                        adsPref.getAppLovinBannerMrecZoneId(),
-//                        adsPref.getWortiseNativeId(),
-//                        sharedPref.getIsDarkTheme(),
-//                        false,
-//                        Constant.NATIVE_AD_STYLE_CHANNEL_LIST,
-//                        android.R.color.transparent,
-//                        android.R.color.transparent
-//                );
-//
-//                if (sharedPref.getIsDarkTheme()) {
-//                    vItem.setNativeAdBackgroundResource(R.drawable.bg_native_dark);
-//                } else {
-//                    vItem.setNativeAdBackgroundResource(R.drawable.bg_native_light);
-//                }
-//
-//                if (sharedPref.getChannelViewType() == Constant.CHANNEL_LIST_DEFAULT) {
-//                    vItem.setNativeAdMargin(margin, margin, margin, margin);
-//                } else {
-//                    vItem.setNativeAdMargin(margin, margin, margin, (margin * 2));
-//                }
-//                vItem.setNativeAdPadding(padding, padding, padding, padding);
-//            }
-//
-//        }
 
         else {
             ((ProgressViewHolder) holder).progressBar.setIndeterminate(true);
         }
 
-        if (getItemViewType(position) == VIEW_PROG || getItemViewType(position) == VIEW_AD) {
-            StaggeredGridLayoutManager.LayoutParams layoutParams = (StaggeredGridLayoutManager.LayoutParams) holder.itemView.getLayoutParams();
-            layoutParams.setFullSpan(true);
-        } else {
-            StaggeredGridLayoutManager.LayoutParams layoutParams = (StaggeredGridLayoutManager.LayoutParams) holder.itemView.getLayoutParams();
-            layoutParams.setFullSpan(false);
-        }
+        applyStaggeredSpan(holder, getItemViewType(position) == VIEW_PROG || getItemViewType(position) == VIEW_AD);
+    }
 
+    private void applyStaggeredSpan(RecyclerView.ViewHolder holder, boolean fullSpan) {
+        if (!(holder.itemView.getLayoutParams() instanceof StaggeredGridLayoutManager.LayoutParams)) {
+            StaggeredGridLayoutManager.LayoutParams params = new StaggeredGridLayoutManager.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            holder.itemView.setLayoutParams(params);
+        }
+        ViewGroup.LayoutParams raw = holder.itemView.getLayoutParams();
+        if (raw instanceof StaggeredGridLayoutManager.LayoutParams) {
+            ((StaggeredGridLayoutManager.LayoutParams) raw).setFullSpan(fullSpan);
+        }
     }
 
     @Override

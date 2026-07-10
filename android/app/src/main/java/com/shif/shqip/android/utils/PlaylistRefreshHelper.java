@@ -13,7 +13,7 @@ import java.util.concurrent.Executors;
  */
 public final class PlaylistRefreshHelper {
 
-    private static final long MIN_REFRESH_GAP_MS = 30_000L;
+    private static final long MIN_REFRESH_GAP_MS = 5_000L;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static long lastRefreshAt;
 
