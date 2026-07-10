@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 69
-        versionName = "6.9.49"
+        versionCode = 70
+        versionName = "6.9.50"
         multiDexEnabled = true
     }
     compileOptions {
@@ -28,12 +28,6 @@ android {
     }
     lint {
         disable 'GradleDependency', 'GradleDynamicVersion', 'OldTargetApi'
-    }
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
-            excludes += ['**/libdatastore_shared_counter.so']
-        }
     }
     signingConfigs {
         release {
@@ -73,9 +67,9 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.cardview:cardview:1.0.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
-    implementation 'androidx.lifecycle:lifecycle-process:2.7.0'
-    implementation 'androidx.lifecycle:lifecycle-runtime:2.7.0'
-    implementation 'androidx.lifecycle:lifecycle-common-java8:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-process:2.9.4'
+    implementation 'androidx.lifecycle:lifecycle-runtime:2.9.4'
+    implementation 'androidx.lifecycle:lifecycle-common-java8:2.9.4'
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
     implementation 'androidx.multidex:multidex:2.0.1'
@@ -89,26 +83,16 @@ dependencies {
     implementation 'com.google.android.play:review:2.0.2'
 	implementation 'com.google.android.play:app-update:2.1.0'
 
-    //Firebase (no DataStore / firebase-sessions — avoids 16KB native crash on Pixel)
-    implementation platform('com.google.firebase:firebase-bom:33.7.0')
-    implementation('com.google.firebase:firebase-analytics') {
-        exclude group: 'androidx.datastore'
-        exclude group: 'com.google.firebase', module: 'firebase-sessions'
-    }
-    implementation('com.google.firebase:firebase-messaging') {
-        exclude group: 'androidx.datastore'
-        exclude group: 'com.google.firebase', module: 'firebase-sessions'
-    }
+    //Firebase
+    implementation platform('com.google.firebase:firebase-bom:34.5.0')
+    implementation 'com.google.firebase:firebase-analytics'
+    implementation 'com.google.firebase:firebase-messaging'
 
     //Ad Network Sdk options
-    implementation('com.github.solodroid-dev.ads:admob-ads-sdk:1.+') {
-        exclude group: 'androidx.datastore'
-    }
+    implementation 'com.github.solodroid-dev.ads:admob-ads-sdk:1.+'
 
     //Push notification
-    implementation('com.github.solodroid-dev.push:notification-sdk:1.+') {
-        exclude group: 'androidx.datastore'
-    }
+    implementation 'com.github.solodroid-dev.push:notification-sdk:1.+'
 
     //youtube player
     implementation 'com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0'

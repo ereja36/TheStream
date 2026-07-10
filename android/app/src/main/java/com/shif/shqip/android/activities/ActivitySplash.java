@@ -56,7 +56,6 @@ import com.solodroidx.ads.appopen.AppOpenAd;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -75,32 +74,22 @@ public class ActivitySplash extends AppCompatActivity {
     Settings settings;
     Ads ads;
     License license;
-    private static final long STARTUP_WATCHDOG_MS = 18_000L;
-
     private final ExecutorService startupExecutor = Executors.newSingleThreadExecutor();
-    private final Handler startupWatchdogHandler = new Handler(Looper.getMainLooper());
-    private final AtomicBoolean startupContinued = new AtomicBoolean(false);
     private String deviceId;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_splash);
         Tools.transparentStatusBarNavigation(ActivitySplash.this);
+        setContentView(R.layout.activity_splash);
+        adsManager = new AdsManager(this);
+        adsAntiblockHelper = new AdsAntiblockHelper(this);
         sharedPref = new SharedPref(this);
         adsPref = new AdsPref(this);
-        adsAntiblockHelper = new AdsAntiblockHelper(this);
         deviceId = DeviceApiHelper.getLocalDeviceId(this);
 
         img_splash = findViewById(R.id.img_splash);
         img_splash.setImageResource(R.drawable.bg_splash_default);
-
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            Application app = getApplication();
-            if (app instanceof MyApplication && !isFinishing()) {
-                ((MyApplication) app).initDeferredSdks();
-            }
-        }, 1500);
 
         if (ENABLE_VPN_ACCESS) {
             Tools.postDelayed(this::requestConfig, Config.DELAY_SPLASH);
@@ -224,50 +213,28 @@ public class ActivitySplash extends AppCompatActivity {
     }
 
     private void handleStartupState() {
-        Runnable continueStartup = () -> {
-            if (!startupContinued.compareAndSet(false, true)) {
-                return;
-            }
-            startupWatchdogHandler.removeCallbacksAndMessages(null);
-            showAppOpenAdIfAvailable();
-        };
-        startupWatchdogHandler.postDelayed(continueStartup, STARTUP_WATCHDOG_MS);
-
+        showAppOpenAdIfAvailable();
         startupExecutor.execute(() -> {
             try {
                 PlaylistGuardSession.refreshBlocking(sharedPref);
-
                 DeviceApiHelper.DeviceProfile profile = DeviceApiHelper.fetchDeviceProfile(sharedPref, deviceId);
                 if (profile.blocked) {
                     sharedPref.clearPlaylistChannels();
-                    startupWatchdogHandler.removeCallbacksAndMessages(null);
                     runOnUiThread(() -> showBlockedDialog(profile.reason));
                     return;
                 }
-
                 adsPref.setDeviceNoAds(profile.noAds);
                 if (adsPref.getAdStatus()) {
-                    AdPlacementHelper.onRemoteAdsConfigLoaded(ActivitySplash.this);
+                    runOnUiThread(() -> AdPlacementHelper.onRemoteAdsConfigLoaded(ActivitySplash.this));
                 }
-
-                DeviceApiHelper.PlaylistSyncResult playlistSync =
-                        DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
-                if (playlistSync.blocked) {
-                    sharedPref.clearPlaylistChannels();
-                    startupWatchdogHandler.removeCallbacksAndMessages(null);
-                    runOnUiThread(() -> showBlockedDialog(playlistSync.reason));
-                    return;
-                }
-
-                runOnUiThread(continueStartup);
+                DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
                 showStartupPopupInBackground();
-            } catch (Exception e) {
+            } catch (Exception ignored) {
                 try {
                     DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
-                } catch (Exception ignored) {
+                } catch (Exception ignoredToo) {
                     // Keep cached playlist if sync fails.
                 }
-                runOnUiThread(continueStartup);
             }
         });
     }
@@ -306,9 +273,6 @@ public class ActivitySplash extends AppCompatActivity {
             MyApplication.getInstance().preloadAppOpenAd(this);
         };
         if (adsPref.getAdStatus() && adsPref.getAppOpenOnStart()) {
-            if (adsManager == null) {
-                adsManager = new AdsManager(this);
-            }
             adsManager.loadAppOpenAd(true, true, () -> {
                 MyApplication.getInstance().recordAppOpenShown();
                 AppOpenAd.isAppOpenAdLoaded = false;
@@ -502,7 +466,6 @@ public class ActivitySplash extends AppCompatActivity {
     public void onDestroy() {
         super.onDestroy();
         AppOpenAd.isAppOpenAdLoaded = false;
-        startupWatchdogHandler.removeCallbacksAndMessages(null);
         startupExecutor.shutdownNow();
     }
 

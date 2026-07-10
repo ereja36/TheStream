@@ -5,6 +5,7 @@ import static com.solodroidx.ads.util.Constant.AD_STATUS_ON;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -57,40 +58,13 @@ public class MyApplication extends Application {
     private boolean wasInBackground;
     private boolean pendingResumeAppOpen;
     private long lastAppOpenShownAt;
-    private volatile boolean deferredSdksInitialized;
 
     @Override
     public void onCreate() {
         super.onCreate();
         mInstance = this;
-        installUncaughtExceptionHandler();
         sharedPref = new SharedPref(this);
         Tools.applyNightMode(sharedPref.getIsDarkTheme());
-    }
-
-    private void installUncaughtExceptionHandler() {
-        final Thread.UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
-        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-            Log.e(TAG, "Uncaught exception in thread " + thread.getName(), throwable);
-            if (thread != Looper.getMainLooper().getThread()) {
-                return;
-            }
-            if (defaultHandler != null) {
-                defaultHandler.uncaughtException(thread, throwable);
-            }
-        });
-    }
-
-    public void initDeferredSdks() {
-        if (deferredSdksInitialized) {
-            return;
-        }
-        synchronized (this) {
-            if (deferredSdksInitialized) {
-                return;
-            }
-            deferredSdksInitialized = true;
-        }
         adsPref = new AdsPref(this);
         try {
             initAnalytics();
@@ -110,14 +84,8 @@ public class MyApplication extends Application {
     }
 
     private void initAnalytics() {
-        try {
-            if (FirebaseApp.getApps(this).isEmpty()) {
-                FirebaseApp.initializeApp(this);
-            }
-            mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
-        } catch (Exception e) {
-            Log.w(TAG, "Firebase analytics unavailable", e);
-        }
+        FirebaseApp.initializeApp(this);
+        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
     }
 
     public void initNotification() {
@@ -149,11 +117,7 @@ public class MyApplication extends Application {
 
         String topic = getResources().getString(R.string.fcm_notification_topic);
         if (!TextUtils.isEmpty(topic)) {
-            try {
-                FirebaseMessaging.getInstance().subscribeToTopic(topic);
-            } catch (Exception e) {
-                Log.w(TAG, "FCM topic subscribe failed", e);
-            }
+            FirebaseMessaging.getInstance().subscribeToTopic(topic);
         }
     }
 
@@ -349,9 +313,6 @@ public class MyApplication extends Application {
     };
 
     public void showAdIfAvailable(@NonNull Activity activity, @NonNull OnShowAdCompleteListener onShowAdCompleteListener) {
-        if (adsPref == null) {
-            adsPref = new AdsPref(this);
-        }
         if (!adsPref.getAppOpenOnStart()) {
             onShowAdCompleteListener.onShowAdComplete();
             return;
