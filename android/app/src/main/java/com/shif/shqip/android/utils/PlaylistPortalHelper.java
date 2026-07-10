@@ -58,6 +58,14 @@ public final class PlaylistPortalHelper {
         return hostMatches(urlString, UPSTREAM_STREAM_HOST);
     }
 
+    /** Any shifshqip.com/k1/ stream, playlist entry, or proxy segment. */
+    public static boolean isK1UpstreamUrl(String urlString) {
+        if (TextUtils.isEmpty(urlString)) {
+            return false;
+        }
+        return urlString.toLowerCase(Locale.US).contains("shifshqip.com/k1/");
+    }
+
     public static boolean isPortalStreamEndpoint(String urlString) {
         if (TextUtils.isEmpty(urlString)) {
             return false;
@@ -80,11 +88,30 @@ public final class PlaylistPortalHelper {
         if (sharedPref == null || !sharedPref.isPortalSessionActive()) {
             return null;
         }
+        return buildK1UpstreamStreamRule();
+    }
+
+    /** Required for shifshqip.com/k1/playlist URLs (api_, sport_, custom_tv) — matches web player. */
+    public static PlaylistGuardRule buildK1UpstreamStreamRule() {
         PlaylistGuardRule rule = new PlaylistGuardRule();
         rule.url_pattern = UPSTREAM_STREAM_HOST;
         rule.user_agent = UPSTREAM_STREAM_UA;
         rule.referer = UPSTREAM_STREAM_REFERER;
         return rule;
+    }
+
+    public static void rememberK1PlaylistRuleIfNeeded(SharedPref sharedPref, String playlistSource) {
+        if (sharedPref == null || TextUtils.isEmpty(playlistSource)) {
+            return;
+        }
+        if (!isK1UpstreamUrl(playlistSource)) {
+            return;
+        }
+        PlaylistGuardHelper.rememberRuleForPlaylist(
+                sharedPref,
+                playlistSource,
+                buildK1UpstreamStreamRule()
+        );
     }
 
     public static void applyPortalHeaders(

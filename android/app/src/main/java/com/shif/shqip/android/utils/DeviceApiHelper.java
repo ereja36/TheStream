@@ -397,11 +397,10 @@ public final class DeviceApiHelper {
                 List<Channel> parsedChannels = new ArrayList<>();
                 try {
                     String content = fetchUrlContent(source, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
-                    parsedChannels = parsePlaylistContent(content, playlist.playlistName, source);
+                    parsedChannels = parsePlaylistContent(sharedPref, content, playlist.playlistName, source);
                     if (parsedChannels.isEmpty() && isPortalPage(content)) {
                         parsedChannels = fetchChannelsFromPortal(sharedPref, source, content, deviceId, playlist.playlistName);
                     }
-                    applyJsonPlaylistGuardRule(sharedPref, content, source);
                 } catch (Exception ignored) {
                     // Keep trying other playlist sources.
                 }
@@ -482,6 +481,14 @@ public final class DeviceApiHelper {
     }
 
     public static List<Channel> parsePlaylistContent(String content, String playlistName, String sourceUrl) {
+        return parsePlaylistContent(null, content, playlistName, sourceUrl);
+    }
+
+    public static List<Channel> parsePlaylistContent(SharedPref sharedPref, String content, String playlistName, String sourceUrl) {
+        if (sharedPref != null) {
+            PlaylistPortalHelper.rememberK1PlaylistRuleIfNeeded(sharedPref, sourceUrl);
+            applyJsonPlaylistGuardRule(sharedPref, content, sourceUrl);
+        }
         if (isJsonPlaylistIndex(content)) {
             return parseJsonPlaylistIndex(content, playlistName);
         }

@@ -183,7 +183,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private void initializeExoPlayer() {
         releasePlayers();
         dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
-                this, sharedPref, video_url, user_agent);
+                this, sharedPref, sourceStreamUrl, user_agent);
         exoPlayer = IptvPlayerHelper.createPlayer(this);
         styledPlayerView.setPlayer(exoPlayer);
         styledPlayerView.setUseController(true);
@@ -227,7 +227,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 }
                 video_url = playbackUrl;
                 dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
-                        ActivityPlayerVideo.this, sharedPref, video_url, user_agent);
+                        ActivityPlayerVideo.this, sharedPref, sourceStreamUrl, user_agent);
                 MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);
                 exoPlayer.stop();
                 exoPlayer.setMediaSource(mediaSource);

@@ -248,7 +248,7 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
                     PlaylistGuardHelper.rememberRuleForPlaylist(sharedPref, resolvedUrl, matchedRule);
                 }
                 DeviceApiHelper.applyJsonPlaylistGuardRule(sharedPref, content, resolvedUrl);
-                List<Channel> channels = DeviceApiHelper.parsePlaylistContent(content, playlistName, resolvedUrl);
+                List<Channel> channels = DeviceApiHelper.parsePlaylistContent(sharedPref, content, playlistName, resolvedUrl);
                 if (channels.isEmpty() && isPortalPage(content)) {
                     channels = fetchChannelsFromPortal(resolvedUrl, content, deviceId, playlistName);
                 }

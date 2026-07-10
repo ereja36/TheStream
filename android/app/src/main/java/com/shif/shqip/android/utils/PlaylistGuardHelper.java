@@ -75,6 +75,9 @@ public final class PlaylistGuardHelper {
         if (sharedPref == null) {
             return null;
         }
+        if (PlaylistPortalHelper.isK1UpstreamUrl(requestUrl)) {
+            return PlaylistPortalHelper.buildK1UpstreamStreamRule();
+        }
         if (sharedPref.isPortalSessionActive()) {
             if (PlaylistPortalHelper.isPortalUrl(requestUrl)) {
                 return null;

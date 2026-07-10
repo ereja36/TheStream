@@ -32,10 +32,10 @@ import java.util.Locale;
 @SuppressWarnings("deprecation")
 public final class IptvPlayerHelper {
 
-  private static final int LIVE_MIN_BUFFER_MS = 3_500;
-  private static final int LIVE_MAX_BUFFER_MS = 35_000;
-  private static final int BUFFER_FOR_PLAYBACK_MS = 1_500;
-  private static final int BUFFER_AFTER_REBUFFER_MS = 3_500;
+  private static final int LIVE_MIN_BUFFER_MS = 5_000;
+  private static final int LIVE_MAX_BUFFER_MS = 40_000;
+  private static final int BUFFER_FOR_PLAYBACK_MS = 2_000;
+  private static final int BUFFER_AFTER_REBUFFER_MS = 4_000;
 
   private static final long LIVE_SEEK_BACK_MS = 6_000;
 
@@ -73,7 +73,8 @@ public final class IptvPlayerHelper {
           String playbackUrl,
           String channelUserAgent
   ) {
-    if (PlaylistPortalHelper.isPortalUrl(playbackUrl)) {
+    if (PlaylistPortalHelper.isPortalUrl(playbackUrl)
+            || PlaylistPortalHelper.isK1UpstreamUrl(playbackUrl)) {
       return new DefaultDataSource.Factory(
               context.getApplicationContext(),
               new IptvHttpDataSource.Factory(context, sharedPref, channelUserAgent)
