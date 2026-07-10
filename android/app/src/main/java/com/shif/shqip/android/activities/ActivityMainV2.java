@@ -391,7 +391,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         final Channel previewChannel = channel;
         heroExecutor.execute(() -> {
             String playbackUrl = StreamPlaybackHelper.resolvePlaybackUrl(
-                    sharedPref, previewChannel.channel_url, previewChannel.epg_id);
+                    sharedPref, previewChannel.channel_url, "");
             if (TextUtils.isEmpty(playbackUrl)) {
                 return;
             }

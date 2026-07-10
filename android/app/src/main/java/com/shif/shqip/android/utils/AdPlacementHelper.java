@@ -118,7 +118,37 @@ public final class AdPlacementHelper {
         if (adsPref == null || !adsPref.getAdStatus()) {
             return false;
         }
+        return !TextUtils.isEmpty(resolveAdNetwork(adsPref));
+    }
+
+    /** Picks main ad network from server config, falling back to AdMob when unit IDs exist. */
+    public static String resolveAdNetwork(AdsPref adsPref) {
+        if (adsPref == null) {
+            return "admob";
+        }
         String mainAds = adsPref.getMainAds();
-        return !TextUtils.isEmpty(mainAds) && !"0".equals(mainAds);
+        if (!TextUtils.isEmpty(mainAds) && !"0".equals(mainAds)) {
+            return mainAds;
+        }
+        if (hasConfiguredAdMobUnits(adsPref)) {
+            return "admob";
+        }
+        String backup = adsPref.getBackupAds();
+        if (!TextUtils.isEmpty(backup) && !"0".equals(backup) && !"none".equalsIgnoreCase(backup)) {
+            return backup;
+        }
+        return "";
+    }
+
+    private static boolean hasConfiguredAdMobUnits(AdsPref adsPref) {
+        return isValidAdUnit(adsPref.getAdMobBannerId())
+                || isValidAdUnit(adsPref.getAdMobInterstitialId())
+                || isValidAdUnit(adsPref.getAdMobNativeId());
+    }
+
+    private static boolean isValidAdUnit(String unitId) {
+        return !TextUtils.isEmpty(unitId)
+                && !"0".equals(unitId)
+                && !unitId.startsWith("0");
     }
 }

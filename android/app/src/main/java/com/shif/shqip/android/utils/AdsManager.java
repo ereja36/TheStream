@@ -51,9 +51,11 @@ public class AdsManager {
 
     public void initializeAd() {
         if (adsPref.getAdStatus()) {
+            String adNetwork = AdPlacementHelper.resolveAdNetwork(adsPref);
             initializeAd.setAdStatus("1")
-                    .setAdNetwork(adsPref.getMainAds())
+                    .setAdNetwork(adNetwork)
                     .setBackupAdNetwork(adsPref.getBackupAds())
+                    .setAdMobAppId(adsPref.getAdMobAppId())
                     .setAppLovinSdkKey(activity.getResources().getString(R.string.applovin_sdk_key))
                     .setStartappAppId(adsPref.getStartappAppId())
                     .setUnityGameId(adsPref.getUnityGameId())
@@ -64,11 +66,15 @@ public class AdsManager {
         }
     }
 
+    private String activeAdNetwork() {
+        return AdPlacementHelper.resolveAdNetwork(adsPref);
+    }
+
     public void loadAppOpenAd(boolean placement, boolean withListener, OnShowAdCompleteListener onShowAdCompleteListener) {
         if (placement) {
             if (adsPref.getAdStatus()) {
                 appOpenAd.setAdStatus("1")
-                        .setAdNetwork(adsPref.getMainAds())
+                        .setAdNetwork(activeAdNetwork())
                         .setBackupAdNetwork(adsPref.getBackupAds())
                         .setAdMobAppOpenId(adsPref.getAdMobAppOpenAdId())
                         .setAdManagerAppOpenId(adsPref.getAdManagerAppOpenAdId())
@@ -93,7 +99,7 @@ public class AdsManager {
         if (placement) {
             if (adsPref.getAdStatus()) {
                 bannerAd.setAdStatus("1")
-                        .setAdNetwork(adsPref.getMainAds())
+                        .setAdNetwork(activeAdNetwork())
                         .setBackupAdNetwork(adsPref.getBackupAds())
                         .setAdMobBannerId(adsPref.getAdMobBannerId())
                         .setGoogleAdManagerBannerId(adsPref.getAdManagerBannerId())
@@ -125,7 +131,7 @@ public class AdsManager {
         if (placement) {
             if (adsPref.getAdStatus()) {
                 interstitialAd.setAdStatus("1")
-                        .setAdNetwork(adsPref.getMainAds())
+                        .setAdNetwork(activeAdNetwork())
                         .setBackupAdNetwork(adsPref.getBackupAds())
                         .setAdMobInterstitialId(adsPref.getAdMobInterstitialId())
                         .setGoogleAdManagerInterstitialId(adsPref.getAdManagerInterstitialId())
@@ -150,7 +156,7 @@ public class AdsManager {
         if (placement) {
             if (adsPref.getAdStatus()) {
                 nativeAd.setAdStatus("1")
-                        .setAdNetwork(adsPref.getMainAds())
+                        .setAdNetwork(activeAdNetwork())
                         .setBackupAdNetwork(adsPref.getBackupAds())
                         .setAdMobNativeId(adsPref.getAdMobNativeId())
                         .setAdManagerNativeId(adsPref.getAdManagerNativeId())
@@ -174,7 +180,7 @@ public class AdsManager {
             if (adsPref.getAdStatus()) {
                 nativeAdView.setView(view)
                         .setAdStatus("1")
-                        .setAdNetwork(adsPref.getMainAds())
+                        .setAdNetwork(activeAdNetwork())
                         .setBackupAdNetwork(adsPref.getBackupAds())
                         .setAdMobNativeId(adsPref.getAdMobNativeId())
                         .setAdManagerNativeId(adsPref.getAdManagerNativeId())
@@ -212,7 +218,7 @@ public class AdsManager {
 
         return new NativeAdViewHolder(NativeAdViewHolder.setLayoutInflater(parent, Tools.nativeAdStyleFormatter(Constant.NATIVE_AD_STYLE_CHANNEL_LIST)))
                 .setAdStatus(adStatus)
-                .setAdNetwork(adsPref.getMainAds())
+                .setAdNetwork(activeAdNetwork())
                 .setBackupAdNetwork(adsPref.getBackupAds())
                 .setAdMobNativeId(adsPref.getAdMobNativeId())
                 .setAdManagerNativeId(adsPref.getAdManagerNativeId())
@@ -235,7 +241,7 @@ public class AdsManager {
 
     public void updateConsentStatus() {
         if (Config.ENABLE_GDPR_EU_CONSENT) {
-            gdpr.updateGDPRConsentStatus(adsPref.getMainAds(), false, false);
+            gdpr.updateGDPRConsentStatus(activeAdNetwork(), false, false);
         }
     }
 

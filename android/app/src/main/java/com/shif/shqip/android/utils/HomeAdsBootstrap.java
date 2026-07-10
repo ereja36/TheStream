@@ -53,19 +53,34 @@ public final class HomeAdsBootstrap {
         if (activity.isFinishing()) {
             return;
         }
-        try {
-            adsManager.initializeAd();
-            adsManager.updateConsentStatus();
-            AdPlacementHelper.loadHomePlacementAds(activity, adsManager, adsPref);
-            if (antiblockHelper != null) {
-                antiblockHelper.onAdLoadFailed(() -> {
-                    if (!activity.isFinishing()) {
-                        AdPlacementHelper.loadHomePlacementAds(activity, adsManager, adsPref);
-                    }
-                });
+        if (!adsPref.getAdStatus() || !AdPlacementHelper.hasValidAdNetwork(adsPref)) {
+            return;
+        }
+        Runnable loadAds = () -> {
+            if (activity.isFinishing()) {
+                return;
             }
-        } catch (Exception e) {
-            Log.e(TAG, "Home ads bootstrap failed", e);
+            try {
+                adsManager.initializeAd();
+                adsManager.updateConsentStatus();
+                AdPlacementHelper.loadHomePlacementAds(activity, adsManager, adsPref);
+                if (antiblockHelper != null) {
+                    antiblockHelper.onAdLoadFailed(() -> {
+                        if (!activity.isFinishing()) {
+                            AdPlacementHelper.loadHomePlacementAds(activity, adsManager, adsPref);
+                        }
+                    });
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Home ads bootstrap failed", e);
+            }
+        };
+        View bannerSlot = activity.findViewById(R.id.bannerAdView);
+        if (bannerSlot != null) {
+            bannerSlot.setVisibility(View.VISIBLE);
+            bannerSlot.post(loadAds);
+        } else {
+            loadAds.run();
         }
     }
 

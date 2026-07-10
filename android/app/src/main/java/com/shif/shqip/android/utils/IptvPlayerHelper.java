@@ -37,9 +37,6 @@ public final class IptvPlayerHelper {
   private static final int BUFFER_FOR_PLAYBACK_MS = 1_500;
   private static final int BUFFER_AFTER_REBUFFER_MS = 3_500;
 
-  private static final long LIVE_TARGET_OFFSET_MS = 5_000;
-  private static final long LIVE_MIN_OFFSET_MS = 2_000;
-  private static final long LIVE_MAX_OFFSET_MS = 10_000;
   private static final long LIVE_SEEK_BACK_MS = 6_000;
 
   private static final int HLS_MIN_LOADABLE_RETRY_COUNT = 5;
@@ -121,26 +118,7 @@ public final class IptvPlayerHelper {
   }
 
   private static MediaItem buildMediaItem(String playbackUrl, Uri uri) {
-    if (isLiveStream(playbackUrl)) {
-      return new MediaItem.Builder()
-              .setUri(uri)
-              .setLiveConfiguration(
-                      new MediaItem.LiveConfiguration.Builder()
-                              .setTargetOffsetMs(LIVE_TARGET_OFFSET_MS)
-                              .setMinOffsetMs(LIVE_MIN_OFFSET_MS)
-                              .setMaxOffsetMs(LIVE_MAX_OFFSET_MS)
-                              .setMinPlaybackSpeed(1.0f)
-                              .setMaxPlaybackSpeed(1.0f)
-                              .build()
-              )
-              .build();
-    }
     return MediaItem.fromUri(uri);
-  }
-
-  /** No initial seek — ExoPlayer picks live edge; avoids re-buffer on first frame. */
-  public static Player.Listener createLiveOffsetListener(ExoPlayer player, String playbackUrl) {
-    return new Player.Listener() {};
   }
 
   public static long bufferedAheadMs(ExoPlayer player) {

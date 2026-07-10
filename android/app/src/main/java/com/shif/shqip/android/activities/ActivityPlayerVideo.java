@@ -41,7 +41,6 @@ import com.shif.shqip.android.utils.IptvPlayerHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
-import com.shif.shqip.android.utils.IptvStallRecoveryHelper;
 import com.bumptech.glide.Glide;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.PlaybackException;
@@ -87,7 +86,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private StyledPlayerView styledPlayerView;
     private ExoPlayer exoPlayer;
     private DefaultDataSource.Factory dataSourceFactory;
-    private IptvStallRecoveryHelper stallRecoveryHelper;
     private ProgressBar progressBar;
     boolean fullscreen = false;
     private ImageView fullscreenButton;
@@ -148,8 +146,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         progressBar.setVisibility(View.VISIBLE);
 
         if (StreamPlaybackHelper.canPlayDirectly(sharedPref, sourceStreamUrl)) {
-            video_url = StreamPlaybackHelper.resolvePlaybackUrl(
-                    sharedPref, sourceStreamUrl, epgChannelId);
+            video_url = StreamPlaybackHelper.resolvePlaybackUrl(sharedPref, sourceStreamUrl, "");
             if (TextUtils.isEmpty(video_url)) {
                 errorDialog();
                 return;
@@ -158,8 +155,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             initializePlayer();
         } else {
             new Thread(() -> {
-                String resolved = StreamPlaybackHelper.resolvePlaybackUrl(
-                        sharedPref, sourceStreamUrl, epgChannelId);
+                String resolved = StreamPlaybackHelper.resolvePlaybackUrl(sharedPref, sourceStreamUrl, "");
                 runOnUiThread(() -> {
                     if (TextUtils.isEmpty(resolved)) {
                         errorDialog();
@@ -195,7 +191,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         styledPlayerView.requestFocus();
 
         startExoPlayback();
-        attachStallRecovery();
         attachPlayerListener();
         setupControls();
         handleOnBackPressed();
@@ -220,7 +215,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         progressBar.setVisibility(View.VISIBLE);
         new Thread(() -> {
             String resolvedUrl = StreamPlaybackHelper.resolvePlaybackUrl(
-                    sharedPref, sourceStreamUrl, epgChannelId);
+                    sharedPref, sourceStreamUrl, "");
             final String playbackUrl = TextUtils.isEmpty(resolvedUrl) ? "" : resolvedUrl;
             runOnUiThread(() -> {
                 if (TextUtils.isEmpty(playbackUrl) || exoPlayer == null) {
@@ -254,42 +249,13 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void releasePlayers() {
-        if (stallRecoveryHelper != null) {
-            stallRecoveryHelper.release();
-            stallRecoveryHelper = null;
-        }
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;
         }
     }
 
-    private void attachStallRecovery() {
-        if (stallRecoveryHelper != null) {
-            stallRecoveryHelper.release();
-        }
-        stallRecoveryHelper = new IptvStallRecoveryHelper(exoPlayer, video_url, new IptvStallRecoveryHelper.Callback() {
-            @Override
-            public void onStallSoftRecover(int attempt) {
-                Log.d(TAG, "stall soft recover attempt=" + attempt);
-            }
-
-            @Override
-            public void onStallHardRecover() {
-                Log.d(TAG, "stall hard recover — reloading stream");
-                if (autoRetryCount < StreamPlaybackHelper.AUTO_RETRY_MAX) {
-                    autoRetryCount++;
-                    reloadLiveStream(false);
-                } else {
-                    errorDialog();
-                }
-            }
-        });
-        exoPlayer.addListener(stallRecoveryHelper);
-    }
-
     private void attachPlayerListener() {
-        exoPlayer.addListener(IptvPlayerHelper.createLiveOffsetListener(exoPlayer, video_url));
         exoPlayer.addListener(new Player.Listener() {
             @Override
             public void onCues(@NonNull List<Cue> cues) {
