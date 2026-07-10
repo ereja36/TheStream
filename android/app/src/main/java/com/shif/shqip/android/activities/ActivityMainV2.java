@@ -80,6 +80,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     private ExoPlayer heroPlayer;
     private StyledPlayerView heroPreview;
     private Channel heroPreviewChannel;
+    private long heroPreviewToken;
     private AdsManager adsManager;
     private AdsAntiblockHelper adsAntiblockHelper;
     private boolean allChannelsNativeBound;
@@ -141,7 +142,7 @@ public class ActivityMainV2 extends AppCompatActivity {
 
     @Override
     protected void onPause() {
-        pauseHeroPreview();
+        releaseHeroPreview();
         super.onPause();
     }
 
@@ -151,8 +152,8 @@ public class ActivityMainV2 extends AppCompatActivity {
         HomeAdsBootstrap.resume(this, adsManager, adsPref, adsAntiblockHelper);
         InboxNotificationHelper.pollAndShow(this, sharedPref);
         handleInboxNotificationIntent(getIntent());
-        if (featuredChannel != null && heroPlayer != null) {
-            resumeHeroPreview();
+        if (featuredChannel != null && Config.ENABLE_HERO_LIVE_PREVIEW) {
+            scheduleHeroPreview(featuredChannel);
         }
         PlaylistRefreshHelper.refreshOnResume(this, sharedPref, this::loadChannels);
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, () ->
@@ -293,11 +294,21 @@ public class ActivityMainV2 extends AppCompatActivity {
                     .into(heroImage);
         }
 
-        watchButton.setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
-        findViewById(R.id.hero_container).setOnClickListener(v -> Tools.startPlayer(this, watchButton, channel));
+        watchButton.setOnClickListener(v -> openChannel(channel));
+        findViewById(R.id.hero_container).setOnClickListener(v -> openChannel(channel));
         loadHeroEpg(channel, heroEpg);
         setupHeroMuteButton();
         scheduleHeroPreview(channel);
+    }
+
+    private void openChannel(Channel channel) {
+        stopHeroForPlayback();
+        View anchor = findViewById(R.id.btn_watch);
+        Tools.startPlayer(this, anchor, channel);
+    }
+
+    private void stopHeroForPlayback() {
+        releaseHeroPreview();
     }
 
     private void setupHeroMuteButton() {
@@ -320,6 +331,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         if (!Config.ENABLE_HERO_LIVE_PREVIEW) {
             return;
         }
+        final long token = ++heroPreviewToken;
         heroExecutor.execute(() -> {
             try {
                 Thread.sleep(2500);
@@ -331,9 +343,10 @@ public class ActivityMainV2 extends AppCompatActivity {
                 return;
             }
             runOnUiThread(() -> {
-                if (!isFinishing() && !isDestroyed()) {
-                    startHeroPreview(channel);
+                if (token != heroPreviewToken || isFinishing() || isDestroyed()) {
+                    return;
                 }
+                startHeroPreview(channel);
             });
         });
     }
@@ -432,6 +445,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void releaseHeroPreview() {
+        heroPreviewToken++;
         if (heroPreview != null) {
             heroPreview.setPlayer(null);
         }
@@ -505,7 +519,10 @@ public class ActivityMainV2 extends AppCompatActivity {
             tintCategoryDot(dot, category.category_name);
 
             AdapterChannelCardV2 adapter = new AdapterChannelCardV2(this);
-            adapter.setOnChannelClickListener(channel -> Tools.startPlayer(this, recyclerView, channel));
+            adapter.setOnChannelClickListener(channel -> {
+                stopHeroForPlayback();
+                Tools.startPlayer(this, recyclerView, channel);
+            });
             recyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
             recyclerView.setNestedScrollingEnabled(false);
             recyclerView.setNestedScrollingEnabled(false);
