@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<GridLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:alignmentMode="alignBounds"
+    android:columnCount="2"
+    android:padding="8dp"
+    android:useDefaultMargins="true">
+
+    <include
+        android:id="@+id/tile_theme"
+        layout="@layout/item_settings_tile"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_columnWeight="1" />
+
+    <include
+        android:id="@+id/tile_manage_playlist"
+        layout="@layout/item_settings_tile"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_columnWeight="1" />
+
+    <include
+        android:id="@+id/tile_privacy"
+        layout="@layout/item_settings_tile"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_columnWeight="1" />
+
+    <include
+        android:id="@+id/tile_share"
+        layout="@layout/item_settings_tile"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_columnWeight="1" />
+
+    <include
+        android:id="@+id/tile_rate"
+        layout="@layout/item_settings_tile"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_columnWeight="1" />
+
+    <include
+        android:id="@+id/tile_about"
+        layout="@layout/item_settings_tile"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_columnWeight="1" />
+
+</GridLayout>
