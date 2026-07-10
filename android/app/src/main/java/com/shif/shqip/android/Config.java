@@ -56,6 +56,7 @@ public class Config {
 
     //Enable it with true value if want to the app will force to display open ads first before start the main menu
     //Longer duration to start the app may occur depending on internet connection or open ad response time itself
-    public static final boolean FORCE_TO_SHOW_APP_OPEN_AD_ON_START = false;
+    // Hero live preview on Design 2 home (disable if device/player unstable)
+    public static final boolean ENABLE_HERO_LIVE_PREVIEW = true;
 
 }

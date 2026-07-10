@@ -435,11 +435,29 @@ public class ActivitySplash extends AppCompatActivity {
             adsManager.updateConsentStatus();
             adsManager.loadAppOpenAd(true, true, () -> {
                 AppOpenAd.isAppOpenAdLoaded = false;
+                preloadNextAppOpenAd();
                 launch.run();
             });
         } else {
             launch.run();
         }
+    }
+
+    private void preloadNextAppOpenAd() {
+        if (!adsPref.getAdStatus() || !adsPref.getAppOpenOnResume()) {
+            return;
+        }
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (isFinishing()) {
+                return;
+            }
+            try {
+                adsManager.loadAppOpenAd(true, false, () -> {
+                });
+            } catch (Exception ignored) {
+                // Preload only; ignore failures.
+            }
+        }, 500L);
     }
 
     @Override

@@ -113,7 +113,6 @@ public class ActivityCategoryDetail extends AppCompatActivity {
             recyclerView.setLayoutManager(new StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL));
             recyclerView.setPadding(0, padding, 0, padding);
             recyclerView.setItemViewCacheSize(32);
-            recyclerView.setHasFixedSize(true);
         } else if (sharedPref.getChannelViewType() == CHANNEL_LIST_DEFAULT) {
             recyclerView.setPadding(0, padding, 0, padding);
         } else {

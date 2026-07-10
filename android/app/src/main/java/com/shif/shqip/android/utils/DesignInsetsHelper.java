@@ -55,7 +55,7 @@ public final class DesignInsetsHelper {
                         content.getPaddingBottom());
             }
             bringChromeToFront(topBar, bottomBar, floatingNav);
-            return WindowInsetsCompat.CONSUMED;
+            return insets;
         });
 
         ViewCompat.requestApplyInsets(root);

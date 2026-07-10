@@ -42,6 +42,7 @@ import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.EpgHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
+import com.shif.shqip.android.utils.HomeAdsBootstrap;
 import com.shif.shqip.android.utils.IptvPlayerHelper;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 import com.shif.shqip.android.utils.PlaylistRefreshHelper;
@@ -101,16 +102,12 @@ public class ActivityMainV2 extends AppCompatActivity {
         overlayContainer.setClickable(false);
         overlayContainer.setFocusable(false);
         scrollHome = findViewById(R.id.scroll_home);
-        heroPreview = findViewById(R.id.hero_preview);
 
         setupTopActions();
         setupBottomNav();
         bringChromeToFront();
         DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
-        adsManager.initializeAd();
-        adsManager.updateConsentStatus();
-        AdPlacementHelper.loadHomePlacementAds(this, adsManager, adsPref);
-        adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
+        HomeAdsBootstrap.init(this, adsManager, adsPref, adsAntiblockHelper);
         loadChannels();
     }
 
@@ -144,12 +141,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (adsPref.getAdStatus()) {
-            adsManager.resumeBannerAd(Constant.BANNER_HOME);
-            if (adsAntiblockHelper.shouldForceAdReloadOnResume()) {
-                reloadHomeAds();
-            }
-        }
+        HomeAdsBootstrap.resume(this, adsManager, adsPref, adsAntiblockHelper);
         InboxNotificationHelper.pollAndShow(this, sharedPref);
         handleInboxNotificationIntent(getIntent());
         if (featuredChannel != null && heroPlayer != null) {
@@ -246,16 +238,20 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void applyChannels(List<Channel> channels) {
-        allChannels = channels == null ? new ArrayList<>() : new ArrayList<>(channels);
-        if (allChannels.isEmpty()) {
+        try {
+            allChannels = channels == null ? new ArrayList<>() : new ArrayList<>(channels);
+            if (allChannels.isEmpty()) {
+                showEmpty();
+                return;
+            }
+            emptyMessage.setVisibility(View.GONE);
+            featuredChannel = allChannels.get(0);
+            bindHero(featuredChannel);
+            bindAllChannelsNativeAd();
+            categorySections.post(this::buildCategorySections);
+        } catch (Exception e) {
             showEmpty();
-            return;
         }
-        emptyMessage.setVisibility(View.GONE);
-        featuredChannel = allChannels.get(0);
-        bindHero(featuredChannel);
-        bindAllChannelsNativeAd();
-        categorySections.post(this::buildCategorySections);
     }
 
     private void showEmpty() {
@@ -306,9 +302,12 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void scheduleHeroPreview(Channel channel) {
+        if (!Config.ENABLE_HERO_LIVE_PREVIEW) {
+            return;
+        }
         heroExecutor.execute(() -> {
             try {
-                Thread.sleep(600);
+                Thread.sleep(1200);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
@@ -324,8 +323,30 @@ public class ActivityMainV2 extends AppCompatActivity {
         });
     }
 
+    private void ensureHeroPreviewView() {
+        if (heroPreview != null) {
+            return;
+        }
+        FrameLayout container = findViewById(R.id.hero_preview_container);
+        if (container == null) {
+            return;
+        }
+        try {
+            heroPreview = new StyledPlayerView(this);
+            heroPreview.setLayoutParams(new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT));
+            heroPreview.setClickable(false);
+            heroPreview.setFocusable(false);
+            heroPreview.setUseController(false);
+            container.addView(heroPreview);
+        } catch (Exception ignored) {
+            heroPreview = null;
+        }
+    }
+
     private void startHeroPreview(Channel channel) {
-        if (heroPreview == null || channel == null || TextUtils.isEmpty(channel.channel_url)) {
+        if (channel == null || TextUtils.isEmpty(channel.channel_url)) {
             return;
         }
         if (heroPlayer != null && heroPreviewChannel != null
@@ -348,10 +369,18 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void startHeroPreviewPlayer(Channel channel, String playbackUrl) {
-        if (heroPreview == null || channel == null || heroPreviewChannel == null) {
+        if (channel == null || heroPreviewChannel == null) {
+            return;
+        }
+        ensureHeroPreviewView();
+        if (heroPreview == null) {
             return;
         }
         try {
+            FrameLayout container = findViewById(R.id.hero_preview_container);
+            if (container != null) {
+                container.setVisibility(View.VISIBLE);
+            }
             heroPlayer = IptvPlayerHelper.createPlayer(this);
             heroPlayer.setVolume(heroMuted ? 0f : 1f);
             heroPreview.setPlayer(heroPlayer);
@@ -402,6 +431,10 @@ public class ActivityMainV2 extends AppCompatActivity {
         }
         if (heroPreview != null) {
             heroPreview.setVisibility(View.GONE);
+        }
+        FrameLayout container = findViewById(R.id.hero_preview_container);
+        if (container != null) {
+            container.setVisibility(View.GONE);
         }
         ImageButton muteButton = findViewById(R.id.btn_hero_mute);
         if (muteButton != null) {

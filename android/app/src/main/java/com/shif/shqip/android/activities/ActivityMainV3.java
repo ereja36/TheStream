@@ -30,6 +30,7 @@ import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
+import com.shif.shqip.android.utils.HomeAdsBootstrap;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.PlaylistRefreshHelper;
 import com.shif.shqip.android.utils.Tools;
@@ -91,13 +92,14 @@ public class ActivityMainV3 extends AppCompatActivity {
                 startActivity(new Intent(this, ActivitySettings.class)));
 
         DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
-        Tools.postDelayed(() -> {
-            adsManager.initializeAd();
-            adsManager.updateConsentStatus();
-            AdPlacementHelper.loadHomePlacementAds(this, adsManager, adsPref);
-            adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
-        }, 100);
+        HomeAdsBootstrap.init(this, adsManager, adsPref, adsAntiblockHelper);
         setupBottomNav();
+        View root = findViewById(R.id.design_root);
+        if (root != null) {
+            root.post(this::bindHomeNativeAds);
+        } else {
+            bindHomeNativeAds();
+        }
         loadChannels();
     }
 
@@ -116,12 +118,7 @@ public class ActivityMainV3 extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (adsPref.getAdStatus()) {
-            adsManager.resumeBannerAd(Constant.BANNER_HOME);
-            if (adsAntiblockHelper.shouldForceAdReloadOnResume()) {
-                reloadHomeAds();
-            }
-        }
+        HomeAdsBootstrap.resume(this, adsManager, adsPref, adsAntiblockHelper);
         PlaylistRefreshHelper.refreshOnResume(this, sharedPref, this::loadChannels);
         InboxNotificationHelper.pollAndShow(this, sharedPref);
         InboxNotificationHelper.handleOpenIntent(this, sharedPref, getIntent());
@@ -133,6 +130,18 @@ public class ActivityMainV3 extends AppCompatActivity {
     protected void onDestroy() {
         destroyBannerAd();
         super.onDestroy();
+    }
+
+    private void bindHomeNativeAds() {
+        if (!adsPref.getAdStatus() || !Constant.NATIVE_AD_CHANNEL_LIST) {
+            return;
+        }
+        android.widget.LinearLayout host = findViewById(R.id.native_ad_home);
+        if (host == null) {
+            return;
+        }
+        Tools.setNativeAdStyle(this, host, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
+        adsManager.loadNativeAdView(host, Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
     }
 
     private void reloadHomeAds() {
@@ -204,19 +213,23 @@ public class ActivityMainV3 extends AppCompatActivity {
     }
 
     private void applyChannels(List<Channel> channels) {
-        List<Channel> list = channels == null ? new ArrayList<>() : new ArrayList<>(channels);
-        if (list.isEmpty()) {
+        try {
+            List<Channel> list = channels == null ? new ArrayList<>() : new ArrayList<>(channels);
+            if (list.isEmpty()) {
+                showEmpty();
+                return;
+            }
+            emptyMessage.setVisibility(View.GONE);
+            int featuredCount = Math.min(8, list.size());
+            featuredAdapter.setItems(new ArrayList<>(list.subList(0, featuredCount)));
+            int gridLimit = Math.min(36, list.size());
+            gridAdapter.setItems(new ArrayList<>(list.subList(0, gridLimit)));
+            TextView subtitle = findViewById(R.id.v3_subtitle);
+            if (subtitle != null) {
+                subtitle.setText(list.size() + " channels ready to stream");
+            }
+        } catch (Exception e) {
             showEmpty();
-            return;
-        }
-        emptyMessage.setVisibility(View.GONE);
-        int featuredCount = Math.min(8, list.size());
-        featuredAdapter.setItems(new ArrayList<>(list.subList(0, featuredCount)));
-        int gridLimit = Math.min(36, list.size());
-        gridAdapter.setItems(new ArrayList<>(list.subList(0, gridLimit)));
-        TextView subtitle = findViewById(R.id.v3_subtitle);
-        if (subtitle != null) {
-            subtitle.setText(list.size() + " channels ready to stream");
         }
     }
 

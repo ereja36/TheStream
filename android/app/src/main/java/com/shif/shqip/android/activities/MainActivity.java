@@ -51,6 +51,7 @@ import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.AppBarLayoutBehavior;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignUiHelper;
+import com.shif.shqip.android.utils.HomeAdsBootstrap;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.PlaylistRefreshHelper;
 import com.shif.shqip.android.utils.RtlViewPager;
@@ -114,14 +115,8 @@ public class MainActivity extends AppCompatActivity {
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
 
-        Tools.postDelayed(() -> {
-            adsManager.initializeAd();
-            adsManager.updateConsentStatus();
-            AdPlacementHelper.loadHomePlacementAds(this, adsManager, adsPref);
-            adsAntiblockHelper.onAdLoadFailed(this::reloadHomeAds);
-        }, 100);
-
         initComponent();
+        HomeAdsBootstrap.init(this, adsManager, adsPref, adsAntiblockHelper);
         Tools.notificationOpenHandler(this, getIntent());
         Tools.getCategoryPosition(this, getIntent());
         Tools.getChannelPosition(this, getIntent());
@@ -317,12 +312,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (adsPref.getAdStatus()) {
-            adsManager.resumeBannerAd(Constant.BANNER_HOME);
-            if (adsAntiblockHelper.shouldForceAdReloadOnResume()) {
-                reloadHomeAds();
-            }
-        }
+        HomeAdsBootstrap.resume(this, adsManager, adsPref, adsAntiblockHelper);
         PlaylistRefreshHelper.refreshOnResume(this, sharedPref, this::onPlaylistDataUpdated);
         PlaylistGuardSession.refreshAsync(sharedPref);
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, null);
@@ -444,7 +434,11 @@ public class MainActivity extends AppCompatActivity {
         nativeAdView = findViewById(R.id.native_ad_view);
 
         Tools.setNativeAdStyle(MainActivity.this, nativeAdView, Constant.NATIVE_AD_STYLE_EXIT_DIALOG);
-        adsManager.loadNativeAd(Constant.NATIVE_AD_EXIT_DIALOG, Constant.NATIVE_AD_STYLE_EXIT_DIALOG);
+        getWindow().getDecorView().post(() -> {
+            if (!isFinishing()) {
+                adsManager.loadNativeAd(Constant.NATIVE_AD_EXIT_DIALOG, Constant.NATIVE_AD_STYLE_EXIT_DIALOG);
+            }
+        });
 
         btnRate.setOnClickListener(v -> {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("http://play.google.com/store/apps/details?id=" + Tools.getApplicationId())));

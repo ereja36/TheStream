@@ -149,6 +149,10 @@ public class FragmentRecent extends Fragment {
     }
 
     public void setLoadMore(int current_page) {
+        if (sharedPref.hasPlaylistChannels()) {
+            adapterChannel.setLoaded();
+            return;
+        }
         Log.d("page", "currentPage: " + current_page);
         // Assuming final total items equal to real post items plus the ad
         int totalItemBeforeAds = (adapterChannel.getItemCount() - current_page);

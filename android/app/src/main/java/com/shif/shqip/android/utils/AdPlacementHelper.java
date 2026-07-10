@@ -44,6 +44,8 @@ public final class AdPlacementHelper {
     public static void pauseHomeBanner(Activity activity) {
         if (activity instanceof MainActivity) {
             ((MainActivity) activity).destroyBannerAd();
+        } else if (activity instanceof ActivityMainV2) {
+            ((ActivityMainV2) activity).destroyBannerAd();
         } else if (activity instanceof ActivityMainV3) {
             ((ActivityMainV3) activity).destroyBannerAd();
         }

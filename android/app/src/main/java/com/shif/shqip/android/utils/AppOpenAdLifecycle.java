@@ -94,10 +94,34 @@ public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Appli
             adsManager.loadAppOpenAd(true, true, () -> {
                 lastShownAt = SystemClock.elapsedRealtime();
                 AppOpenAd.isAppOpenAdLoaded = false;
+                preloadNextAppOpenAd(activity);
             });
         } catch (Exception e) {
             Log.e(TAG, "showResumeAdIfNeeded failed", e);
         }
+    }
+
+    private void preloadNextAppOpenAd(@NonNull Activity activity) {
+        if (activity.isFinishing()) {
+            return;
+        }
+        AdsPref adsPref = new AdsPref(application);
+        if (!adsPref.getAdStatus() || !adsPref.getAppOpenOnResume()) {
+            return;
+        }
+        mainHandler.postDelayed(() -> {
+            if (activity.isFinishing()) {
+                return;
+            }
+            try {
+                AdsManager adsManager = new AdsManager(activity);
+                adsManager.initializeAd();
+                adsManager.loadAppOpenAd(true, false, () -> {
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "preloadNextAppOpenAd failed", e);
+            }
+        }, 500L);
     }
 
     @Override
