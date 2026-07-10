@@ -358,7 +358,7 @@ final class PortalService
             $url = 'https://shifshqip.com' . $url;
         }
         $direct = self::resolveToDirectCdnUrl($portal, $url);
-        return $direct !== '' ? $direct : self::resolvePlaybackRedirectUrl($portal, $url);
+        return ($direct !== '' && self::isDirectCdnUrl($direct)) ? $direct : '';
     }
 
     public static function isK1ChannelProxyUrl($url)

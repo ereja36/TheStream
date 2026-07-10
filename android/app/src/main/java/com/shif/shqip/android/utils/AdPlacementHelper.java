@@ -15,7 +15,7 @@ import com.shif.shqip.android.databases.prefs.AdsPref;
 public final class AdPlacementHelper {
 
     public static final int INTERSTITIAL_EVERY_CLICKS = 3;
-    private static final int NATIVE_PRELOAD_COUNT = 4;
+    private static final int NATIVE_PRELOAD_COUNT = 2;
 
     private AdPlacementHelper() {
     }

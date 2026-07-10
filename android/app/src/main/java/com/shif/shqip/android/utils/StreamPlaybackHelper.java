@@ -8,9 +8,9 @@ import android.text.TextUtils;
 
 public final class StreamPlaybackHelper {
 
-    public static final int AUTO_RETRY_MAX = 6;
+    public static final int AUTO_RETRY_MAX = 4;
     public static final int CONNECT_TIMEOUT_MS = 8_000;
-    public static final int READ_TIMEOUT_MS = 20_000;
+    public static final int READ_TIMEOUT_MS = 15_000;
 
     private StreamPlaybackHelper() {
     }
@@ -23,63 +23,65 @@ public final class StreamPlaybackHelper {
         return PlaylistGuardHelper.resolvePlaybackUrlSafe(sharedPref, sourceUrl);
     }
 
-    /**
-     * True only for real CDN stream URLs — never portal /r/ or VPS proxy URLs.
-     */
     public static boolean canPlayDirectly(SharedPref sharedPref, String sourceUrl) {
         return PortalResolveHelper.isDirectCdnUrl(sourceUrl);
     }
 
+    public static boolean isPlayableUrl(String url) {
+        return PortalResolveHelper.isDirectCdnUrl(url);
+    }
+
     /**
-     * Returns a direct CDN play URL. Portal obfuscation is resolved once on the server;
-     * video traffic goes straight to the stream source afterward.
+     * Returns a direct CDN play URL or empty string if resolution fails.
      */
     public static String resolvePlaybackUrl(SharedPref sharedPref, String sourceUrl, String k1Slug) {
         if (TextUtils.isEmpty(sourceUrl)) {
-            return sourceUrl;
+            return "";
         }
+        String trimmed = sourceUrl.trim();
 
-        if (PortalResolveHelper.isDirectCdnUrl(sourceUrl)) {
-            return sourceUrl.trim();
+        if (PortalResolveHelper.isDirectCdnUrl(trimmed)) {
+            return trimmed;
         }
 
         if (sharedPref != null && sharedPref.isPortalSessionActive()) {
-            if (PlaylistPortalHelper.isPortalResolveUrl(sourceUrl)
-                    || PlaylistPortalHelper.isUpstreamStreamUrl(sourceUrl)
-                    || K1PlaybackHelper.isK1ProxyUrl(sourceUrl)) {
-                String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, sourceUrl);
-                if (!TextUtils.isEmpty(direct) && PortalResolveHelper.isDirectCdnUrl(direct)) {
+            if (PlaylistPortalHelper.isPortalResolveUrl(trimmed)
+                    || PlaylistPortalHelper.isUpstreamStreamUrl(trimmed)
+                    || K1PlaybackHelper.isK1ProxyUrl(trimmed)) {
+                String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, trimmed);
+                if (PortalResolveHelper.isDirectCdnUrl(direct)) {
                     return direct;
                 }
             }
         }
 
-        if (!TextUtils.isEmpty(k1Slug)) {
+        if (!TextUtils.isEmpty(k1Slug)
+                && K1ChannelUrlHelper.looksLikeK1Slug(k1Slug)
+                && !PlaylistPortalHelper.isPortalResolveUrl(trimmed)) {
             String portalUrl = K1ChannelUrlHelper.resolvePlayableUrl(sharedPref, k1Slug);
             if (!TextUtils.isEmpty(portalUrl)) {
                 if (PortalResolveHelper.isDirectCdnUrl(portalUrl)) {
                     return portalUrl;
                 }
                 String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, portalUrl);
-                if (!TextUtils.isEmpty(direct)) {
+                if (PortalResolveHelper.isDirectCdnUrl(direct)) {
                     return direct;
                 }
-                return portalUrl;
             }
         }
 
-        String resolved = resolveForPlayback(sharedPref, sourceUrl);
-        if (!TextUtils.isEmpty(resolved) && PortalResolveHelper.isDirectCdnUrl(resolved)) {
-            return resolved;
-        }
+        String resolved = resolveForPlayback(sharedPref, trimmed);
         if (!TextUtils.isEmpty(resolved)) {
+            if (PortalResolveHelper.isDirectCdnUrl(resolved)) {
+                return resolved;
+            }
             String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, resolved);
-            if (!TextUtils.isEmpty(direct)) {
+            if (PortalResolveHelper.isDirectCdnUrl(direct)) {
                 return direct;
             }
-            return resolved;
         }
-        return sourceUrl.trim();
+
+        return "";
     }
 
     public static String resolveFinalPlaybackUrl(SharedPref sharedPref, String sourceUrl) {

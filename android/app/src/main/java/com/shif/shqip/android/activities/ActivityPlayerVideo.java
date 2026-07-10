@@ -102,6 +102,10 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private int autoRetryCount = 0;
     private boolean destroyed = false;
     private boolean epgLoadScheduled = false;
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private Runnable bufferingSpinnerRunnable;
+    private static final long BUFFERING_SPINNER_DELAY_MS = 1_500L;
+    private static final long EPG_LOAD_DELAY_MS = 8_000L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -146,6 +150,10 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         if (StreamPlaybackHelper.canPlayDirectly(sharedPref, sourceStreamUrl)) {
             video_url = StreamPlaybackHelper.resolvePlaybackUrl(
                     sharedPref, sourceStreamUrl, epgChannelId);
+            if (TextUtils.isEmpty(video_url)) {
+                errorDialog();
+                return;
+            }
             autoRetryCount = 0;
             initializePlayer();
         } else {
@@ -161,7 +169,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                     autoRetryCount = 0;
                     initializePlayer();
                 });
-            }).start();
+            }, "resolve-playback").start();
         }
     }
 
@@ -179,7 +187,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private void initializeExoPlayer() {
         releasePlayers();
         dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
-                this, sharedPref, sourceStreamUrl, user_agent);
+                this, sharedPref, video_url, user_agent);
         exoPlayer = IptvPlayerHelper.createPlayer(this);
         styledPlayerView.setPlayer(exoPlayer);
         styledPlayerView.setUseController(true);
@@ -198,7 +206,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             return;
         }
         epgLoadScheduled = true;
-        loadEpgInfo();
+        mainHandler.postDelayed(this::loadEpgInfo, EPG_LOAD_DELAY_MS);
     }
 
     private void startExoPlayback() {
@@ -213,10 +221,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         new Thread(() -> {
             String resolvedUrl = StreamPlaybackHelper.resolvePlaybackUrl(
                     sharedPref, sourceStreamUrl, epgChannelId);
-            if (TextUtils.isEmpty(resolvedUrl)) {
-                resolvedUrl = sourceStreamUrl;
-            }
-            final String playbackUrl = resolvedUrl;
+            final String playbackUrl = TextUtils.isEmpty(resolvedUrl) ? "" : resolvedUrl;
             runOnUiThread(() -> {
                 if (TextUtils.isEmpty(playbackUrl) || exoPlayer == null) {
                     progressBar.setVisibility(View.GONE);
@@ -227,7 +232,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 }
                 video_url = playbackUrl;
                 dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
-                        ActivityPlayerVideo.this, sharedPref, sourceStreamUrl, user_agent);
+                        ActivityPlayerVideo.this, sharedPref, video_url, user_agent);
                 MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);
                 exoPlayer.stop();
                 exoPlayer.setMediaSource(mediaSource);
@@ -300,14 +305,14 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             public void onPlaybackStateChanged(int state) {
                 switch (state) {
                     case Player.STATE_READY:
-                        progressBar.setVisibility(View.GONE);
+                        hideBufferingSpinner();
                         contentLoaded = true;
                         autoRetryCount = 0;
                         scheduleEpgLoad();
                         break;
                     case Player.STATE_BUFFERING:
                         if (!Config.ENABLE_LOOPING_MODE) {
-                            progressBar.setVisibility(View.VISIBLE);
+                            showBufferingSpinnerDelayed();
                         }
                         break;
                     case Player.STATE_ENDED:
@@ -573,26 +578,46 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
         if (autoRetryCount <= 1) {
             if (IptvPlayerHelper.isLiveStream(video_url)) {
-                long recovery = IptvPlayerHelper.liveRecoveryPositionMs(exoPlayer);
-                if (recovery != com.google.android.exoplayer2.C.TIME_UNSET) {
-                    exoPlayer.seekTo(recovery);
-                } else {
-                    exoPlayer.seekToDefaultPosition();
-                }
+                reloadLiveStream(false);
             } else {
                 exoPlayer.seekToDefaultPosition();
+                exoPlayer.prepare();
+                exoPlayer.setPlayWhenReady(true);
             }
-            exoPlayer.prepare();
-            exoPlayer.setPlayWhenReady(true);
             return;
         }
 
         reloadLiveStream(showErrorOnFailure);
     }
 
+    private void showBufferingSpinnerDelayed() {
+        if (bufferingSpinnerRunnable != null) {
+            mainHandler.removeCallbacks(bufferingSpinnerRunnable);
+        }
+        bufferingSpinnerRunnable = () -> {
+            if (progressBar != null && exoPlayer != null
+                    && exoPlayer.getPlaybackState() == Player.STATE_BUFFERING) {
+                progressBar.setVisibility(View.VISIBLE);
+            }
+        };
+        mainHandler.postDelayed(bufferingSpinnerRunnable, BUFFERING_SPINNER_DELAY_MS);
+    }
+
+    private void hideBufferingSpinner() {
+        if (bufferingSpinnerRunnable != null) {
+            mainHandler.removeCallbacks(bufferingSpinnerRunnable);
+            bufferingSpinnerRunnable = null;
+        }
+        if (progressBar != null) {
+            progressBar.setVisibility(View.GONE);
+        }
+    }
+
     @Override
     protected void onDestroy() {
         destroyed = true;
+        hideBufferingSpinner();
+        mainHandler.removeCallbacksAndMessages(null);
         epgExecutor.shutdownNow();
         releasePlayers();
         super.onDestroy();

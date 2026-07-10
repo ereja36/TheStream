@@ -14,6 +14,7 @@ import androidx.lifecycle.DefaultLifecycleObserver;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.ProcessLifecycleOwner;
 
+import com.shif.shqip.android.activities.ActivityPlayerVideo;
 import com.shif.shqip.android.activities.ActivitySplash;
 import com.shif.shqip.android.activities.MyApplication;
 import com.shif.shqip.android.databases.prefs.AdsPref;
@@ -25,7 +26,9 @@ import com.solodroidx.ads.appopen.AppOpenAd;
 public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Application.ActivityLifecycleCallbacks {
 
     private static final String TAG = "AppOpenAdLifecycle";
-    private static final long MIN_GAP_MS = 300L;
+    private static final long MIN_GAP_MS = 45_000L;
+    private static final long MIN_GAP_AFTER_PLAYER_MS = 120_000L;
+    private boolean returningFromPlayer;
 
     private final MyApplication application;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -81,11 +84,14 @@ public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Appli
                 return;
             }
             if (activity.isFinishing() || activity.isDestroyed()
-                    || activity instanceof ActivitySplash) {
+                    || activity instanceof ActivitySplash
+                    || activity instanceof ActivityPlayerVideo) {
                 return;
             }
             long now = SystemClock.elapsedRealtime();
-            if (now - lastShownAt < MIN_GAP_MS) {
+            long minGap = returningFromPlayer ? MIN_GAP_AFTER_PLAYER_MS : MIN_GAP_MS;
+            returningFromPlayer = false;
+            if (now - lastShownAt < minGap) {
                 return;
             }
             AdsManager adsManager = new AdsManager(activity);
@@ -135,6 +141,9 @@ public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Appli
 
     @Override
     public void onActivityPaused(@NonNull Activity activity) {
+        if (activity instanceof ActivityPlayerVideo) {
+            returningFromPlayer = true;
+        }
     }
 
     @Override

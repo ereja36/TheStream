@@ -88,6 +88,10 @@ if ($path['channel'] === 'u' && $path['stream'] !== '') {
         echo json_encode(array('ok' => false, 'error' => 'channel_not_found'));
         exit;
     }
+    if (!PortalService::isDirectCdnUrl($playUrl)) {
+        echo json_encode(array('ok' => false, 'error' => 'resolve_not_direct'));
+        exit;
+    }
     echo json_encode(array(
         'ok' => true,
         'mode' => 'direct',
@@ -103,14 +107,15 @@ if ($path['channel'] === 'r' && $path['stream'] !== '') {
     }
     $finalUrl = PortalService::resolveToDirectCdnUrl($portal, $entryUrl);
     if ($finalUrl === '') {
-        $finalUrl = PortalService::resolvePlaybackRedirectUrl($portal, $entryUrl);
-    }
-    if ($finalUrl === '') {
         PortalService::deny('resolve_failed');
     }
     if (PortalService::wantsDirectResolve($headers) || !PortalService::isBrowserClient($headers)) {
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+        if (!PortalService::isDirectCdnUrl($finalUrl)) {
+            echo json_encode(array('ok' => false, 'error' => 'resolve_not_direct'));
+            exit;
+        }
         echo json_encode(array(
             'ok' => true,
             'mode' => 'direct',

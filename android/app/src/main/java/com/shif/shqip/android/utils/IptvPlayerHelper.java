@@ -32,11 +32,10 @@ import java.util.Locale;
 @SuppressWarnings("deprecation")
 public final class IptvPlayerHelper {
 
-  /** Tuned for fast channel open — minimal buffer before first frame. */
-  private static final int LIVE_MIN_BUFFER_MS = 2_500;
-  private static final int LIVE_MAX_BUFFER_MS = 30_000;
-  private static final int BUFFER_FOR_PLAYBACK_MS = 750;
-  private static final int BUFFER_AFTER_REBUFFER_MS = 2_500;
+  private static final int LIVE_MIN_BUFFER_MS = 3_500;
+  private static final int LIVE_MAX_BUFFER_MS = 35_000;
+  private static final int BUFFER_FOR_PLAYBACK_MS = 1_500;
+  private static final int BUFFER_AFTER_REBUFFER_MS = 3_500;
 
   private static final long LIVE_TARGET_OFFSET_MS = 5_000;
   private static final long LIVE_MIN_OFFSET_MS = 2_000;
@@ -74,16 +73,16 @@ public final class IptvPlayerHelper {
   public static DefaultDataSource.Factory createDataSourceFactory(
           Context context,
           SharedPref sharedPref,
-          String sourceUrl,
+          String playbackUrl,
           String channelUserAgent
   ) {
-    if (sharedPref != null && sharedPref.isPortalSessionActive()) {
+    if (PlaylistPortalHelper.isPortalUrl(playbackUrl)) {
       return new DefaultDataSource.Factory(
               context.getApplicationContext(),
               new IptvHttpDataSource.Factory(context, sharedPref, channelUserAgent)
       );
     }
-    return PlaylistGuardHelper.createDataSourceFactory(context, sharedPref, sourceUrl, channelUserAgent);
+    return PlaylistGuardHelper.createDataSourceFactory(context, sharedPref, playbackUrl, channelUserAgent);
   }
 
   public static MediaSource buildMediaSource(

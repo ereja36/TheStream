@@ -20,13 +20,13 @@ public final class IptvStallRecoveryHelper implements Player.Listener {
         void onStallHardRecover();
     }
 
-    private static final long STALL_GRACE_MS = 12_000;
-    private static final long LOW_BUFFER_GRACE_MS = 4_000;
-    private static final long LOW_BUFFER_THRESHOLD_MS = 1_500;
-    private static final long BUFFER_POLL_MS = 3_000;
+    private static final long STALL_GRACE_MS = 15_000;
+    private static final long LOW_BUFFER_GRACE_MS = 5_000;
+    private static final long LOW_BUFFER_THRESHOLD_MS = 2_000;
+    private static final long BUFFER_POLL_MS = 5_000;
     private static final long PROGRESS_EPSILON_MS = 200;
-    private static final int MAX_STALL_RECOVERIES = 2;
-    private static final long STARTUP_GRACE_MS = 15_000;
+    private static final int MAX_STALL_RECOVERIES = 1;
+    private static final long STARTUP_GRACE_MS = 30_000;
 
     private final ExoPlayer player;
     private final Callback callback;

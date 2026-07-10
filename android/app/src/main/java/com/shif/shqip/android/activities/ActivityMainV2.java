@@ -388,12 +388,20 @@ public class ActivityMainV2 extends AppCompatActivity {
         }
         releaseHeroPreview();
         heroPreviewChannel = channel;
-        String playbackUrl = StreamPlaybackHelper.resolvePlaybackUrl(
-                sharedPref, channel.channel_url, channel.epg_id);
-        if (TextUtils.isEmpty(playbackUrl)) {
-            return;
-        }
-        startHeroPreviewPlayer(channel, playbackUrl);
+        final Channel previewChannel = channel;
+        heroExecutor.execute(() -> {
+            String playbackUrl = StreamPlaybackHelper.resolvePlaybackUrl(
+                    sharedPref, previewChannel.channel_url, previewChannel.epg_id);
+            if (TextUtils.isEmpty(playbackUrl)) {
+                return;
+            }
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed() || heroPreviewChannel == null) {
+                    return;
+                }
+                startHeroPreviewPlayer(previewChannel, playbackUrl);
+            });
+        });
     }
 
     private void startHeroPreviewPlayer(Channel channel, String playbackUrl) {

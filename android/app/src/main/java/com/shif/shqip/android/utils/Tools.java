@@ -576,7 +576,12 @@ public class Tools {
             }
             intent.putExtra("channel_id", channel.channel_id);
             activity.startActivity(intent);
-            AdPlacementHelper.showInterstitialBeforeAction(activity);
+            View anchor = activity.getWindow() != null ? activity.getWindow().getDecorView() : view;
+            if (anchor != null) {
+                anchor.postDelayed(() -> AdPlacementHelper.showInterstitialBeforeAction(activity), 1_500L);
+            } else {
+                AdPlacementHelper.showInterstitialBeforeAction(activity);
+            }
         } else {
             Snackbar.make(view, activity.getResources().getString(R.string.network_required), Snackbar.LENGTH_SHORT).show();
         }
@@ -883,7 +888,6 @@ public class Tools {
         btnPlay.setOnClickListener(v -> {
             Tools.startPlayer(activity, parentView, channel);
             if (isFragment) {
-                ((MainActivity) activity).showInterstitialAd();
                 ((MainActivity) activity).destroyBannerAd();
             }
             mBottomSheetDialog.dismiss();

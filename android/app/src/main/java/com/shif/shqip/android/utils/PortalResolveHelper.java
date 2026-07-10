@@ -17,16 +17,15 @@ import java.util.Locale;
 
 /**
  * One-shot portal resolve: sealed playlist URLs → direct CDN stream URL.
- * Video bytes never pass through the VPS after this call.
  */
 public final class PortalResolveHelper {
 
     private static final String TAG = "PortalResolveHelper";
-    private static final int CONNECT_TIMEOUT_MS = 6_000;
-    private static final int READ_TIMEOUT_MS = 12_000;
-    private static final long CACHE_TTL_MS = 60_000;
+    private static final int CONNECT_TIMEOUT_MS = 5_000;
+    private static final int READ_TIMEOUT_MS = 10_000;
+    private static final long CACHE_TTL_MS = 20_000;
 
-    private static final LruCache<String, CacheEntry> URL_CACHE = new LruCache<>(64);
+    private static final LruCache<String, CacheEntry> URL_CACHE = new LruCache<>(48);
 
     private PortalResolveHelper() {
     }
@@ -43,7 +42,7 @@ public final class PortalResolveHelper {
 
     public static String resolveToDirectUrl(SharedPref sharedPref, String sourceUrl) {
         if (TextUtils.isEmpty(sourceUrl) || sharedPref == null) {
-            return sourceUrl;
+            return "";
         }
         String trimmed = sourceUrl.trim();
         if (isDirectCdnUrl(trimmed)) {
@@ -56,7 +55,7 @@ public final class PortalResolveHelper {
                 || K1PlaybackHelper.isK1ProxyUrl(trimmed)) {
             return followRedirectsToCdn(sharedPref, trimmed);
         }
-        return trimmed;
+        return "";
     }
 
     private static String resolvePortalEntry(SharedPref sharedPref, String portalUrl) {
@@ -66,11 +65,11 @@ public final class PortalResolveHelper {
             return cached.url;
         }
         String resolved = fetchDirectUrl(sharedPref, portalUrl);
-        if (!TextUtils.isEmpty(resolved) && isDirectCdnUrl(resolved)) {
+        if (isDirectCdnUrl(resolved)) {
             URL_CACHE.put(cacheKey, new CacheEntry(resolved, System.currentTimeMillis() + CACHE_TTL_MS));
             return resolved;
         }
-        return resolved;
+        return "";
     }
 
     private static String followRedirectsToCdn(SharedPref sharedPref, String startUrl) {
@@ -91,6 +90,15 @@ public final class PortalResolveHelper {
             connection.setRequestProperty("Referer", PlaylistPortalHelper.UPSTREAM_STREAM_REFERER);
             connection.setRequestProperty("X-Shif-App", "1");
             connection.setRequestProperty("X-Requested-With", BuildConfig.APPLICATION_ID);
+
+            String deviceId = DeviceApiHelper.getLocalDeviceId(sharedPref.getContext());
+            if (!TextUtils.isEmpty(deviceId)) {
+                connection.setRequestProperty("X-Device-ID", deviceId);
+            }
+            String sessionToken = sharedPref.getPortalSessionToken();
+            if (!TextUtils.isEmpty(sessionToken)) {
+                connection.setRequestProperty("X-Shif-Session", sessionToken);
+            }
 
             int code = connection.getResponseCode();
             String finalUrl = connection.getURL().toString();
@@ -168,8 +176,8 @@ public final class PortalResolveHelper {
             int code = connection.getResponseCode();
             if (code >= 300 && code < 400) {
                 String location = connection.getHeaderField("Location");
-                if (!TextUtils.isEmpty(location)) {
-                    return resolveToDirectUrl(sharedPref, location);
+                if (!TextUtils.isEmpty(location) && isDirectCdnUrl(location)) {
+                    return location;
                 }
             }
             if (code < 200 || code >= 300) {
@@ -186,14 +194,19 @@ public final class PortalResolveHelper {
             }
 
             String trimmed = body.toString().trim();
-            if (trimmed.startsWith("{")) {
-                JSONObject json = new JSONObject(trimmed);
-                if (json.optBoolean("ok", false)) {
-                    String url = json.optString("url", "").trim();
-                    if (!TextUtils.isEmpty(url)) {
-                        return url;
-                    }
-                }
+            if (!trimmed.startsWith("{")) {
+                return "";
+            }
+            JSONObject json = new JSONObject(trimmed);
+            if (!json.optBoolean("ok", false)) {
+                return "";
+            }
+            String url = json.optString("url", "").trim();
+            if (isDirectCdnUrl(url)) {
+                return url;
+            }
+            if (!TextUtils.isEmpty(url)) {
+                return resolveToDirectUrl(sharedPref, url);
             }
             return "";
         } catch (Exception e) {
@@ -211,6 +224,10 @@ public final class PortalResolveHelper {
             return false;
         }
         String lower = url.toLowerCase(Locale.US);
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")
+                && !lower.startsWith("rtsp://") && !lower.startsWith("rtmp://")) {
+            return false;
+        }
         if (lower.contains("playlist.shifshqip.com")) {
             return false;
         }
@@ -218,6 +235,7 @@ public final class PortalResolveHelper {
             if (lower.contains("/k1/channel-proxy/")
                     || lower.contains("/k1/proxy/")
                     || lower.contains("/k1/channel/")
+                    || lower.contains("/k1/playlist/")
                     || lower.contains("/app-measurement/collect/")) {
                 return false;
             }
@@ -230,6 +248,7 @@ public final class PortalResolveHelper {
                 || lower.contains(".m3u")
                 || lower.startsWith("rtsp://")
                 || lower.startsWith("rtmp://")
-                || (lower.contains("://") && lower.matches(".*:\\d+/.*"));
+                || lower.contains("/live/")
+                || lower.contains("/hls/");
     }
 }
