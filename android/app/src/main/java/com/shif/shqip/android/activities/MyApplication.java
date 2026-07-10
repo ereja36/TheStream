@@ -5,7 +5,6 @@ import static com.solodroidx.ads.util.Constant.AD_STATUS_ON;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
-import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;

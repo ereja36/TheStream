@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 64
-        versionName = "6.9.44"
+        versionCode = 65
+        versionName = "6.9.45"
         multiDexEnabled = true
     }
     compileOptions {
@@ -28,6 +28,11 @@ android {
     }
     lint {
         disable 'GradleDependency', 'GradleDynamicVersion', 'OldTargetApi'
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
     signingConfigs {
         release {

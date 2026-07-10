@@ -56,6 +56,7 @@ import com.solodroidx.ads.appopen.AppOpenAd;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -74,7 +75,11 @@ public class ActivitySplash extends AppCompatActivity {
     Settings settings;
     Ads ads;
     License license;
+    private static final long STARTUP_WATCHDOG_MS = 18_000L;
+
     private final ExecutorService startupExecutor = Executors.newSingleThreadExecutor();
+    private final Handler startupWatchdogHandler = new Handler(Looper.getMainLooper());
+    private final AtomicBoolean startupContinued = new AtomicBoolean(false);
     private String deviceId;
 
     @Override
@@ -213,6 +218,15 @@ public class ActivitySplash extends AppCompatActivity {
     }
 
     private void handleStartupState() {
+        Runnable continueStartup = () -> {
+            if (!startupContinued.compareAndSet(false, true)) {
+                return;
+            }
+            startupWatchdogHandler.removeCallbacksAndMessages(null);
+            showAppOpenAdIfAvailable();
+        };
+        startupWatchdogHandler.postDelayed(continueStartup, STARTUP_WATCHDOG_MS);
+
         startupExecutor.execute(() -> {
             try {
                 PlaylistGuardSession.refreshBlocking(sharedPref);
@@ -220,6 +234,7 @@ public class ActivitySplash extends AppCompatActivity {
                 DeviceApiHelper.DeviceProfile profile = DeviceApiHelper.fetchDeviceProfile(sharedPref, deviceId);
                 if (profile.blocked) {
                     sharedPref.clearPlaylistChannels();
+                    startupWatchdogHandler.removeCallbacksAndMessages(null);
                     runOnUiThread(() -> showBlockedDialog(profile.reason));
                     return;
                 }
@@ -233,11 +248,12 @@ public class ActivitySplash extends AppCompatActivity {
                         DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
                 if (playlistSync.blocked) {
                     sharedPref.clearPlaylistChannels();
+                    startupWatchdogHandler.removeCallbacksAndMessages(null);
                     runOnUiThread(() -> showBlockedDialog(playlistSync.reason));
                     return;
                 }
 
-                runOnUiThread(this::showAppOpenAdIfAvailable);
+                runOnUiThread(continueStartup);
                 showStartupPopupInBackground();
             } catch (Exception e) {
                 try {
@@ -245,7 +261,7 @@ public class ActivitySplash extends AppCompatActivity {
                 } catch (Exception ignored) {
                     // Keep cached playlist if sync fails.
                 }
-                runOnUiThread(this::showAppOpenAdIfAvailable);
+                runOnUiThread(continueStartup);
             }
         });
     }
@@ -477,6 +493,7 @@ public class ActivitySplash extends AppCompatActivity {
     public void onDestroy() {
         super.onDestroy();
         AppOpenAd.isAppOpenAdLoaded = false;
+        startupWatchdogHandler.removeCallbacksAndMessages(null);
         startupExecutor.shutdownNow();
     }
 
