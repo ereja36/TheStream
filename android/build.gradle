@@ -7,19 +7,19 @@ plugins {
 
 subprojects {
     configurations.configureEach {
-        resolutionStrategy {
-            force 'androidx.datastore:datastore:1.2.1'
-            force 'androidx.datastore:datastore-android:1.2.1'
-            force 'androidx.datastore:datastore-core:1.2.1'
-            force 'androidx.datastore:datastore-core-android:1.2.1'
-            force 'androidx.datastore:datastore-core-okio:1.2.1'
-            force 'androidx.datastore:datastore-core-okio-jvm:1.2.1'
-            force 'androidx.datastore:datastore-preferences:1.2.1'
-            force 'androidx.datastore:datastore-preferences-android:1.2.1'
-            force 'androidx.datastore:datastore-preferences-core:1.2.1'
-            force 'androidx.datastore:datastore-preferences-core-android:1.2.1'
-            force 'androidx.datastore:datastore-preferences-proto:1.2.1'
-            force 'androidx.datastore:datastore-preferences-external-protobuf:1.2.1'
-        }
+        exclude group: 'androidx.datastore', module: 'datastore'
+        exclude group: 'androidx.datastore', module: 'datastore-android'
+        exclude group: 'androidx.datastore', module: 'datastore-core'
+        exclude group: 'androidx.datastore', module: 'datastore-core-android'
+        exclude group: 'androidx.datastore', module: 'datastore-core-okio'
+        exclude group: 'androidx.datastore', module: 'datastore-core-okio-jvm'
+        exclude group: 'androidx.datastore', module: 'datastore-preferences'
+        exclude group: 'androidx.datastore', module: 'datastore-preferences-android'
+        exclude group: 'androidx.datastore', module: 'datastore-preferences-core'
+        exclude group: 'androidx.datastore', module: 'datastore-preferences-core-android'
+        exclude group: 'androidx.datastore', module: 'datastore-preferences-proto'
+        exclude group: 'androidx.datastore', module: 'datastore-preferences-external-protobuf'
+        exclude group: 'com.google.firebase', module: 'firebase-sessions'
+        exclude group: 'com.google.firebase', module: 'firebase-datastore'
     }
 }

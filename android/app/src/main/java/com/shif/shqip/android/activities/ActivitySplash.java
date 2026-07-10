@@ -86,19 +86,21 @@ public class ActivitySplash extends AppCompatActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_splash);
-        Application app = getApplication();
-        if (app instanceof MyApplication) {
-            ((MyApplication) app).initDeferredSdks();
-        }
         Tools.transparentStatusBarNavigation(ActivitySplash.this);
-        adsManager = new AdsManager(this);
-        adsAntiblockHelper = new AdsAntiblockHelper(this);
         sharedPref = new SharedPref(this);
         adsPref = new AdsPref(this);
+        adsAntiblockHelper = new AdsAntiblockHelper(this);
         deviceId = DeviceApiHelper.getLocalDeviceId(this);
 
         img_splash = findViewById(R.id.img_splash);
         img_splash.setImageResource(R.drawable.bg_splash_default);
+
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Application app = getApplication();
+            if (app instanceof MyApplication && !isFinishing()) {
+                ((MyApplication) app).initDeferredSdks();
+            }
+        }, 1500);
 
         if (ENABLE_VPN_ACCESS) {
             Tools.postDelayed(this::requestConfig, Config.DELAY_SPLASH);
@@ -304,6 +306,9 @@ public class ActivitySplash extends AppCompatActivity {
             MyApplication.getInstance().preloadAppOpenAd(this);
         };
         if (adsPref.getAdStatus() && adsPref.getAppOpenOnStart()) {
+            if (adsManager == null) {
+                adsManager = new AdsManager(this);
+            }
             adsManager.loadAppOpenAd(true, true, () -> {
                 MyApplication.getInstance().recordAppOpenShown();
                 AppOpenAd.isAppOpenAdLoaded = false;

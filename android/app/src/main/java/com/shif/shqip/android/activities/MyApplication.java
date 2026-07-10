@@ -110,8 +110,14 @@ public class MyApplication extends Application {
     }
 
     private void initAnalytics() {
-        FirebaseApp.initializeApp(this);
-        mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
+        try {
+            if (FirebaseApp.getApps(this).isEmpty()) {
+                FirebaseApp.initializeApp(this);
+            }
+            mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
+        } catch (Exception e) {
+            Log.w(TAG, "Firebase analytics unavailable", e);
+        }
     }
 
     public void initNotification() {
@@ -143,7 +149,11 @@ public class MyApplication extends Application {
 
         String topic = getResources().getString(R.string.fcm_notification_topic);
         if (!TextUtils.isEmpty(topic)) {
-            FirebaseMessaging.getInstance().subscribeToTopic(topic);
+            try {
+                FirebaseMessaging.getInstance().subscribeToTopic(topic);
+            } catch (Exception e) {
+                Log.w(TAG, "FCM topic subscribe failed", e);
+            }
         }
     }
 
