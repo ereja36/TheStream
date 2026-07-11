@@ -5,10 +5,12 @@ import android.net.Uri;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
+import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.ProgressiveMediaSource;
@@ -61,10 +63,22 @@ public final class IptvPlayerHelper {
             context,
             new AdaptiveTrackSelection.Factory()
     );
-    return new ExoPlayer.Builder(context)
+    return new ExoPlayer.Builder(context, createRenderersFactory(context))
             .setTrackSelector(trackSelector)
             .setLoadControl(createLoadControl())
             .build();
+  }
+
+  /**
+   * Prefer the bundled FFmpeg extension decoders so IPTV streams whose TS
+   * segments carry MPEG audio (MP2/MP1) — like the api_/sport_ channels —
+   * play WITH sound. Falls back to the platform MediaCodec decoders (used for
+   * video and for AAC/etc.) automatically.
+   */
+  public static RenderersFactory createRenderersFactory(Context context) {
+    return new DefaultRenderersFactory(context.getApplicationContext())
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            .setEnableDecoderFallback(true);
   }
 
   public static DefaultDataSource.Factory createDataSourceFactory(
