@@ -1065,13 +1065,18 @@ final class PortalService
         return true;
     }
 
+    /**
+     * Rewrite the origin HLS manifest so the client streams segments and
+     * sub-playlists STRAIGHT FROM THE ORIGIN (absolute URLs), exactly like a
+     * player loading the raw playlist. The portal only serves this small
+     * manifest (hiding the real playlist index); the heavy segment bytes never
+     * touch the portal — no per-segment redirect + DB lookup — so playback is
+     * as smooth as loading the source directly, and the portal stays unloaded.
+     */
     public static function rewriteProxyManifest($portal, $host, $slug, $baseUrl, $body)
     {
-        $base = self::publicBaseUrl($host, $slug);
-        $accessKey = is_array($portal) && isset($portal['access_key']) ? (string) $portal['access_key'] : '';
         $lines = preg_split('/\r\n|\n|\r/', (string) $body);
         $output = array();
-        $expectVariant = false;
         foreach ($lines as $line) {
             $trimmed = trim($line);
             if ($trimmed === '') {
@@ -1079,51 +1084,30 @@ final class PortalService
                 continue;
             }
             if ($trimmed[0] === '#') {
-                if (stripos($trimmed, '#EXT-X-STREAM-INF') === 0) {
-                    $expectVariant = true;
-                }
-                $output[] = self::rewriteManifestTag($trimmed, $base, $baseUrl, $accessKey);
+                $output[] = self::absolutizeManifestTag($trimmed, $baseUrl);
                 continue;
             }
             $abs = self::resolveRelativeUrl($trimmed, $baseUrl);
-            if ($abs === '' || !preg_match('#^https?://#i', $abs) || $accessKey === '') {
-                $output[] = $abs !== '' ? $abs : $line;
-                $expectVariant = false;
-                continue;
-            }
-            $lower = strtolower($abs);
-            $isVariant = $expectVariant
-                || strpos($lower, '/proxy/sub') !== false
-                || preg_match('#\.m3u8?(\?|$)#', $lower) === 1;
-            $sealed = self::sealUrl($abs, $accessKey);
-            if ($sealed === '') {
-                $output[] = $abs;
-            } else {
-                $output[] = $base . ($isVariant ? '/r/' : '/s/') . $sealed;
-            }
-            $expectVariant = false;
+            $output[] = ($abs !== '' && preg_match('#^https?://#i', $abs)) ? $abs : $line;
         }
         return implode("\n", $output);
     }
 
     /**
-     * Rewrite URI="..." attributes embedded in HLS tags (EXT-X-KEY, EXT-X-MEDIA,
-     * EXT-X-I-FRAME-STREAM-INF) so keys/renditions also route through the portal.
+     * Make URI="..." attributes embedded in HLS tags (EXT-X-KEY, EXT-X-MEDIA,
+     * EXT-X-I-FRAME-STREAM-INF) absolute so keys/renditions load from the origin.
      */
-    private static function rewriteManifestTag($tagLine, $base, $baseUrl, $accessKey)
+    private static function absolutizeManifestTag($tagLine, $baseUrl)
     {
-        if ($accessKey === '' || stripos($tagLine, 'URI="') === false) {
+        if (stripos($tagLine, 'URI="') === false) {
             return $tagLine;
         }
-        $isKey = stripos($tagLine, '#EXT-X-KEY') === 0 || stripos($tagLine, '#EXT-X-SESSION-KEY') === 0;
-        $seg = $isKey ? '/s/' : '/r/';
-        return preg_replace_callback('/URI="([^"]*)"/', function ($m) use ($base, $baseUrl, $accessKey, $seg) {
+        return preg_replace_callback('/URI="([^"]*)"/', function ($m) use ($baseUrl) {
             $abs = self::resolveRelativeUrl($m[1], $baseUrl);
             if ($abs === '' || !preg_match('#^https?://#i', $abs)) {
                 return $m[0];
             }
-            $sealed = self::sealUrl($abs, $accessKey);
-            return $sealed === '' ? $m[0] : 'URI="' . $base . $seg . $sealed . '"';
+            return 'URI="' . $abs . '"';
         }, $tagLine);
     }
 

@@ -34,14 +34,18 @@ import java.util.Locale;
 @SuppressWarnings("deprecation")
 public final class IptvPlayerHelper {
 
-  private static final int LIVE_MIN_BUFFER_MS = 5_000;
-  private static final int LIVE_MAX_BUFFER_MS = 40_000;
-  private static final int BUFFER_FOR_PLAYBACK_MS = 2_000;
-  private static final int BUFFER_AFTER_REBUFFER_MS = 4_000;
+  // Origin media manifests for restreamed channels (api_/sport_) take ~1s to
+  // generate and segments are ~10s each, so keep a healthy buffer to ride over
+  // slow manifest refreshes and network jitter without stalling.
+  private static final int LIVE_MIN_BUFFER_MS = 15_000;
+  private static final int LIVE_MAX_BUFFER_MS = 50_000;
+  private static final int BUFFER_FOR_PLAYBACK_MS = 2_500;
+  private static final int BUFFER_AFTER_REBUFFER_MS = 6_000;
+  private static final int BACK_BUFFER_MS = 20_000;
 
   private static final long LIVE_SEEK_BACK_MS = 6_000;
 
-  private static final int HLS_MIN_LOADABLE_RETRY_COUNT = 5;
+  private static final int HLS_MIN_LOADABLE_RETRY_COUNT = 8;
 
   private IptvPlayerHelper() {
   }
@@ -54,6 +58,7 @@ public final class IptvPlayerHelper {
                     BUFFER_FOR_PLAYBACK_MS,
                     BUFFER_AFTER_REBUFFER_MS
             )
+            .setBackBuffer(BACK_BUFFER_MS, true)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build();
   }
@@ -132,8 +137,19 @@ public final class IptvPlayerHelper {
             .createMediaSource(mediaItem);
   }
 
+  private static final long LIVE_TARGET_OFFSET_MS = 18_000;
+
   private static MediaItem buildMediaItem(String playbackUrl, Uri uri) {
-    return MediaItem.fromUri(uri);
+    MediaItem.Builder builder = new MediaItem.Builder().setUri(uri);
+    if (isLiveStream(playbackUrl)) {
+      // Stay ~2 segments behind the live edge instead of chasing it, so a slow
+      // manifest refresh doesn't drain the buffer and stall (smooth live).
+      builder.setLiveConfiguration(
+              new MediaItem.LiveConfiguration.Builder()
+                      .setTargetOffsetMs(LIVE_TARGET_OFFSET_MS)
+                      .build());
+    }
+    return builder.build();
   }
 
   public static long bufferedAheadMs(ExoPlayer player) {
