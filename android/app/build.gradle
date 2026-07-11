@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 85
-        versionName = "6.9.65"
+        versionCode = 89
+        versionName = "6.9.69"
         multiDexEnabled = true
     }
     compileOptions {
@@ -79,6 +79,8 @@ dependencies {
     implementation 'com.google.android.exoplayer:exoplayer-hls:2.19.1'
     implementation 'com.google.android.exoplayer:exoplayer-ui:2.19.1'
     implementation 'com.google.android.exoplayer:exoplayer-rtsp:2.19.1'
+    //FFmpeg audio extension (MP2/AC3/EAC3 software decoders for IPTV TS audio)
+    implementation project(':extension-ffmpeg')
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'com.google.android.play:review:2.0.2'
 	implementation 'com.google.android.play:app-update:2.1.0'
@@ -88,11 +90,13 @@ dependencies {
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-messaging'
 
-    //Ad Network Sdk options
-    implementation 'com.github.solodroid-dev.ads:admob-ads-sdk:1.+'
+    //Ad Network Sdk options (pinned for reproducible builds — avoid silent 1.+ drift)
+    implementation 'com.github.solodroid-dev.ads:admob-ads-sdk:1.3.3'
+    //Direct AdMob dependency so MobileAds/RequestConfiguration are on the app classpath
+    implementation 'com.google.android.gms:play-services-ads:24.9.0'
 
     //Push notification
-    implementation 'com.github.solodroid-dev.push:notification-sdk:1.+'
+    implementation 'com.github.solodroid-dev.push:notification-sdk:1.0.0'
 
     //youtube player
     implementation 'com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0'

@@ -105,37 +105,52 @@ if ($path['channel'] === 'r' && $path['stream'] !== '') {
     if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
         PortalService::deny('invalid_entry');
     }
-    $finalUrl = PortalService::resolveToDirectCdnUrl($portal, $entryUrl);
-    if ($finalUrl === '') {
-        PortalService::deny('resolve_failed');
-    }
-    if (PortalService::wantsDirectResolve($headers) || !PortalService::isBrowserClient($headers)) {
+
+    // Control response: the app asks (X-Shif-Resolve: direct) for a playable URL.
+    if (PortalService::wantsDirectResolve($headers)) {
+        $finalUrl = PortalService::resolveToDirectCdnUrl($portal, $entryUrl);
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
-        if (!PortalService::isDirectCdnUrl($finalUrl)) {
-            echo json_encode(array('ok' => false, 'error' => 'resolve_not_direct'));
+        if ($finalUrl !== '' && PortalService::isDirectCdnUrl($finalUrl)) {
+            // Direct CDN channel (e.g. redirect-CDN) — client streams straight from the CDN.
+            echo json_encode(array(
+                'ok' => true,
+                'mode' => 'direct',
+                'url' => $finalUrl
+            ), JSON_UNESCAPED_SLASHES);
             exit;
         }
-        echo json_encode(array(
-            'ok' => true,
-            'mode' => 'direct',
-            'url' => $finalUrl
-        ), JSON_UNESCAPED_SLASHES);
+        if (PortalService::isOriginStreamUrl($entryUrl)) {
+            // Proxied-manifest channel (api_/sport_/custom_tv) — client streams the
+            // manifest through this same sealed URL; segments 302 straight to origin.
+            echo json_encode(array(
+                'ok' => true,
+                'mode' => 'manifest',
+                'url' => PortalService::publicBaseUrl($host, $path['slug']) . '/r/' . $path['stream']
+            ), JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+        echo json_encode(array('ok' => false, 'error' => 'resolve_failed'));
         exit;
     }
-    if (!PortalService::redirectToStreamUrl($finalUrl)) {
-        PortalService::deny('resolve_failed');
+
+    // Playback request (ExoPlayer GET). serveProxiedManifest does one non-following
+    // fetch: a 302 (redirect-CDN channel) is forwarded to the CDN, a 200 manifest is
+    // proxied with segments sealed as lightweight /s/ redirects to the origin.
+    if (!PortalService::serveProxiedManifest($portal, $host, $path['slug'], $entryUrl)) {
+        PortalService::deny('stream_error');
     }
     exit;
 }
 
 if ($path['channel'] === 's' && $path['stream'] !== '') {
+    // Sealed segment/stream URL — a lightweight 302 straight to the origin/CDN so
+    // the heavy bytes never pass through the portal.
     $proxyTarget = PortalService::unsealUrl($path['stream'], $accessKey);
     if ($proxyTarget === '' || !preg_match('#^https?://#i', $proxyTarget)) {
         PortalService::deny('invalid_proxy');
     }
-    $finalUrl = PortalService::resolvePlaybackRedirectUrl($portal, $proxyTarget);
-    if ($finalUrl === '' || !PortalService::redirectToStreamUrl($finalUrl)) {
+    if (!PortalService::redirectToStreamUrl($proxyTarget)) {
         PortalService::deny('resolve_failed');
     }
     exit;

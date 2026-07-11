@@ -8,15 +8,20 @@ import android.util.Log;
 
 import androidx.multidex.MultiDex;
 
+import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.utils.Tools;
 import com.shif.shqip.android.utils.AppOpenAdLifecycle;
+import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.RequestConfiguration;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.solodroid.push.sdk.provider.OneSignalPush;
+
+import java.util.Arrays;
 
 public class MyApplication extends Application {
 
@@ -42,6 +47,11 @@ public class MyApplication extends Application {
             Log.e(TAG, "initAnalytics failed", e);
         }
         try {
+            initMobileAds();
+        } catch (Exception e) {
+            Log.e(TAG, "initMobileAds failed", e);
+        }
+        try {
             initNotification();
         } catch (Exception e) {
             Log.e(TAG, "initNotification failed", e);
@@ -57,6 +67,22 @@ public class MyApplication extends Application {
     private void initAnalytics() {
         FirebaseApp.initializeApp(this);
         mFirebaseAnalytics = FirebaseAnalytics.getInstance(this);
+    }
+
+    /**
+     * Initialize the AdMob SDK once at process start so ad requests are ready as
+     * early as possible, and register any configured test devices (AdMob will
+     * not serve real ads to the developer's own device unless it is a test
+     * device). Consent is still gathered per-activity via GDPR/UMP.
+     */
+    private void initMobileAds() {
+        if (Config.ADMOB_TEST_DEVICE_IDS != null && Config.ADMOB_TEST_DEVICE_IDS.length > 0) {
+            MobileAds.setRequestConfiguration(
+                    new RequestConfiguration.Builder()
+                            .setTestDeviceIds(Arrays.asList(Config.ADMOB_TEST_DEVICE_IDS))
+                            .build());
+        }
+        MobileAds.initialize(this, initializationStatus -> Log.d(TAG, "MobileAds initialized"));
     }
 
     public void initNotification() {

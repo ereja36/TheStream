@@ -947,6 +947,170 @@ final class PortalService
         return implode("\n", $output);
     }
 
+    /**
+     * True when the URL points to our own origin stream infrastructure
+     * (shifshqip.com/k1/playlist or /k1/proxy). These are HLS manifests that
+     * the origin proxies itself (api_/sport_/custom_tv channels) — there is no
+     * single "direct CDN" URL to redirect to, so we proxy the manifest and let
+     * segments flow straight from the origin.
+     */
+    public static function isOriginStreamUrl($url)
+    {
+        $lower = strtolower(trim((string) $url));
+        if ($lower === '' || strpos($lower, 'shifshqip.com') === false) {
+            return false;
+        }
+        return strpos($lower, '/k1/playlist/') !== false
+            || strpos($lower, '/k1/proxy/') !== false
+            || strpos($lower, '/k1/channel/') !== false
+            || strpos($lower, '/k1/channel-proxy/') !== false;
+    }
+
+    /**
+     * Single non-following fetch (status + Location + body) using the portal's
+     * outbound identity. Used to decide between "redirect to CDN" and
+     * "proxy this manifest".
+     */
+    public static function fetchRaw($portal, $url)
+    {
+        $referer = !empty($portal['outbound_referer']) ? $portal['outbound_referer'] : '';
+        if ($referer === '' && !empty($portal['source_url'])) {
+            $referer = $portal['source_url'];
+        }
+        $location = '';
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($handle, $headerLine) use (&$location) {
+            if (preg_match('/^Location:\s*(.+)$/i', trim($headerLine), $matches)) {
+                $location = trim($matches[1]);
+            }
+            return strlen($headerLine);
+        });
+        $headers = array('Accept: */*');
+        curl_setopt($ch, CURLOPT_USERAGENT, !empty($portal['outbound_user_agent']) ? $portal['outbound_user_agent'] : 'Ooew');
+        if ($referer !== '') {
+            $headers[] = 'Referer: ' . $referer;
+        } elseif (!empty($portal['source_url']) && strpos($portal['source_url'], 'shifshqip.com') !== false) {
+            $headers[] = 'Referer: https://shifshqip.com/k1/playlist/shifshqip.m3u';
+        }
+        if (!empty($portal['outbound_origin'])) {
+            $headers[] = 'Origin: ' . $portal['outbound_origin'];
+        }
+        if (!empty($portal['outbound_cookie'])) {
+            $headers[] = 'Cookie: ' . $portal['outbound_cookie'];
+        }
+        if (!empty($portal['outbound_extra_headers'])) {
+            $extra = json_decode($portal['outbound_extra_headers'], true);
+            if (is_array($extra)) {
+                foreach ($extra as $key => $value) {
+                    if ($key !== '' && $value !== '') {
+                        $headers[] = $key . ': ' . $value;
+                    }
+                }
+            }
+        }
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $contentType = (string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+        return array(
+            'status' => $status,
+            'location' => $location,
+            'body' => $body === false ? '' : (string) $body,
+            'content_type' => $contentType
+        );
+    }
+
+    /**
+     * Proxy an origin HLS manifest to the app:
+     *  - variant/sub-playlist lines are re-sealed as /r/ (proxied recursively)
+     *  - segment lines are sealed as /s/ (a lightweight 302 to the origin)
+     * The heavy segment bytes stream directly from the origin/CDN, so the
+     * portal only serves tiny manifests + redirects and the real playlist URL
+     * is never exposed to the client.
+     */
+    public static function serveProxiedManifest($portal, $host, $slug, $entryUrl, $depth = 0)
+    {
+        $entryUrl = trim((string) $entryUrl);
+        if ($entryUrl === '' || $depth > 4 || !preg_match('#^https?://#i', $entryUrl)) {
+            return false;
+        }
+        $raw = self::fetchRaw($portal, $entryUrl);
+        if ($raw['status'] >= 300 && $raw['status'] < 400 && $raw['location'] !== '') {
+            $loc = self::resolveRelativeUrl($raw['location'], $entryUrl);
+            if (self::isDirectCdnUrl($loc)) {
+                return self::redirectToStreamUrl($loc);
+            }
+            $direct = self::resolveToDirectCdnUrl($portal, $loc);
+            if ($direct !== '' && self::isDirectCdnUrl($direct)) {
+                return self::redirectToStreamUrl($direct);
+            }
+            return self::serveProxiedManifest($portal, $host, $slug, $loc, $depth + 1);
+        }
+        if ($raw['status'] < 200 || $raw['status'] >= 300 || $raw['body'] === '') {
+            return false;
+        }
+        if (stripos($raw['body'], '#EXTM3U') === false) {
+            return self::redirectToStreamUrl($entryUrl);
+        }
+        header('Content-Type: application/vnd.apple.mpegurl; charset=utf-8');
+        header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+        echo self::rewriteProxyManifest($portal, $host, $slug, $entryUrl, $raw['body']);
+        return true;
+    }
+
+    /**
+     * Rewrite the origin HLS manifest so the client streams segments and
+     * sub-playlists STRAIGHT FROM THE ORIGIN (absolute URLs), exactly like a
+     * player loading the raw playlist. The portal only serves this small
+     * manifest (hiding the real playlist index); the heavy segment bytes never
+     * touch the portal — no per-segment redirect + DB lookup — so playback is
+     * as smooth as loading the source directly, and the portal stays unloaded.
+     */
+    public static function rewriteProxyManifest($portal, $host, $slug, $baseUrl, $body)
+    {
+        $lines = preg_split('/\r\n|\n|\r/', (string) $body);
+        $output = array();
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                $output[] = $line;
+                continue;
+            }
+            if ($trimmed[0] === '#') {
+                $output[] = self::absolutizeManifestTag($trimmed, $baseUrl);
+                continue;
+            }
+            $abs = self::resolveRelativeUrl($trimmed, $baseUrl);
+            $output[] = ($abs !== '' && preg_match('#^https?://#i', $abs)) ? $abs : $line;
+        }
+        return implode("\n", $output);
+    }
+
+    /**
+     * Make URI="..." attributes embedded in HLS tags (EXT-X-KEY, EXT-X-MEDIA,
+     * EXT-X-I-FRAME-STREAM-INF) absolute so keys/renditions load from the origin.
+     */
+    private static function absolutizeManifestTag($tagLine, $baseUrl)
+    {
+        if (stripos($tagLine, 'URI="') === false) {
+            return $tagLine;
+        }
+        return preg_replace_callback('/URI="([^"]*)"/', function ($m) use ($baseUrl) {
+            $abs = self::resolveRelativeUrl($m[1], $baseUrl);
+            if ($abs === '' || !preg_match('#^https?://#i', $abs)) {
+                return $m[0];
+            }
+            return 'URI="' . $abs . '"';
+        }, $tagLine);
+    }
+
     public static function slugify($value)
     {
         $value = strtolower(trim((string) $value));

@@ -65,11 +65,20 @@ public final class PortalResolveHelper {
             return cached.url;
         }
         String resolved = fetchDirectUrl(sharedPref, portalUrl);
-        if (isDirectCdnUrl(resolved)) {
+        if (isPlayableResolvedUrl(resolved)) {
             URL_CACHE.put(cacheKey, new CacheEntry(resolved, System.currentTimeMillis() + CACHE_TTL_MS));
             return resolved;
         }
         return "";
+    }
+
+    /**
+     * A resolved URL is playable when it is a direct CDN stream, or a sealed
+     * portal manifest URL (api_/sport_/custom_tv channels streamed through the
+     * portal with segments 302-ing straight to the origin).
+     */
+    private static boolean isPlayableResolvedUrl(String url) {
+        return isDirectCdnUrl(url) || PlaylistPortalHelper.isPortalResolveUrl(url);
     }
 
     private static String followRedirectsToCdn(SharedPref sharedPref, String startUrl) {
@@ -201,11 +210,16 @@ public final class PortalResolveHelper {
             if (!json.optBoolean("ok", false)) {
                 return "";
             }
+            String mode = json.optString("mode", "").trim();
             String url = json.optString("url", "").trim();
+            if ("manifest".equalsIgnoreCase(mode)) {
+                // Portal streams the manifest through this sealed URL; play it directly.
+                return TextUtils.isEmpty(url) ? requestUrl : url;
+            }
             if (isDirectCdnUrl(url)) {
                 return url;
             }
-            if (!TextUtils.isEmpty(url)) {
+            if (!TextUtils.isEmpty(url) && !url.equalsIgnoreCase(requestUrl)) {
                 return resolveToDirectUrl(sharedPref, url);
             }
             return "";
