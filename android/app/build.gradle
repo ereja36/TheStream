@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 88
-        versionName = "6.9.68"
+        versionCode = 89
+        versionName = "6.9.69"
         multiDexEnabled = true
     }
     compileOptions {
@@ -90,11 +90,13 @@ dependencies {
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'com.google.firebase:firebase-messaging'
 
-    //Ad Network Sdk options
-    implementation 'com.github.solodroid-dev.ads:admob-ads-sdk:1.+'
+    //Ad Network Sdk options (pinned for reproducible builds — avoid silent 1.+ drift)
+    implementation 'com.github.solodroid-dev.ads:admob-ads-sdk:1.3.3'
+    //Direct AdMob dependency so MobileAds/RequestConfiguration are on the app classpath
+    implementation 'com.google.android.gms:play-services-ads:24.9.0'
 
     //Push notification
-    implementation 'com.github.solodroid-dev.push:notification-sdk:1.+'
+    implementation 'com.github.solodroid-dev.push:notification-sdk:1.0.0'
 
     //youtube player
     implementation 'com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0'

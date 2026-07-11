@@ -51,6 +51,13 @@ public class Config {
     //GDPR
     public static final boolean ENABLE_GDPR_EU_CONSENT = true;
 
+    // AdMob test devices: AdMob does NOT reliably serve ads to the developer's
+    // own phone (to prevent invalid traffic) — it must be registered as a test
+    // device to show (test-labelled) ads. Paste the device hash printed in
+    // logcat ("Use ... setTestDeviceIds(Arrays.asList(\"XXXX\"))") here, e.g.
+    // {"33BE2250B43518CCDA7DE426D04EE231"}. Leave empty for production users.
+    public static final String[] ADMOB_TEST_DEVICE_IDS = {};
+
     //delay splash screen
     public static final int DELAY_SPLASH = 500;
 
