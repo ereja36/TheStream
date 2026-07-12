@@ -148,9 +148,10 @@ const DEFAULT_FIREBASE_AUTH_CONFIG = {
   reward_ads_free_hours: 24,
   replace_old_devices_on_login: false
 };
-const PLAYER_ENGINES = new Set(['auto', 'browser', 'native', 'shaka', 'hls', 'clappr']);
+const PLAYER_ENGINES = new Set(['auto', 'browser', 'hls']);
+const LEGACY_PLAYER_ENGINE_MAP = { native: 'browser', shaka: 'hls', clappr: 'hls', playerjs: 'hls' };
 const SOURCE_KEYS = ['api_tv', 'api_sport', 'open_source', 'falcon', 'v2', 'alb', 'alb_vod', 'nimi', 'kool', 'kool_lokke', 'custom_tv', 'custom_sport', 'custom_nimi'];
-// Falcon + A3 VOD kept in SOURCE_KEYS for config compat, but forced deleted/hidden.
+// Falcon kept in SOURCE_KEYS for config compat, but forced deleted/hidden. alb_vod is active.
 const SOURCE_LABELS = {
   api_tv: 'Prod API - TV',
   api_sport: 'Prod API - Sport',
@@ -176,7 +177,7 @@ const SOURCE_FOLDERS = [
   { key: 'v2', label: 'V2', icon: 'signal', sourceKeys: ['v2'], accent: 'var(--green)' },
   { key: 'custom', label: 'Custom', icon: 'folder-open', sourceKeys: ['custom_tv', 'custom_sport', 'custom_nimi'], accent: 'var(--accent)' }
 ];
-const HIDDEN_SOURCES = new Set(['falcon', 'alb_vod']);
+const HIDDEN_SOURCES = new Set(['falcon']); // alb_vod restored
 const VISIBLE_SOURCE_KEYS = SOURCE_KEYS.filter((k) => !HIDDEN_SOURCES.has(k));
 
 // Encryption
@@ -2038,11 +2039,12 @@ function flushPendingKoolSlugRemaps() {
   pendingKoolSlugRemaps = new Map();
 }
 function normalizeEngineValue(value, fallback = 'auto') {
-  const val = String(value || '').trim().toLowerCase();
+  let val = String(value || '').trim().toLowerCase();
+  if (LEGACY_PLAYER_ENGINE_MAP[val]) val = LEGACY_PLAYER_ENGINE_MAP[val];
   return PLAYER_ENGINES.has(val) ? val : fallback;
 }
 function normalizePlayerDefaults(raw = {}) {
-  const defaults = { iphone: 'native', android: 'shaka', other: 'hls' };
+  const defaults = { iphone: 'browser', android: 'hls', other: 'hls' };
   const normalized = { ...defaults };
   if (!raw || typeof raw !== 'object') return normalized;
   for (const key of ['iphone', 'android', 'other']) {
@@ -6996,7 +6998,7 @@ let appConfig       = loadJSON(CONFIG_FILE, {
   visible_channels: {},
   main_page_limit: 20,
   featured_channels: [],
-  player_defaults: { iphone: 'native', android: 'shaka', other: 'hls' },
+  player_defaults: { iphone: 'browser', android: 'hls', other: 'hls' },
   player_source_defaults: {},
   proxy_rules: {},
   source_link_modes: {},
@@ -7646,7 +7648,8 @@ appConfig.smart_links = normalizeSmartLinksConfig(appConfig.smart_links);
 appConfig.live_chat = normalizeLiveChatSettings(appConfig.live_chat);
 appConfig.public_notifications = normalizePublicNotificationsConfig(appConfig.public_notifications);
 appConfig.feature_flags = normalizeFeatureFlags(appConfig.feature_flags);
-appConfig.deleted_sources = normalizeDeletedSources({ ...(appConfig.deleted_sources||{}), falcon: true, alb_vod: true });
+appConfig.deleted_sources = normalizeDeletedSources({ ...(appConfig.deleted_sources||{}), falcon: true });
+if (appConfig.deleted_sources && appConfig.deleted_sources.alb_vod) { delete appConfig.deleted_sources.alb_vod; appConfig.deleted_sources = normalizeDeletedSources(appConfig.deleted_sources); }
 
 appConfig.deleted_channel_keys = normalizeDeletedChannelKeys(appConfig.deleted_channel_keys);
 if (!String(appConfig.site_ownership.custom_meta_tags || '').trim()
@@ -9847,9 +9850,6 @@ function playerScript(channelUrls, playerDefaults = {}, playerSourceDefaults = {
   const gaMeasurementId = normalizeGoogleAnalyticsMeasurementId(siteOwnership.ga_measurement_id || '');
   return `
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/shaka-player/dist/shaka-player.compiled.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/clappr@latest/dist/clappr.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@clappr/hlsjs-playback@latest/dist/hlsjs-playback.min.js"></script>
 <script>
 const BASE='${BASE_PATH}';
 let hlsPlayer=null,shakaPlayer=null,clapprPlayer=null,currentSlug='',currentName='',retryCount=0,retryTimer=null,currentUrl='',fallbackUrl='',usingProxyFallback=false;
@@ -13090,37 +13090,30 @@ function destroyPlayers(){
 }
 function pickEngine(canNative){
   const hlsSupported=!!(window.Hls&&Hls.isSupported&&Hls.isSupported());
-  const shakaSupported=!!(window.shaka&&shaka.Player&&shaka.Player.isBrowserSupported&&shaka.Player.isBrowserSupported());
-  const clapprSupported=!!(window.Clappr&&Clappr.Player);
   const sourceRules=sourcePlayerDefaults[currentSourceKey]||{};
-  const sourceRequested=(isIPhone?sourceRules.iphone:(isAndroid?sourceRules.android:sourceRules.other)||'auto').toLowerCase();
-  const globalRequested=(isIPhone?playerDefaults.iphone:(isAndroid?playerDefaults.android:playerDefaults.other)||'auto').toLowerCase();
+  let sourceRequested=(isIPhone?sourceRules.iphone:(isAndroid?sourceRules.android:sourceRules.other)||'auto').toLowerCase();
+  let globalRequested=(isIPhone?playerDefaults.iphone:(isAndroid?playerDefaults.android:playerDefaults.other)||'auto').toLowerCase();
+  // Legacy engines collapse to browser/hls.
+  const mapLegacy=(e)=>({native:'browser',shaka:'hls',clappr:'hls',playerjs:'hls'}[e]||e);
+  sourceRequested=mapLegacy(sourceRequested);
+  globalRequested=mapLegacy(globalRequested);
   const requested=(sourceRequested&&sourceRequested!=='auto')?sourceRequested:globalRequested;
   const supports=(engine)=>{
     if(engine==='browser') return true;
-    if(engine==='native') return canNative;
-    if(engine==='hls') return hlsSupported;
-    if(engine==='shaka') return shakaSupported;
-    if(engine==='clappr') return clapprSupported;
+    if(engine==='hls') return hlsSupported || canNative; // iOS Safari falls through to browser <video>
     return false;
   };
-
   if(requested!=='auto'){
-    return supports(requested) ? requested : '';
+    if(supports(requested)) return requested;
+    if(requested==='hls' && canNative) return 'browser';
+    return supports('hls') ? 'hls' : 'browser';
   }
-
-  if(canNative) return 'native';
   if(hlsSupported) return 'hls';
-  if(shakaSupported) return 'shaka';
-  if(clapprSupported) return 'clappr';
-  return '';
+  return 'browser';
 }
 function engineLabel(engine){
   if(engine==='browser') return 'Browser Default';
   if(engine==='hls') return 'HLS.js';
-  if(engine==='shaka') return 'Shaka';
-  if(engine==='clappr') return 'Clappr';
-  if(engine==='native') return 'Native';
   return 'Player';
 }
 function switchToProxyFallback(){
@@ -13205,100 +13198,18 @@ function startHlsPlayback(url,attemptId){
   player.attachMedia(video);
 }
 function startNativePlayback(url,attemptId){
-  const video=document.getElementById('videoPlayer');
-  destroyPlayers();
-  currentEngine='native';
-  showEngineSurface('native');
-  bindCommonVideoEvents(video,attemptId);
-  video.src=url;
-  video.load();
-  video.play().catch(()=>{});
+  // Native engine removed — use Default Browser <video>
+  return startBrowserPlayback(url);
 }
-function startClapprPlayback(url,attemptId,engineName='clappr'){
-  destroyPlayers();
-  currentEngine=engineName;
-  showEngineSurface(engineName);
-  ensureExternalPlayerSize();
-  if(!(window.Clappr&&Clappr.Player)){
-    scheduleRetry({allowFallback:true},attemptId);
-    return;
-  }
-  const plugins=[];
-  if(window.HlsjsPlayback) plugins.push(window.HlsjsPlayback);
-  const config={
-    source:url,
-    parentId:'#clapprContainer',
-    autoPlay:true,
-    width:'100%',
-    height:240,
-    playback:{playInline:true},
-    disableKeyboardShortcuts:true
-  };
-  if(plugins.length) config.plugins=plugins;
-  const player=new Clappr.Player(config);
-  clapprPlayer=player;
-  ensureExternalPlayerSize();
-  const onPlay=()=>{
-    if(attemptId!==playbackAttempt)return;
-    markHealthyPlayback(attemptId);
-    const v=document.querySelector('#clapprContainer video');
-    if(v) bindCommonVideoEvents(v,attemptId);
-  };
-  const onErr=()=>{
-    if(attemptId!==playbackAttempt)return;
-    scheduleRetry({allowFallback:true},attemptId);
-  };
-  try{player.on(Clappr.Events.PLAYER_PLAY,onPlay);}catch{}
-  try{player.on(Clappr.Events.PLAYER_ERROR,onErr);}catch{}
-  try{player.on('play',onPlay);player.on('error',onErr);}catch{}
-  setTimeout(()=>{
-    if(attemptId!==playbackAttempt) return;
-    const v=document.querySelector('#clapprContainer video');
-    if(v) bindCommonVideoEvents(v,attemptId);
-  }, 1200);
+function startClapprPlayback(url,attemptId){
+  // Clappr removed — fall back to HLS.js / browser
+  if(window.Hls&&Hls.isSupported&&Hls.isSupported()) return startHlsPlayback(url,attemptId);
+  return startBrowserPlayback(url);
 }
 async function startShakaPlayback(url,attemptId){
-  const video=document.getElementById('videoPlayer');
-  destroyPlayers();
-  currentEngine='shaka';
-  showEngineSurface('shaka');
-  bindCommonVideoEvents(video,attemptId);
-  if(!(window.shaka&&shaka.Player&&shaka.Player.isBrowserSupported&&shaka.Player.isBrowserSupported())){
-    scheduleRetry({allowFallback:true},attemptId);
-    return;
-  }
-  const player=new shaka.Player(video);
-  shakaPlayer=player;
-  player.configure({
-    streaming:{
-      lowLatencyMode:false,
-      bufferingGoal:45,
-      rebufferingGoal:4,
-      bufferBehind:90,
-      stallEnabled:true,
-      stallThreshold:10,
-      retryParameters:{maxAttempts:3,baseDelay:1000,backoffFactor:2,fuzzFactor:0.5}
-    },
-    manifest:{retryParameters:{maxAttempts:3,baseDelay:1000,backoffFactor:2,fuzzFactor:0.5}}
-  });
-  player.addEventListener('error',(event)=>{
-    if(attemptId!==playbackAttempt)return;
-    const recoverable=event&&event.detail&&event.detail.severity===1;
-    if(recoverable){
-      scheduleRetry({allowFallback:false},attemptId);
-      return;
-    }
-    scheduleRetry({allowFallback:true},attemptId);
-  });
-  try{
-    await player.load(url);
-    if(attemptId!==playbackAttempt)return;
-    video.play().catch(()=>{});
-    markHealthyPlayback(attemptId);
-  }catch{
-    if(attemptId!==playbackAttempt)return;
-    scheduleRetry({allowFallback:true},attemptId);
-  }
+  // Shaka removed — fall back to HLS.js / browser
+  if(window.Hls&&Hls.isSupported&&Hls.isSupported()) return startHlsPlayback(url,attemptId);
+  return startBrowserPlayback(url);
 }
 function startBrowserPlayback(url){
   destroyPlayers();
@@ -14614,16 +14525,8 @@ function makePrivatePlaylistM3U(playlistId, channels, name, publicBaseUrl = '', 
     lines.push(publicBaseUrl ? `${publicBaseUrl}${streamPath}` : streamPath);
     lines.push('');
   }
-  for (const vod of (Array.isArray(vodList) ? vodList : [])) {
-    if (!vod || typeof vod !== 'object') continue;
-    const vodId = sanitizeText(vod.id || '', 120);
-    if (!vodId) continue;
-    const streamPath = `${routeBase}/vod/${encodeURIComponent(vodId)}.${streamExt}`;
-    const logo = String(vod.poster || '').trim();
-    lines.push(`#EXTINF:-1 tvg-id="vod-${vodId}" tvg-name="${String(vod.title || vodId)}" tvg-logo="${logo}" group-title="VOD",${String(vod.title || vodId)}`);
-    lines.push(publicBaseUrl ? `${publicBaseUrl}${streamPath}` : streamPath);
-    lines.push('');
-  }
+  // VOD entries removed from private playlists
+
   return lines.join('\n');
 }
 
@@ -18500,177 +18403,18 @@ router.post('/api/vod/analytics/progress', express.json({ limit: '40kb' }), (req
 
 router.get('/vod__removed', (req, res) => {
   return res.redirect(302, `${BASE_PATH}/`);
-  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-  const pageSize = 24;
-  const grouped = buildVodSeriesSnapshot({ includePrivate: false });
-  const all = [
-    ...grouped.series.map(row => ({
-      kind: 'series',
-      series_id: row.series_id,
-      slug: `series-${row.series_id}`,
-      title: row.title,
-      poster: row.poster,
-      year: (row.episodes[0]?.year || 0),
-      genre: row.genre || [],
-      language: row.language || '',
-      episode_count: row.episodes.length
-    })),
-    ...grouped.movies.map(item => ({ ...item, kind: 'movie' }))
-  ].filter(item => {
-    const q = String(req.query.query || '').trim().toLowerCase();
-    if (!q) return true;
-    return `${item.title || ''} ${(item.genre || []).join(' ')}`.toLowerCase().includes(q);
-  });
-  all.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
-  const totalPages = Math.max(1, Math.ceil(all.length / pageSize));
-  const list = all.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize);
-  const cardsHtml = list.map(item => `<a href="${item.kind === 'series' ? `${BASE_PATH}/vod/series/${encodeURIComponent(item.series_id)}` : `${BASE_PATH}/vod/${encodeURIComponent(item.slug)}`}" class="vod-card">
-  <div class="thumb">${item.poster ? `<img src="${escapeHtmlAttr(item.poster)}" alt="${escapeHtmlAttr(item.title)}">` : '<i class="fas fa-film" style="font-size:2rem;color:var(--muted)"></i>'}${item.logo_url ? `<img src="${escapeHtmlAttr(item.logo_url)}" alt="logo" style="position:absolute;left:8px;top:8px;width:38px;height:38px;object-fit:contain;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:4px">` : ''}<span class="year-badge">${escapeHtmlAttr(item.year || '-')}</span></div>
-  <div class="meta"><div class="name">${escapeHtmlAttr(item.title)}</div><div class="tags"><span class="tag">${item.kind === 'series' ? `Series • ${Number(item.episode_count || 0)} eps` : escapeHtmlAttr((item.genre || []).slice(0, 1).join(', ') || 'VOD')}</span><span class="tag">${escapeHtmlAttr(item.language || 'N/A')}</span></div></div>
-</a>`).join('') || '<p style="color:var(--muted)">Nuk ka VOD të publikuara.</p>';
-  const queryParams = new URLSearchParams({
-    genre: String(req.query.genre || ''),
-    year: String(req.query.year || ''),
-    query: String(req.query.query || ''),
-    sort: String(req.query.sort || 'newest')
-  });
-  const filtersHtml = `<form method="GET" action="${BASE_PATH}/vod" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
-    <input class="form-input" name="query" placeholder="Kërko titull..." value="${escapeHtmlAttr(req.query.query || '')}">
-    <input class="form-input" name="genre" placeholder="Genre" value="${escapeHtmlAttr(req.query.genre || '')}">
-    <input class="form-input" name="year" placeholder="Year" value="${escapeHtmlAttr(req.query.year || '')}">
-    <select class="form-input" name="sort"><option value="newest" ${String(req.query.sort || '') === 'newest' ? 'selected' : ''}>Newest</option><option value="year_desc" ${String(req.query.sort || '') === 'year_desc' ? 'selected' : ''}>Year</option><option value="title_asc" ${String(req.query.sort || '') === 'title_asc' ? 'selected' : ''}>Title</option></select>
-    <button class="a-btn a-btn-primary" type="submit"><i class="fas fa-search"></i> Filter</button>
-  </form>`;
-  const paginationHtml = `<div style="display:flex;align-items:center;gap:8px;justify-content:center">
-    <a class="a-btn a-btn-primary" ${page <= 1 ? 'style="pointer-events:none;opacity:.5"' : ''} href="${BASE_PATH}/vod?${new URLSearchParams({ ...Object.fromEntries(queryParams.entries()), page: String(Math.max(1, page - 1)) }).toString()}">Prev</a>
-    <span style="color:var(--muted)">Page ${page} / ${totalPages}</span>
-    <a class="a-btn a-btn-primary" ${page >= totalPages ? 'style="pointer-events:none;opacity:.5"' : ''} href="${BASE_PATH}/vod?${new URLSearchParams({ ...Object.fromEntries(queryParams.entries()), page: String(Math.min(totalPages, page + 1)) }).toString()}">Next</a>
-  </div>`;
-  const pageContentHtml = renderVodPageContent({
-    title: 'VOD Library',
-    description: 'Filma dhe seriale sipas kategorive, vitit dhe kërkimit.',
-    filtersHtml,
-    cardsHtml,
-    paginationHtml
-  });
-  res.send(renderPublicLayout({
-    baseStyle: BASE_STYLE,
-    title: 'VOD',
-    extraHeadHtml: combinePublicExtraHead(),
-    navPublicHtml: NAV_PUBLIC,
-    playerModalHtml: '',
-    pageContentHtml,
-    playerScriptHtml: ''
-  }));
 });
 
 router.get('/vod__removed/link/:token', async (req, res) => {
   return res.redirect(302, `${BASE_PATH}/`);
-  const item = resolveVodByToken(req.params.token, req);
-  if (!item || item.status !== 'published' || item.visibility !== 'public') return res.status(404).send('VOD not found');
-  let targetUrl = normalizeHttpUrl(item.source_url || '');
-  const candidates = [targetUrl, ...((item.backup_urls || []).map(v => normalizeHttpUrl(v)).filter(Boolean))].filter(Boolean);
-  if ((!targetUrl || req.query.refresh === '1') && item.token_refresh_url) {
-    try {
-      const refreshRes = await axios.get(item.token_refresh_url, { timeout: 10000, maxRedirects: 3, validateStatus: s => s >= 200 && s < 500 });
-      if (refreshRes.status < 400) {
-        const body = refreshRes.data || {};
-        const refreshed = normalizeHttpUrl(body.source_url || body.url || '');
-        if (refreshed) targetUrl = refreshed;
-      }
-    } catch {}
-  }
-  if (!targetUrl) return res.status(404).send('Stream unavailable');
-  const idxRaw = parseInt(req.query.alt, 10);
-  const idx = Number.isFinite(idxRaw) ? Math.max(0, Math.min(idxRaw, Math.max(0, candidates.length - 1))) : 0;
-  const selected = candidates[idx] || targetUrl;
-  try {
-    const upstream = await axios.get(selected, {
-      responseType: 'stream',
-      timeout: 25000,
-      maxRedirects: 4,
-      httpAgent: KEEPALIVE_HTTP_AGENT,
-      httpsAgent: KEEPALIVE_HTTPS_AGENT,
-      headers: buildUpstreamHeaders(req, selected, true, { userAgent: String(item.user_agent || '').trim() }),
-      validateStatus: status => status >= 200 && status < 500
-    });
-    if (upstream.status >= 400) return res.status(upstream.status).send('Upstream error');
-    res.status(upstream.status);
-    setProxyCorsHeaders(res);
-    setProxyPassthroughHeaders(res, upstream.headers || {});
-    if (!res.getHeader('content-type')) {
-      const looksHls = /\.m3u8($|\?)/i.test(selected);
-      res.setHeader('content-type', looksHls ? 'application/vnd.apple.mpegurl' : 'video/mp4');
-    }
-    res.setHeader('cache-control', 'no-store, private');
-    upstream.data.on('error', () => { try { res.end(); } catch {} });
-    return upstream.data.pipe(res);
-  } catch (error) {
-    return res.status(502).send(`VOD link failed: ${String(error?.message || 'unknown')}`);
-  }
 });
 
 router.get('/vod__removed/series/:seriesId', (req, res) => {
   return res.redirect(302, `${BASE_PATH}/`);
-  const seriesId = buildVodSlug(req.params.seriesId || '');
-  if (!seriesId) return res.status(404).send('Series not found');
-  const grouped = buildVodSeriesSnapshot({ includePrivate: false });
-  const series = grouped.series.find(row => row.series_id === seriesId);
-  if (!series) return res.status(404).send('Series not found');
-  const firstEpisode = series.episodes[0] || {};
-  const secureToken = issueVodStreamToken(firstEpisode.id, req, 2 * 60);
-  const playbackUrl = secureToken ? `${BASE_PATH}/vod/link/${encodeURIComponent(secureToken)}` : '';
-  const episodeRows = series.episodes.map(ep => {
-    const token = issueVodStreamToken(ep.id, req, 2 * 60);
-    const stream = token ? `${BASE_PATH}/vod/link/${encodeURIComponent(token)}` : '';
-    return `<button class="a-btn a-btn-primary" style="justify-content:flex-start" onclick="playEpisode('${escapeHtmlAttr(stream)}','${escapeHtmlAttr(ep.episode_title || ep.title || ep.id)}')">S${String(ep.season || 1).padStart(2, '0')}E${String(ep.episode_number || 1).padStart(2, '0')} • ${escapeHtmlAttr(ep.episode_title || ep.title || ep.id)}</button>`;
-  }).join('');
-  const relatedCardsHtml = `<div class="admin-section"><h3><i class="fas fa-list"></i> Episode List (${series.episodes.length})</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px">${episodeRows || '<p style="color:var(--muted)">Nuk ka episode.</p>'}</div></div>
-  <script>function playEpisode(url,name){const v=document.getElementById('vodVideo');if(!v||!url)return;v.src=url;v.play().catch(()=>{});const t=document.querySelector('.modal-title');if(t)t.innerHTML='<i class=\"fas fa-play\"></i> '+name;document.getElementById('vodPlayerModal').style.display='flex';}</script>`;
-  const pageContentHtml = renderVodDetailPageContent({
-    basePath: BASE_PATH,
-    vod: {
-      ...firstEpisode,
-      title: series.title,
-      logo_url: series.logo_url || firstEpisode.logo_url || '',
-      source_url: '',
-      playback_url: playbackUrl,
-      status: firstEpisode.status || 'published',
-      ...buildVodWatermarkPayload(req)
-    },
-    relatedCardsHtml
-  });
-  return res.send(renderPublicLayout({
-    baseStyle: BASE_STYLE,
-    title: `${series.title} - Series`,
-    extraHeadHtml: combinePublicExtraHead(),
-    navPublicHtml: NAV_PUBLIC,
-    playerModalHtml: '',
-    pageContentHtml,
-    playerScriptHtml: ''
-  }));
 });
 
 router.get('/vod__removed/:slug', (req, res) => {
   return res.redirect(302, `${BASE_PATH}/`);
-  const slug = createSlug(req.params.slug || '');
-  const item = findVodItemBySlug(slug);
-  if (!item || item.status !== 'published' || item.visibility !== 'public') return res.status(404).send('VOD nuk u gjet.');
-  const secureToken = issueVodStreamToken(item.id, req, 2 * 60);
-  if (!secureToken) return res.status(403).send('Nuk u gjenerua token');
-  const playbackUrl = `${BASE_PATH}/vod/link/${encodeURIComponent(secureToken)}`;
-  const related = buildVodListSnapshot({ includePrivate: false, genre: (item.genre || [])[0] }).filter(row => row.id !== item.id).slice(0, 10);
-  const relatedCardsHtml = related.map(row => `<a href="${BASE_PATH}/vod/${encodeURIComponent(row.slug)}" class="ch-card" style="display:block"><div class="ch-thumb" style="height:120px">${row.poster ? `<img src="${escapeHtmlAttr(row.poster)}" alt="${escapeHtmlAttr(row.title)}" style="width:100%;height:100%;object-fit:cover">` : '<i class="fas fa-film"></i>'}</div><div class="ch-info"><div class="ch-name">${escapeHtmlAttr(row.title)}</div></div></a>`).join('') || '<p style="color:var(--muted)">Nuk ka rekomandime.</p>';
-  const pageContentHtml = renderVodDetailPageContent({ basePath: BASE_PATH, vod: { ...item, playback_url: playbackUrl, ...buildVodWatermarkPayload(req) }, relatedCardsHtml });
-  res.send(renderPublicLayout({
-    baseStyle: BASE_STYLE,
-    title: `${item.title} - VOD`,
-    extraHeadHtml: combinePublicExtraHead(),
-    navPublicHtml: NAV_PUBLIC,
-    playerModalHtml: '',
-    pageContentHtml,
-    playerScriptHtml: ''
-  }));
 });
 
 
@@ -18681,86 +18425,23 @@ router.get('/admin/push', requireLogin, (req, res) => res.redirect(302, `${BASE_
 router.get('/admin/chat', requireLogin, (req, res) => res.redirect(302, `${BASE_PATH}/admin?notice=chat_removed`));
 
 router.get('/admin/vod__legacy_disabled', requireLogin, (req, res) => {
-  return res.redirect(302, `${BASE_PATH}/admin?notice=vod_removed`);
-  res.send(renderVodManagementPage({
-    baseStyle: BASE_STYLE,
-    navAdminHtml: NAV_ADMIN,
-    basePath: BASE_PATH,
-    adminToken: ADMIN_TOKEN,
-    initialQuery: String(req.query.query || ''),
-    initialGenre: String(req.query.genre || ''),
-    initialYear: String(req.query.year || ''),
-    initialStatus: String(req.query.status || ''),
-    initialVisibility: String(req.query.visibility || ''),
-    page: Math.max(1, parseInt(req.query.page, 10) || 1),
-    pageSize: Math.max(1, Math.min(80, parseInt(req.query.page_size, 10) || 20))
-  }));
+  return res.redirect(302, `${BASE_PATH}/admin`);
 });
 
 router.get('/api/admin/vod/series/list', requireLoginOrToken, (req, res) => {
-  const rows = Object.values(vodCollections || {})
-    .filter(row => String(row.kind || '').toLowerCase() === 'series')
-    .sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
-  return res.json({ ok: true, items: rows });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 router.get('/api/admin/vod/episodes', requireLoginOrToken, (req, res) => {
-  const seriesId = buildVodSlug(req.query.series_id || '');
-  if (!seriesId) return res.json({ ok: true, items: [] });
-  const rows = buildVodListSnapshot({ includePrivate: true })
-    .filter(item => String(item.type || '').toLowerCase() === 'series_episode' && buildVodSlug(item.series_id || '') === seriesId)
-    .sort((a, b) => {
-      const sa = Number(a.season || 0);
-      const sb = Number(b.season || 0);
-      if (sa !== sb) return sa - sb;
-      return Number(a.episode_number || 0) - Number(b.episode_number || 0);
-    });
-  return res.json({ ok: true, series_id: seriesId, total: rows.length, items: rows });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 router.post('/api/admin/vod/episodes/reorder', requireLogin, express.json({ limit: '200kb' }), (req, res) => {
-  const seriesId = buildVodSlug(req.body?.series_id || '');
-  const order = Array.isArray(req.body?.order) ? req.body.order.map(v => sanitizeText(v, 120)).filter(Boolean) : [];
-  if (!seriesId || !order.length) return res.status(400).json({ ok: false, error: 'series_id/order required' });
-  const rows = vodItems.filter(item => String(item.type || '').toLowerCase() === 'series_episode' && buildVodSlug(item.series_id || '') === seriesId);
-  const map = new Map(rows.map(item => [String(item.id || ''), item]));
-  let seq = 1;
-  for (const id of order) {
-    const item = map.get(id);
-    if (!item) continue;
-    item.episode_number = seq++;
-    item.updated_at = new Date().toISOString();
-    map.delete(id);
-  }
-  for (const item of map.values()) {
-    item.episode_number = seq++;
-    item.updated_at = new Date().toISOString();
-  }
-  persistVodState();
-  return res.json({ ok: true, updated: rows.length });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 router.post('/api/admin/vod/series/save', requireLogin, express.json({ limit: '300kb' }), (req, res) => {
-  const id = buildVodSlug(req.body?.id || req.body?.series_id || req.body?.title || '');
-  const title = sanitizeText(req.body?.title || req.body?.series_title || '', 220);
-  if (!id || !title) return res.status(400).json({ ok: false, error: 'id/title required' });
-  const description = sanitizeText(req.body?.description || '', 700);
-  const poster = normalizeHttpUrl(req.body?.poster || '');
-  const logoUrl = normalizeHttpUrl(req.body?.logo_url || req.body?.logoUrl || '');
-  const visibility = normalizeVodVisibility(req.body?.visibility || 'private');
-  vodCollections[id] = {
-    ...(vodCollections[id] || {}),
-    id,
-    kind: 'series',
-    title,
-    description,
-    poster,
-    logo_url: logoUrl,
-    visibility,
-    updated_at: new Date().toISOString()
-  };
-  persistVodState();
-  return res.json({ ok: true, item: vodCollections[id] });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 function upsertVodCategoriesAndCollections(item = {}) {
@@ -18775,114 +18456,35 @@ function upsertVodCategoriesAndCollections(item = {}) {
 }
 
 router.post('/api/admin/vod/upload-poster', requireLogin, uploadVodPoster.single('poster'), (req, res) => {
-  if (!req.file) return res.status(400).json({ ok: false, error: 'Poster file required' });
-  const mime = String(req.file.mimetype || '').toLowerCase();
-  if (!mime.startsWith('image/')) return res.status(400).json({ ok: false, error: 'Invalid image type' });
-  const url = `${BASE_PATH}/vod-assets/${encodeURIComponent(req.file.filename)}`;
-  res.json({ ok: true, url, file: req.file.filename });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 router.post('/api/admin/vod/create', requireLogin, express.json({ limit: '1mb' }), (req, res) => {
-  const normalized = normalizeVodItem(req.body || {});
-  if (!normalized) return res.status(400).json({ ok: false, error: 'title/source_url required' });
-  if (normalized.type === 'series_episode' && !normalized.series_id) return res.status(400).json({ ok: false, error: 'series_id required for episodes' });
-  if (!isLikelyMediaUrl(normalized.source_url)) return res.status(400).json({ ok: false, error: 'source_url invalid (media URL expected)' });
-  if (normalized.poster && !normalizeHttpUrl(normalized.poster)) return res.status(400).json({ ok: false, error: 'poster invalid URL' });
-  if (findVodItemById(normalized.id)) return res.status(409).json({ ok: false, error: 'id exists' });
-  vodItems.unshift(normalized);
-  upsertVodCategoriesAndCollections(normalized);
-  persistVodState();
-  res.json({ ok: true, item: normalized });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 router.post('/api/admin/vod/update', requireLogin, express.json({ limit: '1mb' }), (req, res) => {
-  const id = sanitizeText(req.body?.id || '', 120);
-  if (!id) return res.status(400).json({ ok: false, error: 'id required' });
-  const index = vodItems.findIndex(item => String(item.id || '') === id);
-  if (index === -1) return res.status(404).json({ ok: false, error: 'not found' });
-  const normalized = normalizeVodItem(req.body || {}, vodItems[index]);
-  if (!normalized) return res.status(400).json({ ok: false, error: 'invalid payload' });
-  if (normalized.type === 'series_episode' && !normalized.series_id) return res.status(400).json({ ok: false, error: 'series_id required for episodes' });
-  if (!isLikelyMediaUrl(normalized.source_url)) return res.status(400).json({ ok: false, error: 'source_url invalid (media URL expected)' });
-  vodItems[index] = normalized;
-  upsertVodCategoriesAndCollections(normalized);
-  persistVodState();
-  res.json({ ok: true, item: normalized });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 router.post('/api/admin/vod/delete', requireLogin, express.json({ limit: '100kb' }), (req, res) => {
-  const id = sanitizeText(req.body?.id || '', 120);
-  const before = vodItems.length;
-  vodItems = vodItems.filter(item => String(item.id || '') !== id);
-  if (before === vodItems.length) return res.status(404).json({ ok: false, error: 'not found' });
-  persistVodState();
-  res.json({ ok: true });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 router.post('/api/admin/vod/publish', requireLogin, express.json({ limit: '100kb' }), (req, res) => {
-  const id = sanitizeText(req.body?.id || '', 120);
-  const item = findVodItemById(id);
-  if (!item) return res.status(404).json({ ok: false, error: 'not found' });
-  item.status = 'published';
-  item.visibility = 'public';
-  item.updated_at = new Date().toISOString();
-  persistVodState();
-  res.json({ ok: true, item });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 router.post('/api/admin/vod/unpublish', requireLogin, express.json({ limit: '100kb' }), (req, res) => {
-  const id = sanitizeText(req.body?.id || '', 120);
-  const item = findVodItemById(id);
-  if (!item) return res.status(404).json({ ok: false, error: 'not found' });
-  item.status = 'draft';
-  item.visibility = 'private';
-  item.updated_at = new Date().toISOString();
-  persistVodState();
-  res.json({ ok: true, item });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 router.post('/api/admin/vod/bulk-import', requireLogin, express.json({ limit: '5mb' }), (req, res) => {
-  const rows = parseVodBulkPayload(req.body?.payload || '');
-  if (!rows.length) return res.status(400).json({ ok: false, error: 'No rows parsed' });
-  let imported = 0;
-  for (const row of rows) {
-    const normalized = normalizeVodItem(row || {});
-    if (!normalized || !isLikelyMediaUrl(normalized.source_url)) continue;
-    if (findVodItemById(normalized.id)) continue;
-    vodItems.push(normalized);
-    upsertVodCategoriesAndCollections(normalized);
-    imported += 1;
-  }
-  persistVodState();
-  res.json({ ok: true, imported, total: vodItems.length });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 router.post('/api/admin/vod/check-stream', requireLogin, express.json({ limit: '120kb' }), async (req, res) => {
-  const id = sanitizeText(req.body?.id || '', 120);
-  const item = findVodItemById(id);
-  if (!item) return res.status(404).json({ ok: false, error: 'not found' });
-  const candidates = [item.source_url, ...(item.backup_urls || [])].map(v => normalizeHttpUrl(v)).filter(Boolean);
-  if (!candidates.length) return res.status(400).json({ ok: false, error: 'No source_url/backup_urls' });
-  const checks = [];
-  for (const candidate of candidates.slice(0, 4)) {
-    try {
-      const response = await axios.get(candidate, {
-        timeout: 9000,
-        maxRedirects: 3,
-        responseType: 'stream',
-        httpAgent: KEEPALIVE_HTTP_AGENT,
-        httpsAgent: KEEPALIVE_HTTPS_AGENT,
-        headers: buildUpstreamHeaders(req, candidate, false, { userAgent: String(item.user_agent || '').trim() }),
-        validateStatus: s => s >= 200 && s < 500
-      });
-      checks.push({ url: candidate, status: response.status, ok: response.status < 400 });
-      if (response.data && typeof response.data.destroy === 'function') response.data.destroy();
-    } catch (error) {
-      checks.push({ url: candidate, status: 0, ok: false, error: String(error?.message || 'unknown') });
-    }
-  }
-  const firstOk = checks.find(row => row.ok);
-  res.json({ ok: !!firstOk, item_id: id, checks, recommended: firstOk?.url || '' });
+  return res.status(410).json({ ok: false, error: 'VOD removed' });
 });
 
 
@@ -19613,10 +19215,7 @@ router.get('/admin', requireLogin, (req, res) => {
   const renderPlayerOptions = (selected) => ([
     ['auto', 'Auto'],
     ['browser', 'Default Browser'],
-    ['native', 'Native'],
-    ['shaka', 'Shaka'],
-    ['hls', 'HLS.js'],
-    ['clappr', 'Clappr']
+    ['hls', 'HLS.js']
   ]).map(([value, label]) => `<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');
   const featuredSet = new Set(Array.isArray(appConfig.featured_channels) ? appConfig.featured_channels.filter(slug => !!allCombined[slug]) : []);
   const deletedSources = normalizeDeletedSources(appConfig.deleted_sources);
@@ -21117,7 +20716,7 @@ router.post('/admin/tools', requireLogin, async (req, res) => {
       return res.redirect(`${BASE_PATH}/admin?success=${encodeURIComponent(`Kanalet u fshinë sipas source: ${sourceLabels}`)}`);
     }
     if (action === 'restore_deleted_sources') {
-      appConfig.deleted_sources = normalizeDeletedSources({ falcon: true, alb_vod: true });
+      appConfig.deleted_sources = normalizeDeletedSources({ falcon: true });
       saveJSON(CONFIG_FILE, appConfig);
       appendAuditLog('restore_deleted_sources', req, { restored_all: true });
       await updateDatabases();
@@ -21538,10 +21137,7 @@ router.get('/admin/rules', requireLogin, (req, res) => {
   const renderPlayerOptions = (selected) => ([
     ['auto', 'Auto'],
     ['browser', 'Default Browser'],
-    ['native', 'Native'],
-    ['shaka', 'Shaka'],
-    ['hls', 'HLS.js'],
-    ['clappr', 'Clappr']
+    ['hls', 'HLS.js']
   ]).map(([value, label]) => `<option value="${value}" ${selected===value?'selected':''}>${label}</option>`).join('');
   const sourceRows = VISIBLE_SOURCE_KEYS.map(sourceKey => {
     const sourceRules = playerDefaultsBySource[sourceKey] || { iphone: 'auto', android: 'auto', other: 'auto' };
@@ -22539,15 +22135,6 @@ function renderKoolChannels(channels,total){
   html += '</tbody></table>';
   wrap.innerHTML=html;
 }
-function renderFalconPreview(channels){
-  const wrap=document.getElementById('falconPreview');
-  if(!channels.length){
-    wrap.innerHTML='<i class="fas fa-info-circle"></i> Nuk ka kanale në cache.';
-    return;
-  }
-  const items=channels.slice(0,120).map(ch => '<div style="padding:4px 0;border-bottom:1px dashed var(--border)"><span style="color:var(--accent)">'+esc(ch.name)+'</span><div style="font-size:.65rem;color:var(--muted);font-family:monospace">'+esc(ch.url)+'</div></div>');
-  wrap.innerHTML='<div style="max-height:280px;overflow:auto">'+items.join('')+'</div><div style="margin-top:8px;color:var(--muted);font-size:.7rem">Shown: '+Math.min(channels.length,120)+' / '+channels.length+'</div>';
-}
 function renderKoolLokkePreview(channels, total=0){
   const wrap=document.getElementById('koolLokkePreview');
   if(!channels.length){
@@ -22565,18 +22152,15 @@ function renderKoolLokkePreview(channels, total=0){
 function updateStatusCards(data){
   const k=data.kool||{};
   const kl=data.koolLokke||{};
-  const f=data.falcon||{};
   const job=data.koolLoadJob||{};
   const jobLokke=data.koolLokkeLoadJob||{};
-  document.getElementById('koolCache').textContent=k.channelsInCache||0;
-  document.getElementById('koolCats').textContent=(k.loadedCategories||0)+'/'+(k.totalCategories||0);
-  document.getElementById('koolSig').textContent=k.signature||'None';
-  document.getElementById('koolLokkeCache').textContent=kl.channelsInCache||0;
-  document.getElementById('koolLokkeCats').textContent=(kl.loadedCategories||0)+'/'+(kl.totalCategories||0);
-  document.getElementById('koolLokkeSig').textContent=kl.signature||'None';
-  document.getElementById('falconCache').textContent=f.channelsInCache||0;
-  document.getElementById('falconMain').textContent=Number.isFinite(f.inMainDb)?f.inMainDb:0;
-  document.getElementById('falconTtl').textContent=(f.expiresInSec||0)+'s';
+  const setTxt=(id,val)=>{ const el=document.getElementById(id); if(el) el.textContent=val; };
+  setTxt('koolCache', k.channelsInCache||0);
+  setTxt('koolCats', (k.loadedCategories||0)+'/'+(k.totalCategories||0));
+  setTxt('koolSig', k.signature||'None');
+  setTxt('koolLokkeCache', kl.channelsInCache||0);
+  setTxt('koolLokkeCats', (kl.loadedCategories||0)+'/'+(kl.totalCategories||0));
+  setTxt('koolLokkeSig', kl.signature||'None');
   const p=(k.loadingProgress||{});
   const progress=document.getElementById('koolProgress');
   if (p.status === 'loading') {
@@ -22692,21 +22276,6 @@ async function importSelectedKool(){
     await loadStatus();
   }catch(err){ showMsg(err.message, true); }
 }
-async function refreshFalcon(){
-  try{
-    const data=await api('/api/integrations/falcon/refresh', { method:'POST' });
-    showMsg('Falcon u rifreskua dhe DB kryesore u përditësua. Kanale: '+(data.status?.channelsInCache||0));
-    await Promise.all([loadStatus(), loadFalconChannels()]);
-  }catch(err){ showMsg(err.message, true); }
-}
-async function loadFalconChannels(){
-  try{
-    const data=await api('/api/integrations/falcon/channels?limit=300');
-    renderFalconPreview(data.channels||[]);
-  }catch(err){
-    document.getElementById('falconPreview').innerHTML='<span style="color:var(--red)">'+esc(err.message)+'</span>';
-  }
-}
 
 loadStatus();
 loadKoolChannels();
@@ -22767,101 +22336,6 @@ ${NAV_ADMIN}
 
 router.get('/admin/push-removed-legacy', requireLogin, (req, res) => {
   return res.redirect(302, `${BASE_PATH}/admin`);
-  const nav = NAV_ADMIN.replace('href="${BASE_PATH}/admin/push" class="nav-link"', 'href="${BASE_PATH}/admin/push" class="nav-link active"');
-  const flags = getFeatureFlags();
-  const escapeAttr = (value = '') => escapeHtmlAttr(value);
-  const success = String(req.query.success || '').trim();
-  const error = String(req.query.error || '').trim();
-  const publicNotifications = normalizePublicNotificationsConfig(appConfig.public_notifications);
-  res.send(`<!DOCTYPE html><html lang="sq"><head>${BASE_STYLE}<title>Admin - Push Notifications</title></head><body>
-${nav}
-<div class="page">
-<div class="page-header"><a href="${BASE_PATH}/admin" style="color:var(--muted)"><i class="fas fa-arrow-left"></i></a><i class="fas fa-bell" style="color:var(--accent)"></i><h2>Push Notifications</h2><span class="badge">${flags.web_push_notifications ? 'ON' : 'OFF'}</span></div>
-${success ? `<div style="background:rgba(0,200,83,.1);border:1px solid var(--green);color:var(--green);padding:12px;border-radius:8px;margin-bottom:12px"><i class="fas fa-check-circle"></i> ${success}</div>` : ''}
-${error ? `<div style="background:rgba(255,68,68,.1);border:1px solid var(--red);color:var(--red);padding:12px;border-radius:8px;margin-bottom:12px"><i class="fas fa-exclamation-circle"></i> ${error}</div>` : ''}
-<div class="admin-section">
-<h3><i class="fas fa-bullhorn"></i> Public Notification Bar (Live / Partnership / Ads)</h3>
-<form method="POST" action="${BASE_PATH}/admin/push/public-notifications">
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">
-    <label class="form-label"><input type="hidden" name="pn_enabled" value="0"><input type="checkbox" name="pn_enabled" value="1" ${publicNotifications.enabled ? 'checked' : ''}> Aktivizo notification bar publik</label>
-    <label class="form-label"><input type="hidden" name="pn_live_enabled" value="0"><input type="checkbox" name="pn_live_enabled" value="1" ${publicNotifications.live_enabled ? 'checked' : ''}> Ndeshje live</label>
-    <label class="form-label"><input type="hidden" name="pn_partnership_enabled" value="0"><input type="checkbox" name="pn_partnership_enabled" value="1" ${publicNotifications.partnership_enabled ? 'checked' : ''}> Partnership</label>
-    <label class="form-label"><input type="hidden" name="pn_ads_enabled" value="0"><input type="checkbox" name="pn_ads_enabled" value="1" ${publicNotifications.ads_enabled ? 'checked' : ''}> Ads / Sponsor</label>
-    <label class="form-label">Live title<input type="text" name="pn_live_title" class="form-input" value="${escapeAttr(publicNotifications.live_title || '')}" placeholder="Ndeshje Live"></label>
-    <label class="form-label">Live text<input type="text" name="pn_live_text" class="form-input" value="${escapeAttr(publicNotifications.live_text || '')}" placeholder="Shiko ndeshjet live tani"></label>
-    <label class="form-label">Live URL<input type="text" name="pn_live_url" class="form-input" value="${escapeAttr(publicNotifications.live_url || `${BASE_PATH}/`) }" placeholder="${BASE_PATH}/"></label>
-    <label class="form-label">Partnership title<input type="text" name="pn_partnership_title" class="form-input" value="${escapeAttr(publicNotifications.partnership_title || '')}" placeholder="Partnership"></label>
-    <label class="form-label">Partnership text<input type="text" name="pn_partnership_text" class="form-input" value="${escapeAttr(publicNotifications.partnership_text || '')}" placeholder="Oferta partneriteti"></label>
-    <label class="form-label">Partnership URL<input type="text" name="pn_partnership_url" class="form-input" value="${escapeAttr(publicNotifications.partnership_url || `${BASE_PATH}/`) }" placeholder="${BASE_PATH}/"></label>
-    <label class="form-label">Ads title<input type="text" name="pn_ads_title" class="form-input" value="${escapeAttr(publicNotifications.ads_title || '')}" placeholder="Sponsored"></label>
-    <label class="form-label">Ads text<input type="text" name="pn_ads_text" class="form-input" value="${escapeAttr(publicNotifications.ads_text || '')}" placeholder="Oferta speciale"></label>
-    <label class="form-label">Ads URL<input type="text" name="pn_ads_url" class="form-input" value="${escapeAttr(publicNotifications.ads_url || `${BASE_PATH}/`) }" placeholder="${BASE_PATH}/"></label>
-  </div>
-  <div class="admin-bar" style="justify-content:flex-end;margin-top:10px;margin-bottom:0">
-    <button type="submit" class="a-btn a-btn-primary" data-testid="admin-save-public-notifications-button"><i class="fas fa-save"></i> Ruaj Public Notifications</button>
-  </div>
-</form>
-</div>
-<div class="admin-section">
-<h3><i class="fas fa-paper-plane"></i> Dërgo custom notification</h3>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-  <input id="pushTitle" class="form-input" placeholder="Titulli">
-  <input id="pushUrl" class="form-input" placeholder="URL (p.sh. ${BASE_PATH}/)" value="${BASE_PATH}/">
-</div>
-<textarea id="pushBody" class="form-input" style="min-height:90px;resize:vertical" placeholder="Mesazhi..."></textarea>
-<div style="display:flex;gap:8px;flex-wrap:wrap">
-  <button class="a-btn a-btn-primary" onclick="sendCustomPush()"><i class="fas fa-paper-plane"></i> Dërgo</button>
-  <button class="a-btn a-btn-green" onclick="loadCampaigns()"><i class="fas fa-sync"></i> Rifresko statistikat</button>
-</div>
-<div id="pushMsg" style="margin-top:10px;color:var(--muted)"></div>
-</div>
-<div class="admin-section">
-<h3><i class="fas fa-chart-bar"></i> Statistika sent/opened</h3>
-<div id="campaignsWrap" style="overflow:auto"><p style="color:var(--muted)">Duke ngarkuar...</p></div>
-</div>
-</div>
-<script>
-const BASE='${BASE_PATH}';
-const ATOKEN='${ADMIN_TOKEN}';
-function esc(v){return String(v||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-async function api(path,opts={}){
-  const o={...opts};
-  o.headers={...(opts.headers||{}),'x-admin-token':ATOKEN};
-  if(opts.body&&typeof opts.body==='object'){o.headers['Content-Type']='application/json';o.body=JSON.stringify(opts.body);}
-  const r=await fetch(BASE+path,o); const d=await r.json().catch(()=>({ok:false,error:'Invalid JSON'}));
-  if(!r.ok||d.ok===false) throw new Error(d.error||('HTTP '+r.status));
-  return d;
-}
-async function sendCustomPush(){
-  try{
-    const title=document.getElementById('pushTitle').value.trim();
-    const body=document.getElementById('pushBody').value.trim();
-    const url=document.getElementById('pushUrl').value.trim()||BASE+'/';
-    const d=await api('/api/push/send-custom',{method:'POST',body:{title,body,url}});
-    document.getElementById('pushMsg').innerHTML='<span style="color:var(--green)">U dërgua: '+(d.sent||0)+' pajisje • opened: '+(d.opened||0)+' • campaign: '+esc(d.campaignId||'-')+'</span>';
-    loadCampaigns();
-  }catch(e){
-    document.getElementById('pushMsg').innerHTML='<span style="color:var(--red)">Gabim: '+esc(e.message)+'</span>';
-  }
-}
-async function loadCampaigns(){
-  const wrap=document.getElementById('campaignsWrap');
-  try{
-    const d=await api('/api/push/campaigns');
-    if(!d.campaigns||!d.campaigns.length){wrap.innerHTML='<p style="color:var(--muted)">Nuk ka campaign ende.</p>';return;}
-    let html='<table class="users-table"><thead><tr><th>ID</th><th>Titulli</th><th>Sent</th><th>Opened</th><th>Open rate</th><th>Updated</th></tr></thead><tbody>';
-    d.campaigns.forEach(c=>{
-      html+='<tr><td style="font-family:monospace;font-size:.66rem">'+esc(c.id)+'</td><td><b>'+esc(c.title)+'</b><div style="font-size:.64rem;color:var(--muted)">'+esc(c.body||'')+'</div></td><td>'+Number(c.sent||0)+'</td><td>'+Number(c.opened||0)+'</td><td>'+Number(c.open_rate||0).toFixed(1)+'%</td><td style="font-size:.66rem;color:var(--muted)">'+(c.updated_at?new Date(c.updated_at).toLocaleString('sq-AL'):'-')+'</td></tr>';
-    });
-    html+='</tbody></table>';
-    wrap.innerHTML=html;
-  }catch(e){
-    wrap.innerHTML='<p style="color:var(--red)">Gabim: '+esc(e.message)+'</p>';
-  }
-}
-loadCampaigns();
-</script>
-</body></html>`);
 });
 
 router.post('/admin/push/public-notifications', requireLogin, (req, res) => {
@@ -22901,7 +22375,7 @@ router.post('/admin/chat/delete', requireLogin, (req, res) => {
     chatAuditState.items = chatAuditState.items.filter(item => String(item.id || '') !== id);
     if (chatAuditState.items.length !== before) chatAuditDirty = true;
   }
-  return res.redirect(`${BASE_PATH}/admin/chat`);
+  return res.redirect(`${BASE_PATH}/admin?notice=chat_removed`);
 });
 router.post('/admin/chat/clear', requireLogin, (req, res) => {
   const slug = createSlug(req.body?.slug || '');
@@ -22909,7 +22383,7 @@ router.post('/admin/chat/clear', requireLogin, (req, res) => {
   if (!slug && !actor) {
     chatAuditState.items = [];
     chatAuditDirty = true;
-    return res.redirect(`${BASE_PATH}/admin/chat`);
+    return res.redirect(`${BASE_PATH}/admin?notice=chat_removed`);
   }
   chatAuditState.items = chatAuditState.items.filter(item => {
     const actorKey = getLiveChatActorKeyFromAuditItem(item);
@@ -22918,7 +22392,7 @@ router.post('/admin/chat/clear', requireLogin, (req, res) => {
     return true;
   });
   chatAuditDirty = true;
-  return res.redirect(`${BASE_PATH}/admin/chat`);
+  return res.redirect(`${BASE_PATH}/admin?notice=chat_removed`);
 });
 router.post('/admin/chat/settings', requireLogin, (req, res) => {
   appConfig.live_chat = normalizeLiveChatSettings({
@@ -22937,7 +22411,7 @@ router.post('/admin/chat/settings', requireLogin, (req, res) => {
     block_links: appConfig.live_chat.block_links,
     blocked_words_count: (appConfig.live_chat.blocked_words || []).length
   });
-  return res.redirect(`${BASE_PATH}/admin/chat`);
+  return res.redirect(`${BASE_PATH}/admin?notice=chat_removed`);
 });
 router.post('/admin/chat/mute', requireLogin, (req, res) => {
   const actor = String(req.body?.actor || '').trim().slice(0, 180);
@@ -22948,7 +22422,7 @@ router.post('/admin/chat/mute', requireLogin, (req, res) => {
   appConfig.live_chat = normalizeLiveChatSettings(cfg);
   saveJSON(CONFIG_FILE, appConfig);
   appendAuditLog('chat_mute_actor', req, { actor, seconds });
-  return res.redirect(`${BASE_PATH}/admin/chat`);
+  return res.redirect(`${BASE_PATH}/admin?notice=chat_removed`);
 });
 router.post('/admin/chat/unmute', requireLogin, (req, res) => {
   const actor = String(req.body?.actor || '').trim().slice(0, 180);
@@ -22957,150 +22431,12 @@ router.post('/admin/chat/unmute', requireLogin, (req, res) => {
   appConfig.live_chat = normalizeLiveChatSettings(cfg);
   saveJSON(CONFIG_FILE, appConfig);
   appendAuditLog('chat_unmute_actor', req, { actor });
-  return res.redirect(`${BASE_PATH}/admin/chat`);
+  return res.redirect(`${BASE_PATH}/admin?notice=chat_removed`);
 });
 router.get('/admin/chat-removed-legacy', requireLogin, (req, res) => {
   return res.redirect(302, `${BASE_PATH}/admin`);
-  const nav = NAV_ADMIN.replace('href="${BASE_PATH}/admin/chat" class="nav-link"', 'href="${BASE_PATH}/admin/chat" class="nav-link active"');
-  const q = String(req.query.q || '').trim().toLowerCase();
-  const slugFilter = createSlug(req.query.slug || '');
-  const esc = value => String(value || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[m]));
-  const liveChatSettings = normalizeLiveChatSettings(appConfig.live_chat);
-  let rows = (chatAuditState.items || []).slice(0, 2500);
-  if (slugFilter) rows = rows.filter(item => String(item.slug || '') === slugFilter);
-  if (q) {
-    rows = rows.filter(item => {
-      const blob = [
-        item.user, item.text, item.emoji, item.slug, item.ip,
-        item.fingerprint_hash, item.fingerprint_cookie_id, item.session_id, item.ua
-      ].join(' ').toLowerCase();
-      return blob.includes(q);
-    });
-  }
-  const actorCounters = new Map();
-  const mutedMap = liveChatSettings.muted_identities || {};
-  const nowTs = Date.now();
-  for (const item of rows) {
-    const actorKey = getLiveChatActorKeyFromAuditItem(item) || `anon:${String(item.user || '').trim()}`;
-    const prev = actorCounters.get(actorKey) || { count: 0, latestTs: 0, sample: item };
-    prev.count += 1;
-    prev.latestTs = Math.max(prev.latestTs, Number(item.ts || 0));
-    if (Number(item.ts || 0) >= Number(prev.sample?.ts || 0)) prev.sample = item;
-    actorCounters.set(actorKey, prev);
-  }
-  const actorList = Array.from(actorCounters.entries())
-    .sort((a, b) => Number(b[1].count || 0) - Number(a[1].count || 0))
-    .slice(0, 120);
-  const actorLabelMap = new Map();
-  actorList.forEach(([key, info], idx) => {
-    const sample = info?.sample || {};
-    const alias = resolveOrCreateUserAlias({
-      fingerprintHash: sample.fingerprint_hash || '',
-      cookieId: sample.fingerprint_cookie_id || '',
-      ip: sample.ip || ''
-    }) || `User ${idx + 1}`;
-    actorLabelMap.set(key, alias);
-  });
-  const actorRows = actorList.map(([actorKey, info]) => {
-    const label = actorLabelMap.get(actorKey) || 'User?';
-    const sample = info.sample || {};
-    const mutedUntil = Number(mutedMap[actorKey] || 0);
-    const isMuted = mutedUntil > nowTs;
-    return `<tr>
-<td><b>${label}</b></td>
-<td style="font-family:monospace;font-size:.66rem">${esc(actorKey)}</td>
-<td>${Number(info.count || 0)}</td>
-<td style="font-size:.66rem;color:var(--muted)">${info.latestTs ? new Date(info.latestTs).toLocaleString('sq-AL') : '-'}</td>
-<td style="font-size:.66rem">${esc(sample.ip || '-')}<div style="color:var(--muted)">${esc(sample.fingerprint_hash || sample.fingerprint_cookie_id || '-')}</div>${isMuted?`<div style="color:var(--red)">Muted deri: ${new Date(mutedUntil).toLocaleString('sq-AL')}</div>`:''}</td>
-<td>
-  <div style="display:flex;gap:6px;flex-wrap:wrap">
-    <form method="POST" action="${BASE_PATH}/admin/chat/clear" onsubmit="return confirm('Fshi të gjitha mesazhet e këtij user-i?')">
-      <input type="hidden" name="actor" value="${esc(actorKey)}">
-      <button class="a-btn a-btn-orange" style="padding:4px 10px;font-size:.68rem"><i class="fas fa-user-slash"></i> Fshi</button>
-    </form>
-    <form method="POST" action="${BASE_PATH}/admin/chat/mute">
-      <input type="hidden" name="actor" value="${esc(actorKey)}">
-      <select name="seconds" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 6px;font-size:.66rem">
-        <option value="30">Mute 30s</option>
-        <option value="300">Mute 5m</option>
-        <option value="3600">Mute 1h</option>
-      </select>
-      <button class="a-btn a-btn-red" style="padding:4px 8px;font-size:.66rem"><i class="fas fa-volume-mute"></i></button>
-    </form>
-    ${isMuted?`<form method="POST" action="${BASE_PATH}/admin/chat/unmute"><input type="hidden" name="actor" value="${esc(actorKey)}"><button class="a-btn a-btn-green" style="padding:4px 8px;font-size:.66rem"><i class="fas fa-volume-up"></i></button></form>`:''}
-  </div>
-</td>
-</tr>`;
-  }).join('');
-  const rowsHtml = rows.slice(0, 700).map(item => {
-    const actorKey = getLiveChatActorKeyFromAuditItem(item) || `anon:${String(item.user || '').trim()}`;
-    const actorLabel = actorLabelMap.get(actorKey) || 'User?';
-    const text = item.kind === 'reaction'
-      ? `Reaction ${esc(item.emoji || '❤️')}`
-      : esc(item.text || '');
-    return `<tr>
-<td style="font-size:.66rem;color:var(--muted)">${item.ts ? new Date(item.ts).toLocaleString('sq-AL') : '-'}</td>
-<td><span class="badge">${esc(actorLabel)}</span><div style="font-size:.62rem;color:var(--muted)">${esc(item.user || 'Anon')}</div></td>
-<td style="font-size:.66rem">${esc(item.slug || '-')}</td>
-<td>${text}</td>
-<td style="font-size:.65rem;font-family:monospace">${esc(item.ip || '-')}<div style="color:var(--muted)">${esc(item.session_id || '-')}</div></td>
-<td style="font-size:.62rem;font-family:monospace;color:var(--muted)">${esc(item.fingerprint_hash || '-')}<div>${esc(item.fingerprint_cookie_id || '-')}</div></td>
-<td style="font-size:.62rem;color:var(--muted)">${esc(item.transport || '-')}</td>
-<td>
-  <form method="POST" action="${BASE_PATH}/admin/chat/delete" onsubmit="return confirm('Fshi këtë mesazh?')">
-    <input type="hidden" name="id" value="${esc(item.id)}">
-    <button class="a-btn a-btn-orange" style="padding:4px 10px;font-size:.68rem"><i class="fas fa-trash"></i></button>
-  </form>
-</td>
-</tr>`;
-  }).join('');
-  res.send(`<!DOCTYPE html><html lang="sq"><head>${BASE_STYLE}<title>Admin - Chat Live Audit</title></head><body>
-${nav}
-<div class="page">
-<div class="page-header"><a href="${BASE_PATH}/admin" style="color:var(--muted)"><i class="fas fa-arrow-left"></i></a><i class="fas fa-comments" style="color:var(--accent)"></i><h2>Chat Live Audit</h2><span class="badge">${rows.length} evente</span></div>
-<div class="admin-section">
-<h3><i class="fas fa-sliders-h"></i> Chat Settings</h3>
-<form method="POST" action="${BASE_PATH}/admin/chat/settings" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;align-items:end">
-  <label class="form-label"><input type="hidden" name="chat_slow_mode_enabled" value="0"><input type="checkbox" name="chat_slow_mode_enabled" value="1" ${liveChatSettings.slow_mode_enabled ? 'checked' : ''}> Slow mode (anti-spam)</label>
-  <label class="form-label">Slow mode (sekonda)
-    <input class="form-input" type="number" name="chat_slow_mode_seconds" min="0" max="120" value="${liveChatSettings.slow_mode_seconds}">
-  </label>
-  <label class="form-label">Max messages / minutë / user
-    <input class="form-input" type="number" name="chat_max_messages_per_min" min="2" max="120" value="${liveChatSettings.max_messages_per_min}">
-  </label>
-  <label class="form-label"><input type="hidden" name="chat_block_links" value="0"><input type="checkbox" name="chat_block_links" value="1" ${liveChatSettings.block_links ? 'checked' : ''}> Blloko linket në chat</label>
-  <label class="form-label" style="grid-column:1/-1">Blocked words (një për rresht)
-    <textarea class="form-input" name="chat_blocked_words" style="min-height:100px;resize:vertical">${esc((liveChatSettings.blocked_words || []).join('\n'))}</textarea>
-  </label>
-  <div><button class="a-btn a-btn-primary"><i class="fas fa-save"></i> Ruaj Chat Settings</button></div>
-</form>
-</div>
-<div class="admin-section">
-<form method="GET" action="${BASE_PATH}/admin/chat" style="display:flex;gap:8px;flex-wrap:wrap">
-  <input class="form-input" name="q" value="${esc(q)}" placeholder="Kërko user/text/ip/fingerprint..." style="margin:0;min-width:280px;flex:1">
-  <input class="form-input" name="slug" value="${esc(slugFilter)}" placeholder="slug kanali (opsional)" style="margin:0;min-width:220px">
-  <button class="a-btn a-btn-primary"><i class="fas fa-search"></i> Filtro</button>
-</form>
-<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-  <form method="POST" action="${BASE_PATH}/admin/chat/clear" onsubmit="return confirm('Fshi të gjitha mesazhet?')">
-    <button class="a-btn a-btn-orange"><i class="fas fa-trash"></i> Fshi të gjitha</button>
-  </form>
-</div>
-</div>
-<div class="admin-section">
-<h3><i class="fas fa-user-secret"></i> User mapping (User1, User2...)</h3>
-<div style="overflow:auto"><table class="users-table"><thead><tr><th>User Label</th><th>Actor Key</th><th>Msgs</th><th>Last Seen</th><th>Info</th><th>Action</th></tr></thead><tbody>${actorRows || '<tr><td colspan="6" style="color:var(--muted)">Nuk ka data.</td></tr>'}</tbody></table></div>
-</div>
-<div class="admin-section">
-<h3><i class="fas fa-stream"></i> Mesazhet / Reactions</h3>
-<div style="overflow:auto"><table class="users-table"><thead><tr><th>Koha</th><th>User</th><th>Kanal</th><th>Mesazhi</th><th>IP / Session</th><th>Fingerprint / Cookie</th><th>Transport</th><th>Fshi</th></tr></thead><tbody>${rowsHtml || '<tr><td colspan="8" style="color:var(--muted)">Nuk ka evente.</td></tr>'}</tbody></table></div>
-</div>
-</div></body></html>`);
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ─── ADMIN USERS ──────────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════════
 router.get('/admin/users', requireLogin, (req, res) => {
   res.send(`<!DOCTYPE html><html lang="sq">
 <head>${BASE_STYLE}<title>Users Aktiv</title></head><body>
@@ -24586,7 +23922,7 @@ router.get('/admin/playlists', requireLogin, async (req, res) => {
 <div style="font-weight:600"><i class="fas fa-list" style="color:var(--purple)"></i> ${pl.name}
   <span style="display:inline-flex;align-items:center;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid ${modeBadgeColor};color:${modeBadgeColor};font-size:.62rem;text-transform:uppercase;font-weight:700">${deliveryMode}</span>
 </div>
-<div style="font-size:.7rem;color:var(--muted)">${(pl.channels||[]).length} kanale • ${(pl.vod_items||[]).length} VOD • ${pl.created||'N/A'}</div>
+<div style="font-size:.7rem;color:var(--muted)">${(pl.channels||[]).length} kanale • ${pl.created||'N/A'}</div>
 <div style="font-size:.64rem;color:var(--muted);margin-top:2px"><i class="fas fa-mobile-alt"></i> ${uaLabel}</div>
 <div style="font-size:.66rem;color:var(--muted);margin-top:2px"><i class="fas fa-chart-line"></i> Downloads: ${stats.downloads} • Clicks: ${stats.total_clicks} • Blocked: ${stats.blocked_requests || 0} • Active(10m): ${stats.active_ips_10m}</div>
 <div style="margin-top:4px">
@@ -24619,23 +23955,8 @@ router.get('/admin/playlists', requireLogin, async (req, res) => {
     : [];
   const playlistChannelNameMap = groupedCreate.channelNameMap;
   const editBoxes = groupedEdit.html;
-  const vodBoxes = vodSorted.map(item => {
-    const vodId = sanitizeText(item.id, 120);
-    return `<div class="channel-checkbox-item">
-<input type="checkbox" name="playlist_vod_items" value="${vodId}" id="pv_${vodId}">
-<label for="pv_${vodId}" style="cursor:pointer;display:flex;align-items:center;gap:6px;flex:1">
-<span style="color:var(--purple)"><i class="fas fa-film"></i></span><span>${escapeHtmlAttr(item.title || vodId)}</span>
-</label></div>`;
-  }).join('') || `<div style="color:var(--muted);font-size:.75rem">Nuk ka VOD akoma.</div>`;
-  const editVodBoxes = vodSorted.map(item => {
-    const vodId = sanitizeText(item.id, 120);
-    const checked = editVodSelected.has(vodId) ? 'checked' : '';
-    return `<div class="channel-checkbox-item">
-<input type="checkbox" name="playlist_vod_items" value="${vodId}" id="epv_${vodId}" ${checked}>
-<label for="epv_${vodId}" style="cursor:pointer;display:flex;align-items:center;gap:6px;flex:1">
-<span style="color:var(--purple)"><i class="fas fa-film"></i></span><span>${escapeHtmlAttr(item.title || vodId)}</span>
-</label></div>`;
-  }).join('') || `<div style="color:var(--muted);font-size:.75rem">Nuk ka VOD akoma.</div>`;
+  const vodBoxes = ''; // VOD removed from playlists
+  const editVodBoxes = ''; // VOD removed from playlists
 
   res.send(`<!DOCTYPE html><html lang="sq">
 <head>${BASE_STYLE}<title>Admin - Playlists</title></head><body>
@@ -24698,12 +24019,6 @@ ${groupedCreate.sourceFilterOptions}
 <p style="color:var(--muted);font-size:.74rem;margin-bottom:10px">Tërhiq &amp; lësho (ose ↑ / ↓) për renditjen në M3U.</p>
 <div id="playlistOrderListCreate"></div>
 <input type="hidden" name="playlist_channel_order" id="playlistChannelOrderCreate" value="">
-<label class="form-label" style="margin-top:10px">Zgjidh VOD</label>
-<div style="margin-bottom:8px">
-<button type="button" class="a-btn a-btn-green" onclick="selectAllVod(true)"><i class="fas fa-check-double"></i> Të gjitha VOD</button>
-<button type="button" class="a-btn a-btn-primary" onclick="selectAllVod(false)"><i class="fas fa-times"></i> Asnjë VOD</button>
-</div>
-<div class="channel-checkbox-grid">${vodBoxes}</div>
 <div style="margin-top:15px">
 <button type="submit" class="a-btn a-btn-purple" style="font-size:.9rem;padding:10px 24px"><i class="fas fa-plus"></i> Krijo Playlist</button>
 </div></form></div></div>
@@ -24748,12 +24063,6 @@ ${groupedEdit.sourceFilterOptions}
 <p style="color:var(--muted);font-size:.74rem;margin-bottom:10px">Tërhiq &amp; lësho (ose ↑ / ↓) për renditjen në M3U.</p>
 <div id="playlistOrderListEdit"></div>
 <input type="hidden" name="playlist_channel_order" id="playlistChannelOrderEdit" value="">
-<label class="form-label" style="margin-top:10px">VOD</label>
-<div style="margin-bottom:8px">
-<button type="button" class="a-btn a-btn-green" onclick="selectAllEditVod(true)"><i class="fas fa-check-double"></i> Të gjitha VOD</button>
-<button type="button" class="a-btn a-btn-primary" onclick="selectAllEditVod(false)"><i class="fas fa-times"></i> Asnjë VOD</button>
-</div>
-<div class="channel-checkbox-grid">${editVodBoxes}</div>
 <div style="margin-top:14px;display:flex;gap:8px">
 <button type="submit" class="a-btn a-btn-green"><i class="fas fa-save"></i> Ruaj Ndryshimet</button>
 <a href="${BASE_PATH}/admin/playlists" class="a-btn a-btn-orange"><i class="fas fa-times"></i> Mbyll Edit</a>
@@ -24860,16 +24169,8 @@ router.get('/admin/playlists/manage/:id', requireLogin, (req, res) => {
     <button type="submit" class="a-btn a-btn-red" style="padding:4px 10px;font-size:.65rem"><i class="fas fa-trash"></i></button>
   </form>
 </div>`).join('') || '<p style="color:var(--muted);font-size:.75rem;margin:0">Asnjë kategori M3U akoma. Shto një më poshtë.</p>';
-  const vodSorted = buildVodListSnapshot({ includePrivate: true }).sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
-  const vodCheckboxRows = vodSorted.map(item => {
-    const vodId = sanitizeText(item.id, 120);
-    const checked = selectedVodSet.has(vodId) ? 'checked' : '';
-    return `<div class="channel-checkbox-item">
-<input type="checkbox" name="playlist_vod_items" value="${vodId}" id="mpv_${vodId}" ${checked}>
-<label for="mpv_${vodId}" style="cursor:pointer;display:flex;align-items:center;gap:6px;flex:1">
-<span style="color:var(--purple)"><i class="fas fa-film"></i></span><span>${escapeHtmlAttr(item.title || vodId)}</span>
-</label></div>`;
-  }).join('') || `<div style="color:var(--muted);font-size:.75rem">Nuk ka VOD akoma.</div>`;
+  const vodCheckboxRows = ''; // VOD removed from playlists
+
   res.send(`<!DOCTYPE html><html lang="sq">
 <head>${BASE_STYLE}<title>Menaxho Playlist</title></head><body>
 ${NAV_ADMIN.replace('href="${BASE_PATH}/admin/playlists" class="nav-link"', 'href="${BASE_PATH}/admin/playlists" class="nav-link active"')}
@@ -24877,7 +24178,7 @@ ${NAV_ADMIN.replace('href="${BASE_PATH}/admin/playlists" class="nav-link"', 'hre
 <div class="page-header">
 <a href="${BASE_PATH}/admin/playlists" style="color:var(--muted)"><i class="fas fa-arrow-left"></i></a>
 <i class="fas fa-edit" style="color:var(--purple)"></i><h2>Menaxho Playlist</h2>
-<span class="badge purple">${currentSlugs.length} kanale • ${currentVodIds.length} VOD</span>
+<span class="badge purple">${currentSlugs.length} kanale</span>
 </div>
 ${success ? `<div style="background:rgba(0,200,83,.1);border:1px solid var(--green);color:var(--green);padding:12px;border-radius:8px;margin-bottom:16px"><i class="fas fa-check-circle"></i> ${success}</div>` : ''}
 ${error ? `<div style="background:rgba(255,68,68,.1);border:1px solid var(--red);color:var(--red);padding:12px;border-radius:8px;margin-bottom:16px"><i class="fas fa-exclamation-circle"></i> ${error}</div>` : ''}
@@ -24937,12 +24238,6 @@ ${error ? `<div style="background:rgba(255,68,68,.1);border:1px solid var(--red)
   <p style="color:var(--muted);font-size:.74rem;margin-bottom:10px">Tërhiq &amp; lësho (ose ↑ / ↓) për renditjen në M3U.</p>
   <div id="playlistOrderListManage"></div>
   <input type="hidden" name="playlist_channel_order" id="playlistChannelOrderManage" value="">
-  <label class="form-label" style="margin-top:10px">VOD</label>
-  <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap">
-    <button type="button" class="a-btn a-btn-green" onclick="selectAllManageVod(true)"><i class="fas fa-check-double"></i> Të gjitha VOD</button>
-    <button type="button" class="a-btn a-btn-primary" onclick="selectAllManageVod(false)"><i class="fas fa-times"></i> Asnjë VOD</button>
-  </div>
-  <div class="channel-checkbox-grid">${vodCheckboxRows}</div>
   <p style="color:var(--muted);font-size:.72rem">Zgjidh kanalet sipas source. Për grupet M3U, përdor kategoritë e playlist-it (butoni Kanalet).</p>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <button type="submit" class="a-btn a-btn-green"><i class="fas fa-save"></i> Ruaj Ndryshimet</button>
@@ -25189,7 +24484,7 @@ router.post('/admin/playlists/manage/:id', requireLogin, (req, res) => {
     user_agent_list: uaList,
     channels,
     categories,
-    vod_items: vodItemsIds,
+    vod_items: [], // VOD removed from playlists
     updated: new Date().toISOString().slice(0, 16).replace('T', ' ')
   };
   if (nextId !== id) {
@@ -25481,7 +24776,7 @@ router.post('/admin/playlists', requireLogin, (req, res) => {
       user_agent_list: uaList,
       channels,
       categories: {},
-      vod_items: vodItemsIds.map(v => sanitizeText(v, 120)).filter(v => !!findVodItemById(v)),
+      vod_items: [], // VOD removed from playlists
       created: new Date().toISOString().slice(0,16).replace('T',' ')
     };
     saveJSON(PLAYLISTS_FILE, customPlaylists);
@@ -25524,7 +24819,7 @@ router.post('/admin/playlists', requireLogin, (req, res) => {
       user_agent_mode: uaMode,
       user_agent_list: uaList,
       channels,
-      vod_items: vodItemsIds.map(v => sanitizeText(v, 120)).filter(v => !!findVodItemById(v)),
+      vod_items: [], // VOD removed from playlists
       updated: new Date().toISOString().slice(0,16).replace('T',' ')
     };
     if (nextId !== id) {
