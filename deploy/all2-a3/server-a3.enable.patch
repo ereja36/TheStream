@@ -1,15 +1,16 @@
 --- /root/all/all2/server.js.bak-a3-20260712-154748	2026-07-12 10:01:13.809831794 +0000
-+++ /root/all/all2/server.js	2026-07-12 15:52:23.659367287 +0000
-@@ -75,7 +75,7 @@
++++ /root/all/all2/server.js	2026-07-12 16:09:32.327243634 +0000
+@@ -75,7 +75,8 @@
  const UPSTREAM_PROFILE_MAX_ENTRIES = 20000;
  const GEO_LOOKUP_CACHE_MAX_ENTRIES = 15000;
  const ALB_DEFAULT_UPSTREAM_UA = 'APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0';
 -const ALB_API_REMOVED = true;
++const A3_CORS_PROXY_BASE = 'https://a3.phinemi.live/';
 +const ALB_API_REMOVED = false;
  const ADMIN_USERNAME   = 'admin';
  const ADMIN_PASSWORD   = 'kanaliim2024';
  const SESSION_SECRET   = 'kanaliim_super_secret_key_123!@#';
-@@ -148,14 +148,15 @@
+@@ -148,14 +149,15 @@
    replace_old_devices_on_login: false
  };
  const PLAYER_ENGINES = new Set(['auto', 'browser', 'native', 'shaka', 'hls', 'clappr']);
@@ -27,7 +28,7 @@
    nimi: 'Nimi',
    kool: 'Kool',
    kool_lokke: 'Kool Lokke',
-@@ -167,6 +168,8 @@
+@@ -167,6 +169,8 @@
    { key: 'kool', label: 'Kool', icon: 'satellite-dish', sourceKeys: ['kool'], accent: 'var(--orange)' },
    { key: 'kool_lokke', label: 'LokkeApp', icon: 'satellite', sourceKeys: ['kool_lokke'], accent: 'var(--purple)' },
    { key: 'nimi', label: 'Nimi', icon: 'shield-alt', sourceKeys: ['nimi'], accent: 'var(--purple)' },
@@ -36,7 +37,7 @@
    { key: 'kanali_api', label: 'Kanali API', icon: 'tv', sourceKeys: ['api_tv', 'api_sport'], accent: 'var(--accent)' },
    { key: 'open_source', label: 'Open Source', icon: 'globe', sourceKeys: ['open_source'], accent: 'var(--sport)' },
    { key: 'falcon', label: 'Falcon', icon: 'broadcast-tower', sourceKeys: ['falcon'], accent: 'var(--orange)' },
-@@ -2076,7 +2079,9 @@
+@@ -2076,7 +2080,9 @@
        api_sport: 'direct',
        open_source: 'direct',
        falcon: 'direct',
@@ -47,7 +48,7 @@
        nimi: 'proxy',
        kool: 'proxy',
        kool_lokke: 'proxy',
-@@ -2254,7 +2259,7 @@
+@@ -2254,7 +2260,7 @@
  function normalizeSourceLinkModes(raw = {}) {
    const defaults = {};
    for (const sourceKey of SOURCE_KEYS) {
@@ -56,7 +57,7 @@
    }
    if (!raw || typeof raw !== 'object') return defaults;
    const normalized = {};
-@@ -5641,7 +5646,8 @@
+@@ -5641,7 +5647,8 @@
    if (channel.source === 'open_source') return 'open_source';
    if (channel.source === 'falcon') return 'falcon';
    if (channel.source === 'v2') return 'v2';
@@ -66,7 +67,7 @@
    if (channel.source === 'kool_lokke') return 'kool_lokke';
    if (channel.custom) return channel.type === 'sport' ? 'custom_sport' : 'custom_tv';
    if (channel.type === 'sport') return 'api_sport';
-@@ -5667,7 +5673,7 @@
+@@ -5667,7 +5674,7 @@
  function isSourceDeleted(sourceKey) {
    const key = String(sourceKey || '').trim();
    if (!key) return false;
@@ -75,7 +76,7 @@
    return appConfig.deleted_sources?.[key] === true;
  }
  function ensureSourcesEnabled(sourceKeys = []) {
-@@ -6274,23 +6280,28 @@
+@@ -6274,23 +6281,28 @@
      if (!channelsBySource[sourceKey]) continue;
      channelsBySource[sourceKey].push(channel);
    }
@@ -115,7 +116,7 @@
    }
    for (const sourceKey of SOURCE_KEYS) {
      const count = Number(sourceCounts[sourceKey] || 0);
-@@ -6613,26 +6624,32 @@
+@@ -6613,26 +6625,32 @@
  function buildAlbRuntimeDbFromEntries(entries = [], options = {}) {
    const db = {};
    const clientIp = String(options.clientIp || '').trim();
@@ -153,7 +154,7 @@
      };
    }
    if (appConfig.global_epg?.enabled) {
-@@ -6946,8 +6963,8 @@
+@@ -6946,8 +6964,8 @@
      if (koolSettings.default_playback_mode === 'proxy') return 'proxy';
      return 'direct';
    }
@@ -164,7 +165,7 @@
      : (channelUsesProxy(channel) ? 'proxy' : 'direct');
  }
  function formatUptime() {
-@@ -7576,6 +7593,7 @@
+@@ -7576,6 +7594,7 @@
  appConfig.proxy_rules = normalizeProxyRules(appConfig.proxy_rules);
  appConfig.source_link_modes = normalizeSourceLinkModes(appConfig.source_link_modes);
  appConfig.deleted_sources = normalizeDeletedSources(appConfig.deleted_sources);
@@ -172,7 +173,7 @@
  appConfig.source_schedules = normalizeSourceSchedules(appConfig.source_schedules);
  appConfig.alerts = normalizeAlertsSettings(appConfig.alerts);
  appConfig.interstitial_ad = normalizeInterstitialAdsConfig(appConfig.interstitial_ad);
-@@ -7923,7 +7941,7 @@
+@@ -7923,7 +7942,7 @@
    const channelSlug = createSlug(slug || channel.slug || '');
    let rawHeaders = {};
    let userAgent = '';
@@ -181,7 +182,7 @@
      rawHeaders = channel.albHeaders && typeof channel.albHeaders === 'object'
        ? { ...channel.albHeaders }
        : {};
-@@ -7948,7 +7966,7 @@
+@@ -7948,7 +7967,7 @@
    }
    if (!Object.keys(headers).some(key => String(key).toLowerCase() === 'accept-encoding')) headers['Accept-Encoding'] = 'identity';
    if (!Object.keys(headers).some(key => String(key).toLowerCase() === 'connection')) headers.Connection = 'Keep-Alive';
@@ -190,8 +191,21 @@
    if (!Object.keys(headers).length && !userAgent) return { sourceKey, channelSlug };
    return { upstreamHeaders: headers, userAgent, sourceKey, channelSlug };
  }
-@@ -8096,22 +8114,26 @@
+@@ -8094,24 +8113,39 @@
+     albValidatedAt: cached.albValidatedAt || 0
+   };
  }
++
++function wrapA3CorsProxyUrl(streamUrl = '') {
++  const url = String(streamUrl || '').trim();
++  if (!/^https?:\/\//i.test(url)) return url;
++  // Already proxied
++  if (/^https?:\/\/a3\.phinemi\.live\/?/i.test(url)) return url;
++  if (/phinemi\.live\/a3proxy\/?/i.test(url)) return url;
++  const base = String(A3_CORS_PROXY_BASE || 'https://a3.phinemi.live/').replace(/\/?$/, '/');
++  return `${base}?u=${encodeURIComponent(url)}`;
++}
++
  async function resolveAlbChannelBySlugRuntime(req, slug, options = {}) {
    if (ALB_API_REMOVED) return null;
 -  if (!isSourceAccessibleNow('alb')) return null;
@@ -223,7 +237,7 @@
        let channel = db[safeSlug] || null;
  
        if (!channel) {
-@@ -8126,8 +8148,8 @@
+@@ -8126,8 +8160,8 @@
        }
        if (!channel) continue;
        channel.slug = safeSlug;
@@ -234,7 +248,7 @@
  
        if (verifyStream) {
          const validated = await albService.resolveChannelLive(channel, {
-@@ -8589,6 +8611,9 @@
+@@ -8589,6 +8623,9 @@
    if (isSourceAccessibleNow('alb')) {
      sourceCounts.alb = Number(sourceHealth?.alb?.channelCount || 0);
    }
@@ -244,7 +258,7 @@
    triggerSourceZeroAlerts(sourceCounts, { trigger: 'update_databases' }).catch(() => {});
    refreshSourceHealthSnapshot(sourceCounts, { sampleSize: 6 }).catch(() => {});
    refreshStreamTokenCache();
-@@ -14730,25 +14755,32 @@
+@@ -14730,25 +14767,33 @@
        return res.status(502).send('V2 stream unavailable');
      }
    }
@@ -283,7 +297,8 @@
 +      }
 +      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
 +      res.setHeader('X-A3-Direct', '1');
-+      return res.redirect(302, streamUrl);
++      res.setHeader('X-A3-Cors-Proxy', '1');
++      return res.redirect(302, wrapA3CorsProxyUrl(streamUrl));
      } catch (error) {
 -      console.error('ALB redirect error:', error.message);
 -      return res.status(502).send('ALB stream unavailable');
@@ -292,7 +307,7 @@
      }
    }
    const profile = buildChannelUpstreamProfile(channel, slug);
-@@ -14772,7 +14804,7 @@
+@@ -14772,7 +14817,7 @@
    if (!tokenData) return res.status(403).send('Forbidden');
    const slug = tokenData.slug;
    let channel = resolveChannelBySlug(slug);
@@ -301,7 +316,7 @@
      channel = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 1 });
    }
    if (!channel) return res.status(404).send('Not Found');
-@@ -14796,7 +14828,7 @@
+@@ -14796,7 +14841,7 @@
    if (!tokenData) return res.status(403).send('Forbidden');
    const slug = tokenData.slug;
    let channel = resolveChannelBySlug(slug);
@@ -310,7 +325,7 @@
      channel = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 1 });
    }
    if (!channel) return res.status(404).send('Not Found');
-@@ -14879,25 +14911,19 @@
+@@ -14879,25 +14924,20 @@
        return res.status(502).send('V2 stream unavailable');
      }
    }
@@ -336,7 +351,8 @@
 +      if (!/^https?:\/\//i.test(streamUrl || '')) return res.status(502).send('A3 resolve failed');
 +      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
 +      res.setHeader('X-A3-Direct', '1');
-+      return res.redirect(302, streamUrl);
++      res.setHeader('X-A3-Cors-Proxy', '1');
++      return res.redirect(302, wrapA3CorsProxyUrl(streamUrl));
      } catch (error) {
 -      console.error('ALB proxy error:', error.message);
 -      return res.status(502).send('ALB stream unavailable');
@@ -345,7 +361,7 @@
      }
    }
    await proxyChannelWithOptionalResolve(req, res, slug, channel, 'fallback');
-@@ -17137,11 +17163,23 @@
+@@ -17137,11 +17177,23 @@
  });
  
  router.get('/api/integrations/alb/status', requireLoginOrToken, (req, res) => {
@@ -371,7 +387,7 @@
  });
  
  router.get('/api/integrations/falcon/channels', requireLoginOrToken, (req, res) => {
-@@ -17155,7 +17193,43 @@
+@@ -17155,7 +17207,43 @@
  });
  
  router.get('/api/integrations/alb/channels', requireLoginOrToken, async (req, res) => {
@@ -416,7 +432,7 @@
  });
  
  function buildViewerSnapshot() {
-@@ -17334,7 +17408,7 @@
+@@ -17334,7 +17422,7 @@
    }
    const slug = req.params.slug;
    let channel = resolveChannelBySlug(slug);
@@ -425,7 +441,7 @@
    if (!channel) return res.status(404).json({ ok: false, error: 'Not found' });
    const channelAccessTier = resolveChannelAccessTierBySlug(slug);
    const viewerTier = resolveViewerChannelAccessTier(req);
-@@ -17352,10 +17426,10 @@
+@@ -17352,10 +17440,10 @@
    if (!isSourceAccessibleNow(sourceKey)) return res.status(404).json({ ok: false, error: 'Source unavailable now' });
    const geoCheck = await validateSourceGeo(req, sourceKey);
    if (!geoCheck.ok) return res.status(451).json({ ok: false, error: 'Geo blocked', country: geoCheck.countryCode || '??' });
@@ -439,7 +455,7 @@
      }
      channel = verifiedAlb;
    }
-@@ -18735,28 +18809,28 @@
+@@ -18735,28 +18823,28 @@
    const hasAccessibleSource = (folder.sourceKeys || []).some(sourceKey => isSourceAccessibleNow(sourceKey));
    if (!hasAccessibleSource) return res.status(404).send('Ky source folder nuk është aktiv tani.');
    const accent = folder.accent || 'var(--accent)';
@@ -478,7 +494,7 @@
          count: Object.keys(vis).length,
          cards,
          extraStatusHtml: `<span style="color:var(--muted)"><i class="fas fa-network-wired"></i> IPv4: ${clientIpv4 || 'N/A'}</span>`
-@@ -18774,7 +18848,7 @@
+@@ -18774,7 +18862,7 @@
          playerScriptHtml
        }));
      } catch (error) {
@@ -487,7 +503,7 @@
      }
    }
    if (folderKey === 'kool_lokke' && String(req.query.view || '').trim().toLowerCase() !== 'all') {
-@@ -19051,9 +19125,9 @@
+@@ -19051,9 +19139,9 @@
    if (!isSourceAccessibleNow(sourceKey)) return res.status(404).send('Not Found');
    const geoCheck = await validateSourceGeo(req, sourceKey);
    if (!geoCheck.ok) return res.status(451).send('Geo blocked');
@@ -500,7 +516,7 @@
      channel = verifiedAlb;
    }
    recordPlaylistAnalyticsEvent(id, {
-@@ -21171,7 +21245,7 @@
+@@ -21171,7 +21259,7 @@
  </tr>`;
    }).join('');
    const sourceLinkRows = SOURCE_KEYS.map(sourceKey => {
@@ -509,7 +525,7 @@
      return `<tr>
  <td style="padding:8px 6px;font-weight:600">${SOURCE_LABELS[sourceKey] || sourceKey}</td>
  <td style="padding:8px 6px">
-@@ -21701,7 +21775,7 @@
+@@ -21701,7 +21789,7 @@
      for (const sourceKey of SOURCE_KEYS) {
        sourceLinkModes[sourceKey] = normalizeSourceLinkMode(
          req.body[`rl_${sourceKey}`],
@@ -518,7 +534,7 @@
        );
      }
      appConfig.source_link_modes = sourceLinkModes;
-@@ -25154,24 +25228,18 @@
+@@ -25154,24 +25242,19 @@
        return res.status(502).send('V2 stream unavailable');
      }
    }
@@ -543,7 +559,8 @@
 +      if (!/^https?:\/\//i.test(streamUrl || '')) return res.status(502).send('A3 resolve failed');
 +      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
 +      res.setHeader('X-A3-Direct', '1');
-+      return res.redirect(302, streamUrl);
++      res.setHeader('X-A3-Cors-Proxy', '1');
++      return res.redirect(302, wrapA3CorsProxyUrl(streamUrl));
      } catch (error) {
 -      console.error('App measurement alb proxy error:', error.message);
 -      return res.status(502).send('ALB stream unavailable');

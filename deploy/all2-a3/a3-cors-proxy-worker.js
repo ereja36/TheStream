@@ -1,25 +1,32 @@
 /**
  * A3 / Media-Colony HLS CORS proxy (Cloudflare Worker)
  *
- * Why: gcore-cdn.org / fastlycache block many datacenter IPs (e.g. OVH VPS → 404)
- * and do not send Access-Control-Allow-Origin, so hls.js on shifshqip.com cannot
- * read manifests. This Worker fetches from the CDN using Cloudflare egress and
- * adds CORS so the browser can play while media traffic stays off the VPS.
- *
- * Deploy (Cloudflare Dashboard → Workers → Create):
- *   1. Paste this script
- *   2. Add route: a3.shifshqip.com/*  OR  phinemi.live/a3proxy/*
- *   3. In player: hls.loadSource('https://a3.shifshqip.com/?u=' + encodeURIComponent(cdnUrl))
- *
- * Example:
- *   /?u=https://cache1.gcore-cdn.org/out/151225/external/vizionplus.m3u8
+ * Routes:
+ *   https://a3.phinemi.live/?u=<cdnUrl>
+ *   https://phinemi.live/a3proxy/?u=<cdnUrl>
  */
 
-const ALLOWED_HOSTS = [
-  'cache1.gcore-cdn.org',
-  'cache2.gcore-cdn.org',
-  'cdn10eu.gcore-cdn.org',
-  'app-measurement.fastlycache.com',
+const ALLOWED_HOST_SUFFIXES = [
+  'gcore-cdn.org',
+  'fastlycache.com',
+  'akamaized.net',
+  'akamaihd.net',
+  'cloudfront.net',
+  'mediaset.net',
+  'bozztv.com',
+  'sednastream.com',
+  'video-stream-hosting.de',
+  'onestream.studio',
+  'ekranet.com',
+  'mediadesk.al',
+  'advanott.com',
+  'rtsh.dev',
+  'a2news.com',
+  'syritv.al',
+  'mcntv.al',
+  'panorama.com.al',
+  'ariu.eu.org',
+  'protokolldns.xyz',
 ];
 
 const DEFAULT_HEADERS = {
@@ -41,29 +48,37 @@ function corsHeaders(origin) {
   };
 }
 
+function isMediaPath(pathname = '') {
+  return /\.(m3u8|m3u|ts|m4s|mp4|aac|mp3|vtt|key)(\/|$)/i.test(pathname)
+    || /\/(index|playlist|manifest)(\.m3u8)?$/i.test(pathname)
+    || /\.php$/i.test(pathname)
+    || /\.js$/i.test(pathname);
+}
+
 function isAllowed(url) {
   try {
     const u = new URL(url);
-    return ALLOWED_HOSTS.some(h => u.hostname === h || u.hostname.endsWith('.' + h));
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const host = u.hostname.toLowerCase();
+    if (ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith('.' + s))) return true;
+    return isMediaPath(u.pathname);
   } catch {
     return false;
   }
 }
 
 function rewriteManifest(text, requestUrl, proxyBase) {
-  // Rewrite relative segment lines to absolute CDN URLs, then wrap via proxy
-  const base = requestUrl;
-  return text.split('\n').map(line => {
+  const prefix = proxyBase.endsWith('/') ? `${proxyBase}?u=` : `${proxyBase}/?u=`;
+  return text.split('\n').map((line) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) {
-      // URI="..." attributes
       return line.replace(/URI="([^"]+)"/g, (_, uri) => {
-        const abs = new URL(uri, base).toString();
-        return `URI="${proxyBase}?u=${encodeURIComponent(abs)}"`;
+        const abs = new URL(uri, requestUrl).toString();
+        return `URI="${prefix}${encodeURIComponent(abs)}"`;
       });
     }
-    const abs = new URL(trimmed, base).toString();
-    return `${proxyBase}?u=${encodeURIComponent(abs)}`;
+    const abs = new URL(trimmed, requestUrl).toString();
+    return `${prefix}${encodeURIComponent(abs)}`;
   }).join('\n');
 }
 
@@ -80,12 +95,20 @@ export default {
       return new Response('Forbidden or missing ?u=', { status: 400, headers: corsHeaders(origin) });
     }
 
-    const upstream = await fetch(target, {
-      method: 'GET',
-      headers: DEFAULT_HEADERS,
-      redirect: 'follow',
-      cf: { cacheTtl: 2, cacheEverything: false },
-    });
+    let upstream;
+    try {
+      upstream = await fetch(target, {
+        method: 'GET',
+        headers: DEFAULT_HEADERS,
+        redirect: 'follow',
+        cf: { cacheTtl: 2, cacheEverything: false },
+      });
+    } catch (err) {
+      return new Response(`Upstream fetch failed: ${String(err)}`, {
+        status: 502,
+        headers: corsHeaders(origin),
+      });
+    }
 
     const ct = (upstream.headers.get('content-type') || '').toLowerCase();
     const headers = {
@@ -98,14 +121,20 @@ export default {
       return new Response(await upstream.text(), { status: upstream.status, headers });
     }
 
-    // HLS manifests: rewrite segment URLs through this proxy (so TS also get CORS)
-    if (ct.includes('mpegurl') || ct.includes('application/vnd.apple') || ct.includes('text/plain') || ct.includes('octet-stream')) {
+    // Always rewrite via https://host/?u= (trailing slash) so Workers route patterns match.
+    const proxyBase = `${src.origin}/`;
+
+    if (
+      ct.includes('mpegurl')
+      || ct.includes('application/vnd.apple')
+      || ct.includes('text/plain')
+      || ct.includes('octet-stream')
+      || /\.m3u8(\?|$)/i.test(target)
+    ) {
       const body = await upstream.text();
       if (body.trimStart().startsWith('#EXT')) {
-        const proxyBase = `${src.origin}${src.pathname}`;
-        const rewritten = rewriteManifest(body, target, proxyBase);
         headers['Content-Type'] = 'application/vnd.apple.mpegurl';
-        return new Response(rewritten, { status: 200, headers });
+        return new Response(rewriteManifest(body, target, proxyBase), { status: 200, headers });
       }
     }
 
