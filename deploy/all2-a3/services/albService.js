@@ -140,6 +140,8 @@ function normalizeChannelHeaders(headers = {}) {
     if (!name || !value) continue;
     const lower = name.toLowerCase();
     if (lower === 'host' || lower === 'connection' || lower === 'accept-encoding' || lower === 'content-length') continue;
+    // Media-Colony often stamps loopback XFF — never forward that upstream.
+    if (lower === 'x-forwarded-for' && /^(127\.0\.0\.1|::1|localhost)$/i.test(value)) continue;
     out[name] = value;
   }
   const referer = pickHeaderValue(out, 'referer');
@@ -149,8 +151,63 @@ function normalizeChannelHeaders(headers = {}) {
   if (referer) out.Referer = referer;
   if (origin) out.Origin = origin;
   if (cookie) out.Cookie = cookie;
-  if (xForwardedFor) out['X-Forwarded-For'] = xForwardedFor;
+  if (xForwardedFor && !/^(127\.0\.0\.1|::1|localhost)$/i.test(xForwardedFor)) {
+    out['X-Forwarded-For'] = xForwardedFor;
+  }
   return out;
+}
+
+function isAlbFastlyStreamUrl(url = '') {
+  return /app-measurement\.fastlycache\.com/i.test(String(url || ''));
+}
+
+function normalizeAlbNameKey(value = '') {
+  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+/** Prefer video-like alternates; skip obvious audio/radio hosts. */
+function looksLikeAlbVideoAlternate(url = '') {
+  const raw = String(url || '');
+  if (!/^https?:\/\//i.test(raw)) return false;
+  if (/(radio\.co|voscast\.com|shoutcast|icecast|audio)/i.test(raw)) return false;
+  if (/\.(m3u8|mp4|ts)(\?|$)/i.test(raw)) return true;
+  if (/:(1935|1936|8081|2083)\//.test(raw)) return true;
+  if (/gcore-cdn\.org|akamaized\.net|cloudfront\.net|bozztv|sednastream|playlist|\/live\//i.test(raw)) return true;
+  return false;
+}
+
+/**
+ * fastlycache edges hard-block datacenter/CF egress. When a channel only has a
+ * fastly URL, prefer another catalog entry with the same name on a playable CDN
+ * (e.g. Top Channel → TOPCHANNEL on crystalweb).
+ */
+function preferPlayableAlbAlternate(channel = {}, catalog = []) {
+  if (!channel || typeof channel !== 'object') return channel;
+  if (!isAlbFastlyStreamUrl(channel.url || '')) return channel;
+  const nameKey = normalizeAlbNameKey(channel.name || '');
+  if (!nameKey || !Array.isArray(catalog) || !catalog.length) return channel;
+  const selfId = String(channel.id || '').trim().toLowerCase();
+  let best = null;
+  for (const candidate of catalog) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    if (String(candidate.id || '').trim().toLowerCase() === selfId) continue;
+    if (isAlbFastlyStreamUrl(candidate.url || '')) continue;
+    if (!looksLikeAlbVideoAlternate(candidate.url || '')) continue;
+    const candKey = normalizeAlbNameKey(candidate.name || '');
+    if (!candKey) continue;
+    if (candKey !== nameKey && !candKey.includes(nameKey) && !nameKey.includes(candKey)) continue;
+    best = candidate;
+    break;
+  }
+  if (!best) return channel;
+  return {
+    ...channel,
+    url: best.url,
+    headers: best.headers || channel.headers || {},
+    userAgent: best.userAgent || channel.userAgent || '',
+    _albFailoverFrom: String(channel.id || ''),
+    _albFailoverTo: String(best.id || '')
+  };
 }
 
 function detectAlbType(name = '') {
@@ -393,7 +450,8 @@ class AlbService {
         }
         const matched = this.findChannelMatch(channels, channelRef);
         if (!matched) continue;
-        const candidate = this.withClientIpv4(matched, clientIp);
+        const playable = preferPlayableAlbAlternate(matched, channels);
+        const candidate = this.withClientIpv4(playable, clientIp);
         if (options.verifyStream) {
           const probe = await this.probeStreamCandidate(candidate);
           if (!probe.ok) continue;
@@ -656,5 +714,8 @@ module.exports = {
   ALB_ID_DISPLAY_NAMES,
   isAlbVodEntry,
   resolveAlbDisplayName,
-  beautifyAlbVodTitle
+  beautifyAlbVodTitle,
+  isAlbFastlyStreamUrl,
+  preferPlayableAlbAlternate,
+  normalizeAlbNameKey
 };

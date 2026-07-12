@@ -34,6 +34,8 @@ const ALLOWED_HOST_SUFFIXES = [
   'protokolldns.xyz',
   'gjirafa.com',
   'gjirafa.net',
+  'crystalweb.net',
+  'duckdns.org',
   'aliez.tv',
 ];
 
@@ -113,12 +115,25 @@ function decodeRh(rhRaw = '') {
       const value = String(v || '').trim();
       if (!name || !value) continue;
       if (/^(host|connection|content-length|accept-encoding|transfer-encoding)$/i.test(name)) continue;
+      if (/^x-forwarded-for$/i.test(name) && /^(127\.0\.0\.1|::1|localhost)$/i.test(value)) continue;
       out[name] = value;
     }
     return Object.keys(out).length ? out : null;
   } catch {
     return null;
   }
+}
+
+function isDecoyManifest(text = '') {
+  const body = String(text || '');
+  const lower = body.toLowerCase();
+  if (lower.includes('anytools.eu.org')) return true;
+  if (lower.includes('unique-user-id=')) return true;
+  // Classic Media-Colony DC-block stub: ENDLIST + single 0-duration entry.
+  if (/#ext-x-endlist/i.test(body) && /#extinf:\s*0/i.test(body) && body.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#')).length <= 1) {
+    return true;
+  }
+  return false;
 }
 
 function encodeRh(headers = {}) {
@@ -316,6 +331,12 @@ export default {
     const peek = new TextDecoder().decode(raw.slice(0, Math.min(raw.byteLength, 64))).trimStart();
     if (peek.startsWith('#EXT')) {
       const body = new TextDecoder().decode(raw);
+      if (isDecoyManifest(body)) {
+        return new Response('A3 CDN blocked this edge (datacenter/proxy IP). Try again from a residential network or use an alternate feed.', {
+          status: 502,
+          headers: { ...corsHeaders(origin), 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+        });
+      }
       headers['Content-Type'] = 'application/vnd.apple.mpegurl';
       return new Response(rewriteManifest(body, target, proxyBase, rhKeep), { status: 200, headers });
     }
