@@ -417,7 +417,23 @@ export default {
     };
 
     if (!upstream || upstream.status !== 200) {
-      return new Response(upstream ? await upstream.text() : 'Upstream error', {
+      const failBody = upstream ? await upstream.text() : 'Upstream error';
+      const looksHtmlBlock = /<\s*html|404 Not Found|CyberPanel|error code:/i.test(failBody);
+      if (looksHtmlBlock || /fastlycache\.com/i.test(target)) {
+        return new Response(
+          'A3 CDN blocked this edge (datacenter/CF IP). Open this channel in the ShifShqip app on mobile data, or use a feed that is not on fastlycache.',
+          {
+            status: 502,
+            headers: {
+              ...corsHeaders(origin),
+              'Content-Type': 'text/plain; charset=utf-8',
+              'Cache-Control': 'no-store',
+              'X-A3-Upstream-Status': String(upstream ? upstream.status : 0),
+            },
+          }
+        );
+      }
+      return new Response(failBody, {
         status: upstream ? upstream.status : 502,
         headers,
       });

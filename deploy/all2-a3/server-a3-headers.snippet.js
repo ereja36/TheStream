@@ -1,56 +1,58 @@
 /**
- * Snippet applied on VPS /root/all/all2/server.js (A3 per-channel headers → Worker `rh`).
- * Replaces wrapA3CorsProxyUrl / buildA3PlaybackUrl and adds helpers used by channel redirects
- * and /api/channel-url for alb / alb_vod.
+ * A3 playback routing helpers (live on VPS /root/all/all2/server.js).
+ *
+ * Routing:
+ * - App (X-Shif-App / ShifShqip UA): fastly → direct CDN URL
+ *   (phone residential IP + PlaylistGuard aliez headers)
+ * - Web Safari/iOS: fastly → direct_url + native HLS (viewer IP, no CORS needed)
+ * - Other A3 CDNs / web Chrome: CF Worker `a3.phinemi.live` with per-channel `rh`
+ * - preferPlayableAlbAlternate (albService): Top Channel tch → topcha crystalweb
  */
-/** Encode per-channel CDN headers for the CF Worker (`rh` query param). */
-function encodeA3UpstreamRh(headers = {}, userAgent = '') {
-  const payload = {};
-  for (const [rawKey, rawValue] of Object.entries(headers && typeof headers === 'object' ? headers : {})) {
-    const name = String(rawKey || '').trim();
-    const value = String(rawValue || '').trim();
-    if (!name || !value) continue;
-    if (/^(host|connection|content-length|accept-encoding|transfer-encoding)$/i.test(name)) continue;
-    payload[name] = value;
-  }
-  const ua = String(userAgent || '').trim();
-  if (ua && !Object.keys(payload).some((k) => String(k).toLowerCase() === 'user-agent')) {
-    payload['User-Agent'] = ua;
-  }
-  if (!Object.keys(payload).length) return '';
-  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
-}
-function wrapA3CorsProxyUrl(streamUrl = '', options = {}) {
-  const url = String(streamUrl || '').trim();
-  if (!/^https?:\/\//i.test(url)) return url;
-  if (/^https?:\/\/a3\.phinemi\.live\/?/i.test(url)) return url;
-  if (/phinemi\.live\/a3proxy\/?/i.test(url)) return url;
-  const base = String(A3_CORS_PROXY_BASE || 'https://a3.phinemi.live/').replace(/\/?$/, '/');
-  const rh = String(options.rh || encodeA3UpstreamRh(options.headers || {}, options.userAgent || '')).trim();
-  let out = `${base}?u=${encodeURIComponent(url)}`;
-  if (rh) out += `&rh=${encodeURIComponent(rh)}`;
-  return out;
-}
+
 function isAlbFastlyUrl(url = '') {
   return /app-measurement\.fastlycache\.com/i.test(String(url || ''));
 }
-/**
- * Always route A3 through the CF Worker so hls.js gets CORS + per-channel
- * upstream headers (Referer/Origin/Cookie/UA) on master, variants, and segments.
- * Browsers cannot set those headers themselves.
- */
+
+function isShifAppRequest(req) {
+  const appHeader = String(req?.headers?.['x-shif-app'] || '').trim();
+  if (appHeader === '1' || /^true$/i.test(appHeader)) return true;
+  const ua = String(req?.headers?.['user-agent'] || '');
+  if (/ShifShqip\//i.test(ua)) return true;
+  const requestedWith = String(req?.headers?.['x-requested-with'] || '');
+  if (/com\.shif\.shqip/i.test(requestedWith)) return true;
+  return false;
+}
+
+function wrapA3ClientSwUrl(streamUrl = '', options = {}) {
+  const url = String(streamUrl || '').trim();
+  if (!/^https?:\/\//i.test(url)) return url;
+  if (String(url).includes(`${BASE_PATH}/a3sw`)) return url;
+  const rh = String(options.rh || encodeA3UpstreamRh(options.headers || {}, options.userAgent || '')).trim();
+  let out = `${BASE_PATH}/a3sw?u=${encodeURIComponent(url)}`;
+  if (rh) out += `&rh=${encodeURIComponent(rh)}`;
+  return out;
+}
+
 function buildA3PlaybackUrl(streamUrl = '', options = {}) {
   const url = String(streamUrl || '').trim();
   if (!/^https?:\/\//i.test(url)) return url;
+  if (isAlbFastlyUrl(url)) {
+    if (options.preferDirect === true) return url;
+    if (options.preferClientSw === true) return wrapA3ClientSwUrl(url, options);
+  }
   return wrapA3CorsProxyUrl(url, options);
 }
-function buildA3PlaybackOptionsFromChannel(channel = {}) {
+
+function buildA3PlaybackOptionsFromChannel(channel = {}, req = null) {
+  const fastly = isAlbFastlyUrl(channel?.url || '');
+  const fromApp = req ? isShifAppRequest(req) : false;
   return {
     headers: channel?.albHeaders && typeof channel.albHeaders === 'object' ? channel.albHeaders : {},
-    userAgent: String(channel?.albUserAgent || ALB_DEFAULT_UPSTREAM_UA || '').trim() || ALB_DEFAULT_UPSTREAM_UA
+    userAgent: String(channel?.albUserAgent || ALB_DEFAULT_UPSTREAM_UA || '').trim() || ALB_DEFAULT_UPSTREAM_UA,
+    preferDirect: fastly && fromApp,
+    preferClientSw: false
   };
 }
 
-// Call sites (alb / alb_vod):
-//   buildA3PlaybackUrl(streamUrl, buildA3PlaybackOptionsFromChannel(channel))
-// channel-url JSON also returns headers + user_agent for native clients.
+// Call sites must pass req:
+//   buildA3PlaybackUrl(streamUrl, buildA3PlaybackOptionsFromChannel(channel, req))

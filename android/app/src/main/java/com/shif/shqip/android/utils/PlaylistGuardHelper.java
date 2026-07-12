@@ -36,6 +36,26 @@ public final class PlaylistGuardHelper {
     private PlaylistGuardHelper() {
     }
 
+    /** Media-Colony A3 CDNs require aliez.tv Referer/Origin/Cookie from the phone IP. */
+    public static PlaylistGuardRule buildA3CdnGuardRule(String requestUrl) {
+        if (TextUtils.isEmpty(requestUrl)) {
+            return null;
+        }
+        String lower = requestUrl.toLowerCase(Locale.US);
+        boolean isFastly = lower.contains("fastlycache.com");
+        boolean isGcore = lower.contains("gcore-cdn.org");
+        if (!isFastly && !isGcore) {
+            return null;
+        }
+        PlaylistGuardRule rule = new PlaylistGuardRule();
+        rule.url_pattern = isFastly ? "fastlycache.com" : "gcore-cdn.org";
+        rule.user_agent = "APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0";
+        rule.referer = "https://aliez.tv/";
+        rule.origin = "https://aliez.tv";
+        rule.cookie = "passport=IG2GpFng03_23122025";
+        return rule;
+    }
+
     public static PlaylistGuardRule findMatchingRule(String urlString, List<PlaylistGuardRule> rules) {
         if (TextUtils.isEmpty(urlString) || rules == null || rules.isEmpty()) {
             return null;
@@ -74,6 +94,10 @@ public final class PlaylistGuardHelper {
     public static PlaylistGuardRule resolveRule(SharedPref sharedPref, String requestUrl) {
         if (sharedPref == null) {
             return null;
+        }
+        PlaylistGuardRule a3Rule = buildA3CdnGuardRule(requestUrl);
+        if (a3Rule != null) {
+            return a3Rule;
         }
         if (PlaylistPortalHelper.isK1UpstreamUrl(requestUrl)) {
             return PlaylistPortalHelper.buildK1UpstreamStreamRule();

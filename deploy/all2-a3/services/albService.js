@@ -176,28 +176,54 @@ function looksLikeAlbVideoAlternate(url = '') {
   return false;
 }
 
+/** Known fastly → playable CDN id aliases (Media-Colony duplicate feeds). */
+const ALB_FASTLY_ALT_IDS = {
+  tch: ['topcha']
+};
+
 /**
  * fastlycache edges hard-block datacenter/CF egress. When a channel only has a
- * fastly URL, prefer another catalog entry with the same name on a playable CDN
- * (e.g. Top Channel → TOPCHANNEL on crystalweb).
+ * fastly URL, prefer another catalog entry with the same display/name on a
+ * playable CDN (e.g. Top Channel / CH01 → TOPCHANNEL on crystalweb).
  */
 function preferPlayableAlbAlternate(channel = {}, catalog = []) {
   if (!channel || typeof channel !== 'object') return channel;
   if (!isAlbFastlyStreamUrl(channel.url || '')) return channel;
-  const nameKey = normalizeAlbNameKey(channel.name || '');
-  if (!nameKey || !Array.isArray(catalog) || !catalog.length) return channel;
+  if (!Array.isArray(catalog) || !catalog.length) return channel;
   const selfId = String(channel.id || '').trim().toLowerCase();
+  const nameKey = normalizeAlbNameKey(channel.name || '');
+  const displayKey = normalizeAlbNameKey(ALB_ID_DISPLAY_NAMES[selfId] || resolveAlbDisplayName(channel) || '');
+  const matchKeys = [...new Set([displayKey, nameKey].filter((k) => k && k.length >= 2))];
+  const aliasIds = new Set(
+    (ALB_FASTLY_ALT_IDS[selfId] || []).map((id) => String(id || '').trim().toLowerCase()).filter(Boolean)
+  );
   let best = null;
+  let bestScore = 0;
   for (const candidate of catalog) {
     if (!candidate || typeof candidate !== 'object') continue;
-    if (String(candidate.id || '').trim().toLowerCase() === selfId) continue;
+    const candId = String(candidate.id || '').trim().toLowerCase();
+    if (!candId || candId === selfId) continue;
     if (isAlbFastlyStreamUrl(candidate.url || '')) continue;
     if (!looksLikeAlbVideoAlternate(candidate.url || '')) continue;
-    const candKey = normalizeAlbNameKey(candidate.name || '');
-    if (!candKey) continue;
-    if (candKey !== nameKey && !candKey.includes(nameKey) && !nameKey.includes(candKey)) continue;
-    best = candidate;
-    break;
+    let score = 0;
+    if (aliasIds.has(candId)) score = 100;
+    const candNameKey = normalizeAlbNameKey(candidate.name || '');
+    const candDisplayKey = normalizeAlbNameKey(ALB_ID_DISPLAY_NAMES[candId] || resolveAlbDisplayName(candidate) || '');
+    for (const key of matchKeys) {
+      if (!key) continue;
+      if (candNameKey === key || candDisplayKey === key) score = Math.max(score, 90);
+      else if (key.length >= 5 && (
+        candNameKey.includes(key) || key.includes(candNameKey)
+        || candDisplayKey.includes(key) || key.includes(candDisplayKey)
+      )) {
+        score = Math.max(score, 70);
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = candidate;
+      if (score >= 100) break;
+    }
   }
   if (!best) return channel;
   return {
