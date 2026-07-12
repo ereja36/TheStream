@@ -1,0 +1,5 @@
+#EXTM3U
+#EXTINF:-1,Open Source Alpha
+https://backup.example.com/live/os-alpha-backup.m3u8
+#EXTINF:-1,Open Source UI Added
+https://backup.example.com/live/os-ui-added.m3u8
