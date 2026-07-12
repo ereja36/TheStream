@@ -33,6 +33,10 @@ if [[ -n "${ANDROID_HOME:-}" ]]; then
 fi
 
 chmod +x "${ROOT_DIR}/gradlew"
-"${ROOT_DIR}/gradlew" assembleRelease --no-daemon "$@"
+"${ROOT_DIR}/gradlew" assembleRelease bundleRelease --no-daemon "$@"
 
-echo "Release APK: ${ROOT_DIR}/app/build/outputs/apk/release/app-release.apk"
+APK="${ROOT_DIR}/app/build/outputs/apk/release/app-release.apk"
+AAB="${ROOT_DIR}/app/build/outputs/bundle/release/app-release.aab"
+echo "Release APK: ${APK}"
+echo "Release AAB: ${AAB}"
+ls -lh "${APK}" "${AAB}"
