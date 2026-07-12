@@ -59,15 +59,13 @@ public final class PlaylistGuardHelper {
         }
         rule.url_pattern = isFastly ? "fastlycache.com" : "gcore-cdn.org";
         rule.user_agent = "APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0";
-        if (isGcore && lower.contains("/external/")) {
-            rule.referer = "https://video.gjirafa.com/";
-            rule.origin = "https://video.gjirafa.com";
-            rule.cookie = "";
-        } else {
-            rule.referer = "https://aliez.tv/";
-            rule.origin = "https://aliez.tv";
-            rule.cookie = "passport=IG2GpFng03_23122025";
-        }
+        // Use Media-Colony aliez headers for fastly/gcore gates. Do NOT force
+        // video.gjirafa.com on all /external/ URLs — that breaks Vizion/News24-style
+        // gates that ship their own Referer (or need none). Gjirafa hosts are
+        // handled above.
+        rule.referer = "https://aliez.tv/";
+        rule.origin = "https://aliez.tv";
+        rule.cookie = "passport=IG2GpFng03_23122025";
         return rule;
     }
 
