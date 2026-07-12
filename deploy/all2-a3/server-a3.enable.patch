@@ -1,5 +1,5 @@
 --- /root/all/all2/server.js.bak-a3-20260712-154748	2026-07-12 10:01:13.809831794 +0000
-+++ /root/all/all2/server.js	2026-07-12 16:09:32.327243634 +0000
++++ /root/all/all2/server.js	2026-07-12 16:18:57.492457037 +0000
 @@ -75,7 +75,8 @@
  const UPSTREAM_PROFILE_MAX_ENTRIES = 20000;
  const GEO_LOOKUP_CACHE_MAX_ENTRIES = 15000;
@@ -191,7 +191,7 @@
    if (!Object.keys(headers).length && !userAgent) return { sourceKey, channelSlug };
    return { upstreamHeaders: headers, userAgent, sourceKey, channelSlug };
  }
-@@ -8094,24 +8113,39 @@
+@@ -8094,24 +8113,50 @@
      albValidatedAt: cached.albValidatedAt || 0
    };
  }
@@ -204,6 +204,17 @@
 +  if (/phinemi\.live\/a3proxy\/?/i.test(url)) return url;
 +  const base = String(A3_CORS_PROXY_BASE || 'https://a3.phinemi.live/').replace(/\/?$/, '/');
 +  return `${base}?u=${encodeURIComponent(url)}`;
++}
++function isAlbFastlyDeadUrl(url = '') {
++  const value = String(url || '');
++  // Media-Colony pack /out/190126/ on fastlycache is currently hard-404 everywhere.
++  return /app-measurement\.fastlycache\.com\/out\/190126\//i.test(value);
++}
++function isAlbWebPlayableUrl(url = '') {
++  const value = String(url || '').trim();
++  if (!/^https?:\/\//i.test(value)) return false;
++  if (isAlbFastlyDeadUrl(value)) return false;
++  return true;
 +}
 +
  async function resolveAlbChannelBySlugRuntime(req, slug, options = {}) {
@@ -237,7 +248,7 @@
        let channel = db[safeSlug] || null;
  
        if (!channel) {
-@@ -8126,8 +8160,8 @@
+@@ -8126,8 +8171,8 @@
        }
        if (!channel) continue;
        channel.slug = safeSlug;
@@ -248,7 +259,7 @@
  
        if (verifyStream) {
          const validated = await albService.resolveChannelLive(channel, {
-@@ -8589,6 +8623,9 @@
+@@ -8589,6 +8634,9 @@
    if (isSourceAccessibleNow('alb')) {
      sourceCounts.alb = Number(sourceHealth?.alb?.channelCount || 0);
    }
@@ -258,7 +269,7 @@
    triggerSourceZeroAlerts(sourceCounts, { trigger: 'update_databases' }).catch(() => {});
    refreshSourceHealthSnapshot(sourceCounts, { sampleSize: 6 }).catch(() => {});
    refreshStreamTokenCache();
-@@ -14730,25 +14767,33 @@
+@@ -14730,25 +14778,36 @@
        return res.status(502).send('V2 stream unavailable');
      }
    }
@@ -282,6 +293,9 @@
 -      await proxyManifest(streamUrl, req, res, `alb-proxy:${slug}`, { profileToken, candidates });
 -      return;
 +      if (!/^https?:\/\//i.test(streamUrl || '')) return res.status(502).send('A3 resolve failed');
++      if (!isAlbWebPlayableUrl(streamUrl)) {
++        return res.status(503).send('A3 stream offline (CDN 404). Provo Vizion Plus / News 24 / RTSH.');
++      }
 +      // Never probe/proxy from VPS — A3 CDN edges commonly 404 datacenter IPs.
 +      // Browser/app (residential IP) must hit the CDN directly.
 +      if (String(req.query.play_mode || '').toLowerCase() === 'proxy' || req.query.proxy === '1') {
@@ -307,7 +321,7 @@
      }
    }
    const profile = buildChannelUpstreamProfile(channel, slug);
-@@ -14772,7 +14817,7 @@
+@@ -14772,7 +14831,7 @@
    if (!tokenData) return res.status(403).send('Forbidden');
    const slug = tokenData.slug;
    let channel = resolveChannelBySlug(slug);
@@ -316,7 +330,7 @@
      channel = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 1 });
    }
    if (!channel) return res.status(404).send('Not Found');
-@@ -14796,7 +14841,7 @@
+@@ -14796,7 +14855,7 @@
    if (!tokenData) return res.status(403).send('Forbidden');
    const slug = tokenData.slug;
    let channel = resolveChannelBySlug(slug);
@@ -325,7 +339,7 @@
      channel = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 1 });
    }
    if (!channel) return res.status(404).send('Not Found');
-@@ -14879,25 +14924,20 @@
+@@ -14879,25 +14938,20 @@
        return res.status(502).send('V2 stream unavailable');
      }
    }
@@ -361,7 +375,7 @@
      }
    }
    await proxyChannelWithOptionalResolve(req, res, slug, channel, 'fallback');
-@@ -17137,11 +17177,23 @@
+@@ -17137,11 +17191,23 @@
  });
  
  router.get('/api/integrations/alb/status', requireLoginOrToken, (req, res) => {
@@ -387,7 +401,7 @@
  });
  
  router.get('/api/integrations/falcon/channels', requireLoginOrToken, (req, res) => {
-@@ -17155,7 +17207,43 @@
+@@ -17155,7 +17221,43 @@
  });
  
  router.get('/api/integrations/alb/channels', requireLoginOrToken, async (req, res) => {
@@ -432,7 +446,7 @@
  });
  
  function buildViewerSnapshot() {
-@@ -17334,7 +17422,7 @@
+@@ -17334,7 +17436,7 @@
    }
    const slug = req.params.slug;
    let channel = resolveChannelBySlug(slug);
@@ -441,7 +455,7 @@
    if (!channel) return res.status(404).json({ ok: false, error: 'Not found' });
    const channelAccessTier = resolveChannelAccessTierBySlug(slug);
    const viewerTier = resolveViewerChannelAccessTier(req);
-@@ -17352,10 +17440,10 @@
+@@ -17352,12 +17454,37 @@
    if (!isSourceAccessibleNow(sourceKey)) return res.status(404).json({ ok: false, error: 'Source unavailable now' });
    const geoCheck = await validateSourceGeo(req, sourceKey);
    if (!geoCheck.ok) return res.status(451).json({ ok: false, error: 'Geo blocked', country: geoCheck.countryCode || '??' });
@@ -454,8 +468,35 @@
 +      return res.status(503).json({ ok: false, source_key: sourceKey, source_label: SOURCE_LABELS[sourceKey] || sourceKey, error: 'A3 channel unavailable right now' });
      }
      channel = verifiedAlb;
++    const streamUrl = String(channel.url || '').trim();
++    if (!isAlbWebPlayableUrl(streamUrl)) {
++      return res.status(503).json({
++        ok: false,
++        source_key: sourceKey,
++        source_label: SOURCE_LABELS[sourceKey] || sourceKey,
++        error: 'A3 stream offline (CDN 404). Provo një kanal tjetër — p.sh. Vizion Plus, News 24, RTSH.'
++      });
++    }
++    // Return Worker URL directly so hls.js does not depend on /k1/channel 302 + cookies.
++    const proxied = wrapA3CorsProxyUrl(streamUrl);
++    issuePlaybackCookieForSource(req, res, sourceKey, resolvePlayTokenTtlSec(sourceKey));
++    const clientIpv4 = getLikelyClientIPv4(req);
++    res.setHeader('Cache-Control', 'no-store');
++    return res.json({
++      ok: true,
++      source_key: sourceKey,
++      source_label: SOURCE_LABELS[sourceKey] || sourceKey,
++      mode: 'direct',
++      url: proxied,
++      proxy_url: '',
++      client_ipv4: clientIpv4 || '',
++      expires_in: resolvePlayTokenTtlSec(sourceKey),
++      overloaded: runtimePressureState.overloaded === true
++    });
    }
-@@ -18735,28 +18823,28 @@
+   const playback = resolveWebPrimaryPlaybackPath(slug, req, channel, { disableProxyForSource });
+   issuePlaybackCookieForSource(req, res, playback.sourceKey, resolvePlayTokenTtlSec(playback.sourceKey));
+@@ -18735,31 +18862,34 @@
    const hasAccessibleSource = (folder.sourceKeys || []).some(sourceKey => isSourceAccessibleNow(sourceKey));
    if (!hasAccessibleSource) return res.status(404).send('Ky source folder nuk është aktiv tani.');
    const accent = folder.accent || 'var(--accent)';
@@ -477,7 +518,10 @@
 +        sourceKey: a3Key
        });
 -      const vis = filterChannelsForDevice(buildAlbRuntimeDbFromEntries(entries, { clientIp: clientIpv4 }), req);
-+      const vis = filterChannelsForDevice(buildAlbRuntimeDbFromEntries(entries, { clientIp: clientIpv4, sourceKey: a3Key }), req);
++      // Drop known-dead fastlycache pack so the grid only shows openable streams.
++      const playableEntries = (entries || []).filter(item => isAlbWebPlayableUrl(item?.url || ''));
++      const skippedDead = Math.max(0, (entries || []).length - playableEntries.length);
++      const vis = filterChannelsForDevice(buildAlbRuntimeDbFromEntries(playableEntries, { clientIp: clientIpv4, sourceKey: a3Key }), req);
        primeStreamCacheFromDb(vis);
 -      const cards = buildCards(vis, { categoryKeyOverride: 'source:alb', pageType: 'category_source' });
 -      const urlMap = buildPlayerUrlMap(vis, req);
@@ -493,8 +537,12 @@
 +        badgeText: `${Object.keys(vis).length} ${a3Key === 'alb_vod' ? 'filma' : 'kanale'}`,
          count: Object.keys(vis).length,
          cards,
-         extraStatusHtml: `<span style="color:var(--muted)"><i class="fas fa-network-wired"></i> IPv4: ${clientIpv4 || 'N/A'}</span>`
-@@ -18774,7 +18862,7 @@
+-        extraStatusHtml: `<span style="color:var(--muted)"><i class="fas fa-network-wired"></i> IPv4: ${clientIpv4 || 'N/A'}</span>`
++        extraStatusHtml: `<span style="color:var(--muted)"><i class="fas fa-network-wired"></i> IPv4: ${clientIpv4 || 'N/A'}</span>${skippedDead ? `<span style="color:var(--muted)"><i class="fas fa-unlink"></i> ${skippedDead} offline (fastly)</span>` : ''}`
+       });
+       const playerScriptHtml = playerScript(urlMap, appConfig.player_defaults, appConfig.player_source_defaults, {
+         pageType: 'category_source'
+@@ -18774,7 +18904,7 @@
          playerScriptHtml
        }));
      } catch (error) {
@@ -503,7 +551,7 @@
      }
    }
    if (folderKey === 'kool_lokke' && String(req.query.view || '').trim().toLowerCase() !== 'all') {
-@@ -19051,9 +19139,9 @@
+@@ -19051,9 +19181,9 @@
    if (!isSourceAccessibleNow(sourceKey)) return res.status(404).send('Not Found');
    const geoCheck = await validateSourceGeo(req, sourceKey);
    if (!geoCheck.ok) return res.status(451).send('Geo blocked');
@@ -516,7 +564,7 @@
      channel = verifiedAlb;
    }
    recordPlaylistAnalyticsEvent(id, {
-@@ -21171,7 +21259,7 @@
+@@ -21171,7 +21301,7 @@
  </tr>`;
    }).join('');
    const sourceLinkRows = SOURCE_KEYS.map(sourceKey => {
@@ -525,7 +573,7 @@
      return `<tr>
  <td style="padding:8px 6px;font-weight:600">${SOURCE_LABELS[sourceKey] || sourceKey}</td>
  <td style="padding:8px 6px">
-@@ -21701,7 +21789,7 @@
+@@ -21701,7 +21831,7 @@
      for (const sourceKey of SOURCE_KEYS) {
        sourceLinkModes[sourceKey] = normalizeSourceLinkMode(
          req.body[`rl_${sourceKey}`],
@@ -534,7 +582,7 @@
        );
      }
      appConfig.source_link_modes = sourceLinkModes;
-@@ -25154,24 +25242,19 @@
+@@ -25154,24 +25284,19 @@
        return res.status(502).send('V2 stream unavailable');
      }
    }
