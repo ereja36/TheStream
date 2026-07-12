@@ -1,9 +1,9 @@
 /**
- * A3 / Media-Colony HLS CORS proxy (Cloudflare Worker)
+ * A3 / Media-Colony HLS CORS proxy + per-user resolve (Cloudflare Worker)
  *
  * Routes:
- *   https://a3.phinemi.live/?u=<cdnUrl>
- *   https://phinemi.live/a3proxy/?u=<cdnUrl>
+ *   GET /?u=<cdnUrl>           → CORS media proxy
+ *   GET /resolve?id=<channelId> → fresh config.php, stamp cip=CF-Connecting-IP
  */
 
 const ALLOWED_HOST_SUFFIXES = [
@@ -28,6 +28,8 @@ const ALLOWED_HOST_SUFFIXES = [
   'ariu.eu.org',
   'protokolldns.xyz',
 ];
+
+const CONFIG_URL = 'https://adsportal.media-colony.com/users/AlbKanaleV9.1/config.php';
 
 const DEFAULT_HEADERS = {
   'User-Agent': 'APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0',
@@ -67,6 +69,12 @@ function isAllowed(url) {
   }
 }
 
+function rewriteCip(url, clientIp) {
+  if (!clientIp || !/^\d{1,3}(\.\d{1,3}){3}$/.test(clientIp)) return url;
+  if (!/[?&]cip=/i.test(url)) return url;
+  return url.replace(/([?&]cip=)[^&]*/i, `$1${encodeURIComponent(clientIp)}`);
+}
+
 function rewriteManifest(text, requestUrl, proxyBase) {
   const prefix = proxyBase.endsWith('/') ? `${proxyBase}?u=` : `${proxyBase}/?u=`;
   return text.split('\n').map((line) => {
@@ -82,6 +90,69 @@ function rewriteManifest(text, requestUrl, proxyBase) {
   }).join('\n');
 }
 
+function deviceFromIp(ip = '') {
+  let hash = 0;
+  const s = `a3|${ip || 'anon'}`;
+  for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+  return Math.abs(hash).toString(16).padStart(8, '0') + Math.abs(hash * 31).toString(16).padStart(8, '0');
+}
+
+async function resolveChannel(request) {
+  const src = new URL(request.url);
+  const id = String(src.searchParams.get('id') || '').trim().toLowerCase();
+  const origin = request.headers.get('Origin') || '*';
+  if (!id) {
+    return new Response(JSON.stringify({ ok: false, error: 'missing id' }), {
+      status: 400,
+      headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
+    });
+  }
+  const clientIp = (request.headers.get('CF-Connecting-IP') || '').split(',')[0].trim();
+  const device = deviceFromIp(clientIp).slice(0, 20);
+  const update = String(Math.floor(Date.now() / 1000));
+  const configUrl = `${CONFIG_URL}?device=${encodeURIComponent(device)}&android=16&model=${encodeURIComponent('Google Pixel 9 Pro XL')}`;
+  const upstream = await fetch(configUrl, {
+    headers: {
+      'User-Agent': 'Android Vinebre Software',
+      'Referer': 'https://www.digitalturbine.com/',
+      'Host': 'adsportal.media-colony.com',
+      'Connection': 'Keep-Alive',
+      'Accept-Encoding': 'gzip',
+      'Cookie': `Update=${update}`,
+    },
+  });
+  if (!upstream.ok) {
+    return new Response(JSON.stringify({ ok: false, error: `config ${upstream.status}` }), {
+      status: 502,
+      headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
+    });
+  }
+  const body = await upstream.json();
+  const channels = Array.isArray(body.channels) ? body.channels : [];
+  const hit = channels.find((c) => String(c?.id || '').trim().toLowerCase() === id);
+  if (!hit) {
+    return new Response(JSON.stringify({ ok: false, error: 'channel not found' }), {
+      status: 404,
+      headers: { ...corsHeaders(origin), 'Content-Type': 'application/json' },
+    });
+  }
+  let url = String(hit.url || '');
+  url = rewriteCip(url, clientIp);
+  try { url = new URL(url).toString(); } catch { url = url.replace(/ /g, '%20'); }
+  return new Response(JSON.stringify({
+    ok: true,
+    id: hit.id,
+    name: hit.name,
+    url,
+    headers: hit.headers || {},
+    client_ip: clientIp || '',
+    device,
+  }), {
+    status: 200,
+    headers: { ...corsHeaders(origin), 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+  });
+}
+
 export default {
   async fetch(request) {
     const origin = request.headers.get('Origin') || '*';
@@ -90,6 +161,10 @@ export default {
     }
 
     const src = new URL(request.url);
+    if (src.pathname === '/resolve' || src.pathname.endsWith('/resolve')) {
+      return resolveChannel(request);
+    }
+
     const target = src.searchParams.get('u') || src.searchParams.get('url') || '';
     if (!target || !isAllowed(target)) {
       return new Response('Forbidden or missing ?u=', { status: 400, headers: corsHeaders(origin) });
@@ -121,7 +196,6 @@ export default {
       return new Response(await upstream.text(), { status: upstream.status, headers });
     }
 
-    // Always rewrite via https://host/?u= (trailing slash) so Workers route patterns match.
     const proxyBase = `${src.origin}/`;
 
     if (

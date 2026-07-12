@@ -2,12 +2,19 @@
 
 const axios = require('axios');
 const crypto = require('crypto');
+const http = require('http');
+const https = require('https');
+
+// Force IPv4 — Media-Colony stamps real TCP peer into cip=; IPv6 breaks many CDNs.
+const ALB_HTTP_AGENT = new http.Agent({ keepAlive: true, family: 4, maxSockets: 64 });
+const ALB_HTTPS_AGENT = new https.Agent({ keepAlive: true, family: 4, maxSockets: 64 });
 
 const ALB_CONFIG_URL = 'https://adsportal.media-colony.com/users/AlbKanaleV9.1/config.php';
 const ALB_REFERER = 'https://www.digitalturbine.com/';
 const ALB_USER_AGENT = 'Android Vinebre Software';
 const ALB_STREAM_USER_AGENT = 'APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0';
 const DEFAULT_CLIENT_CACHE_MS = 90 * 1000;
+const DEFAULT_CATALOG_CACHE_MS = 10 * 60 * 1000;
 
 /** Map Media-Colony channel ids (CH01…) to real display names. */
 const ALB_ID_DISPLAY_NAMES = {
@@ -237,10 +244,11 @@ class AlbService {
     this.cache = {
       data: [],
       timestamp: 0,
-      expiryMs: Number(options.cacheExpiryMs || 5 * 60 * 1000)
+      expiryMs: Number(options.cacheExpiryMs || DEFAULT_CATALOG_CACHE_MS)
     };
     this.clientCache = new Map();
     this.clientCacheMs = Number(options.clientCacheMs || DEFAULT_CLIENT_CACHE_MS);
+    this.userDeviceCache = new Map();
   }
 
   getCacheAgeMs() {
@@ -252,12 +260,26 @@ class AlbService {
     return this.getCacheAgeMs() < this.cache.expiryMs;
   }
 
-  buildRequestContext() {
+  buildRequestContext(options = {}) {
+    const clientIp = normalizeClientIp(options.clientIp || '');
+    let device = String(options.device || '').trim();
+    if (!device && clientIp) {
+      const cached = this.userDeviceCache.get(clientIp);
+      if (cached?.device) device = cached.device;
+      else {
+        device = crypto.createHash('md5').update(`a3|${clientIp}`).digest('hex').slice(0, 20);
+        this.userDeviceCache.set(clientIp, { device, ts: Date.now() });
+      }
+    }
+    if (!device) device = randomHex(20);
+    const android = String(options.android || '16').trim() || '16';
+    const model = String(options.model || 'Google Pixel 9 Pro XL').trim() || 'Google Pixel 9 Pro XL';
     return {
-      device: randomHex(16),
-      android: randomChoice(['14', '15', '16']) || '16',
-      model: randomChoice(DEVICE_MODELS) || 'Google Pixel 9 Pro XL',
-      updateCookie: String(Math.floor(Date.now() / 1000))
+      device,
+      android,
+      model,
+      updateCookie: String(Math.floor(Date.now() / 1000)),
+      clientIp
     };
   }
 
@@ -303,6 +325,7 @@ class AlbService {
   }
 
   buildRequestHeaders(ctx = {}, options = {}) {
+    // Exact Vinebre / DigitalTurbine request shape from the official client.
     const headers = {
       'User-Agent': ALB_USER_AGENT,
       Referer: ALB_REFERER,
@@ -311,11 +334,16 @@ class AlbService {
       'Accept-Encoding': 'gzip',
       Cookie: `Update=${ctx.updateCookie || String(Math.floor(Date.now() / 1000))}`
     };
+    const clientIp = normalizeClientIp(ctx.clientIp || options.clientIp || '');
+    if (looksLikeIPv4(clientIp)) {
+      headers['X-Forwarded-For'] = clientIp;
+      headers['X-Real-IP'] = clientIp;
+    }
     return headers;
   }
 
   async fetchConfig(options = {}) {
-    const ctx = this.buildRequestContext();
+    const ctx = this.buildRequestContext(options);
     const response = await axios.get(ALB_CONFIG_URL, {
       timeout: 15000,
       params: {
@@ -324,10 +352,66 @@ class AlbService {
         model: ctx.model
       },
       headers: this.buildRequestHeaders(ctx, options),
+      httpAgent: ALB_HTTP_AGENT,
+      httpsAgent: ALB_HTTPS_AGENT,
+      decompress: true,
       validateStatus: status => status >= 200 && status < 500
     });
     if (response.status !== 200) return null;
-    return response?.data && typeof response.data === 'object' ? response.data : null;
+    const data = response?.data && typeof response.data === 'object' ? response.data : null;
+    if (data) data._a3RequestContext = ctx;
+    return data;
+  }
+
+  /**
+   * Fresh per-user resolve on channel click:
+   * 1) config.php with Vinebre headers + stable device for that user
+   * 2) match channel id
+   * 3) rewrite cip= to the viewer's IPv4
+   */
+  async resolveForUser(channelRef = {}, options = {}) {
+    const clientIp = normalizeClientIp(options.clientIp || '');
+    const triesRaw = Number(options.tries || 2);
+    const tries = Number.isFinite(triesRaw) ? Math.min(Math.max(Math.floor(triesRaw), 1), 4) : 2;
+    let lastChannels = [];
+    for (let i = 0; i < tries; i += 1) {
+      try {
+        const body = await this.fetchConfig({
+          clientIp,
+          device: options.device,
+          android: options.android,
+          model: options.model
+        });
+        if (!body) continue;
+        const channels = this.normalizeChannels(Array.isArray(body.channels) ? body.channels : []);
+        lastChannels = channels;
+        if (channels.length) {
+          // Keep catalog cache warm for listings (names/ids), but URLs are per-open.
+          this.cache.data = channels;
+          this.cache.timestamp = Date.now();
+          if (clientIp) this.clientCache.set(clientIp, { data: channels, timestamp: Date.now() });
+        }
+        const matched = this.findChannelMatch(channels, channelRef);
+        if (!matched) continue;
+        const candidate = this.withClientIpv4(matched, clientIp);
+        if (options.verifyStream) {
+          const probe = await this.probeStreamCandidate(candidate);
+          if (!probe.ok) continue;
+        }
+        return {
+          ...candidate,
+          _resolvedAt: Date.now(),
+          _requestContext: body._a3RequestContext || null
+        };
+      } catch {
+        // retry
+      }
+    }
+    if (options.allowCacheFallback) {
+      const matched = this.findChannelMatch(lastChannels.length ? lastChannels : this.cache.data, channelRef);
+      if (matched) return this.withClientIpv4(matched, clientIp);
+    }
+    return null;
   }
 
   async fetchChannels(options = {}) {
@@ -468,6 +552,8 @@ class AlbService {
         maxRedirects: 0,
         responseType: 'text',
         headers: this.buildStreamHeaders(channel),
+        httpAgent: ALB_HTTP_AGENT,
+        httpsAgent: ALB_HTTPS_AGENT,
         validateStatus: status => status >= 200 && status < 500
       });
       const ok = response.status === 200 && responseLooksPlayable(response.status, response.headers || {}, response.data || '');
@@ -530,35 +616,11 @@ class AlbService {
   }
 
   async resolveChannelLive(channelRef = {}, options = {}) {
-    const clientIp = normalizeClientIp(options.clientIp || '');
-    const triesRaw = Number(options.tries || 2);
-    const tries = Number.isFinite(triesRaw) ? Math.min(Math.max(Math.floor(triesRaw), 1), 5) : 2;
-    for (let i = 0; i < tries; i += 1) {
-      try {
-        const body = await this.fetchConfig({});
-        if (!body) continue;
-        const channels = this.normalizeChannels(Array.isArray(body.channels) ? body.channels : []);
-        if (channels.length) {
-          this.cache.data = channels;
-          this.cache.timestamp = Date.now();
-        }
-        const matched = this.findChannelMatch(channels, channelRef);
-        if (matched) {
-          const candidate = this.withClientIpv4(matched, clientIp);
-          if (options.verifyStream) {
-            const probe = await this.probeStreamCandidate(candidate);
-            if (!probe.ok) continue;
-          }
-          return candidate;
-        }
-      } catch {
-        // Try next attempt.
-      }
-    }
-    if (options.allowCacheFallback) {
-      return this.resolveChannel(channelRef, { force: false });
-    }
-    return null;
+    return this.resolveForUser(channelRef, {
+      ...options,
+      tries: options.tries || 2,
+      allowCacheFallback: options.allowCacheFallback === true
+    });
   }
 
   getChannelsFromCache() {
