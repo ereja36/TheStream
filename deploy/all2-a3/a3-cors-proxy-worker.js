@@ -172,17 +172,114 @@ function proxyPrefix(proxyBase, rh = '') {
   return { base, rhPart };
 }
 
+function parseSetCookiePairs(response) {
+  const pairs = [];
+  try {
+    const list = typeof response.headers.getSetCookie === 'function'
+      ? response.headers.getSetCookie()
+      : [];
+    for (const raw of list) {
+      const first = String(raw || '').split(';')[0].trim();
+      if (first && first.includes('=')) pairs.push(first);
+    }
+  } catch { /* ignore */ }
+  if (!pairs.length) {
+    const one = response.headers.get('Set-Cookie') || response.headers.get('set-cookie');
+    if (one) {
+      const first = String(one).split(';')[0].trim();
+      if (first.includes('=')) pairs.push(first);
+    }
+  }
+  return pairs;
+}
+
+function mergeCookieHeader(existing = '', newPairs = []) {
+  const map = new Map();
+  for (const part of String(existing || '').split(';')) {
+    const p = part.trim();
+    if (!p || !p.includes('=')) continue;
+    const name = p.slice(0, p.indexOf('=')).trim();
+    if (name) map.set(name.toLowerCase(), p);
+  }
+  for (const p of newPairs) {
+    const name = String(p || '').slice(0, String(p).indexOf('=')).trim();
+    if (name) map.set(name.toLowerCase(), p);
+  }
+  return Array.from(map.values()).join('; ');
+}
+
+function withUpstreamCookies(rhHeaders, response) {
+  const pairs = parseSetCookiePairs(response);
+  if (!pairs.length) return rhHeaders || null;
+  const base = { ...(rhHeaders || {}) };
+  const currentKey = Object.keys(base).find((k) => k.toLowerCase() === 'cookie');
+  const current = currentKey ? base[currentKey] : '';
+  if (currentKey) delete base[currentKey];
+  base.Cookie = mergeCookieHeader(current, pairs);
+  return base;
+}
+
+async function fetchFollowWithCookies(url, headers, maxRedirects = 5) {
+  let current = url;
+  const hdrs = { ...headers };
+  let last = null;
+  for (let i = 0; i <= maxRedirects; i += 1) {
+    last = await fetch(current, {
+      method: 'GET',
+      headers: hdrs,
+      redirect: 'manual',
+      cf: { cacheTtl: 0, cacheEverything: false },
+    });
+    const pairs = parseSetCookiePairs(last);
+    if (pairs.length) {
+      hdrs.Cookie = mergeCookieHeader(hdrs.Cookie || '', pairs);
+    }
+    if (last.status >= 300 && last.status < 400) {
+      const loc = last.headers.get('Location');
+      if (!loc) break;
+      current = new URL(loc, current).toString();
+      continue;
+    }
+    break;
+  }
+  return { response: last, requestHeaders: hdrs, finalUrl: current };
+}
+
+/**
+ * Media-Colony playlists often glue a quality index onto absolute URLs:
+ *   "1https://cache2.../foo.m3u8"
+ * URL() treats that as a relative path under the master host → broken.
+ */
+function normalizeManifestRef(ref = '', baseUrl = '') {
+  let s = String(ref || '').replace(/\r/g, '').trim();
+  if (!s) return s;
+  const glued = s.match(/^\d+(https?:\/\/.+)$/i);
+  if (glued) s = glued[1];
+  // Also handle "1 https://..." with a space.
+  const spaced = s.match(/^\d+\s+(https?:\/\/.+)$/i);
+  if (spaced) s = spaced[1];
+  try {
+    return new URL(s, baseUrl).toString();
+  } catch {
+    const embedded = s.match(/https?:\/\/\S+/i);
+    if (embedded) {
+      try { return new URL(embedded[0]).toString(); } catch { /* ignore */ }
+    }
+    return s;
+  }
+}
+
 function rewriteManifest(text, requestUrl, proxyBase, rh = '') {
   const { base, rhPart } = proxyPrefix(proxyBase, rh);
-  return text.split('\n').map((line) => {
-    const trimmed = line.trim();
+  return String(text || '').split(/\r?\n/).map((line) => {
+    const trimmed = line.replace(/\r/g, '').trim();
     if (!trimmed || trimmed.startsWith('#')) {
       return line.replace(/URI="([^"]+)"/g, (_, uri) => {
-        const abs = new URL(uri, requestUrl).toString();
+        const abs = normalizeManifestRef(uri, requestUrl);
         return `URI="${base}${encodeURIComponent(abs)}${rhPart}"`;
       });
     }
-    const abs = new URL(trimmed, requestUrl).toString();
+    const abs = normalizeManifestRef(trimmed, requestUrl);
     return `${base}${encodeURIComponent(abs)}${rhPart}`;
   }).join('\n');
 }
@@ -200,6 +297,8 @@ function normalizeChannelHeaders(headers = {}, customUa = '') {
     const name = String(rawName || '').trim();
     const value = String(rawValue || '').trim();
     if (!name || !value) continue;
+    if (/^(host|connection|content-length|accept-encoding|transfer-encoding)$/i.test(name)) continue;
+    if (/^x-forwarded-for$/i.test(name) && /^(127\.0\.0\.1|::1|localhost)$/i.test(value)) continue;
     out[name] = value;
   }
   const ua = String(customUa || '').trim();
@@ -297,13 +396,13 @@ export default {
     const upstreamHeaders = buildUpstreamHeaders(rhHeaders, clientIp);
 
     let upstream;
+    let jarCookie = '';
+    let finalUrl = target;
     try {
-      upstream = await fetch(target, {
-        method: 'GET',
-        headers: upstreamHeaders,
-        redirect: 'follow',
-        cf: { cacheTtl: 2, cacheEverything: false },
-      });
+      const followed = await fetchFollowWithCookies(target, upstreamHeaders, 5);
+      upstream = followed.response;
+      finalUrl = followed.finalUrl || target;
+      jarCookie = String(followed.requestHeaders?.Cookie || '').trim();
     } catch (err) {
       return new Response(`Upstream fetch failed: ${String(err)}`, {
         status: 502,
@@ -311,22 +410,36 @@ export default {
       });
     }
 
-    const ct = (upstream.headers.get('content-type') || '').toLowerCase();
     const headers = {
       ...corsHeaders(origin),
       'Content-Type': upstream.headers.get('content-type') || 'application/octet-stream',
       'Cache-Control': 'no-store',
     };
 
-    if (upstream.status !== 200) {
-      return new Response(await upstream.text(), { status: upstream.status, headers });
+    if (!upstream || upstream.status !== 200) {
+      return new Response(upstream ? await upstream.text() : 'Upstream error', {
+        status: upstream ? upstream.status : 502,
+        headers,
+      });
     }
 
     const proxyBase = `${PROXY_ORIGIN}/`;
-    // Keep the same rh token on rewritten URLs (re-encode from applied headers if needed).
-    const rhKeep = rhRaw || (rhHeaders ? encodeRh(rhHeaders) : '');
+    // Preserve channel headers + balancer session cookies for variant/segment fetches.
+    const rhChild = { ...(rhHeaders || {}) };
+    const cookieKey = Object.keys(rhChild).find((k) => k.toLowerCase() === 'cookie');
+    const seedCookie = cookieKey ? rhChild[cookieKey] : '';
+    if (cookieKey) delete rhChild[cookieKey];
+    const jarPairs = jarCookie
+      ? jarCookie.split(';').map((p) => p.trim()).filter((p) => p.includes('='))
+      : [];
+    const fromResponse = withUpstreamCookies({}, upstream);
+    const responsePairs = fromResponse?.Cookie
+      ? String(fromResponse.Cookie).split(';').map((p) => p.trim()).filter((p) => p.includes('='))
+      : [];
+    const finalCookie = mergeCookieHeader(seedCookie, [...jarPairs, ...responsePairs]);
+    if (finalCookie) rhChild.Cookie = finalCookie;
+    const rhKeep = Object.keys(rhChild).length ? encodeRh(rhChild) : (rhRaw || '');
 
-    // Peek body: Media-Colony often disguises m3u8 as .js — detect by #EXT magic.
     const raw = await upstream.arrayBuffer();
     const peek = new TextDecoder().decode(raw.slice(0, Math.min(raw.byteLength, 64))).trimStart();
     if (peek.startsWith('#EXT')) {
@@ -338,7 +451,7 @@ export default {
         });
       }
       headers['Content-Type'] = 'application/vnd.apple.mpegurl';
-      return new Response(rewriteManifest(body, target, proxyBase, rhKeep), { status: 200, headers });
+      return new Response(rewriteManifest(body, finalUrl, proxyBase, rhKeep), { status: 200, headers });
     }
 
     return new Response(raw, { status: 200, headers });
