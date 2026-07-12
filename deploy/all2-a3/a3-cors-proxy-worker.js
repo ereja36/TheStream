@@ -2,8 +2,13 @@
  * A3 / Media-Colony HLS CORS proxy + per-user resolve (Cloudflare Worker)
  *
  * Routes:
- *   GET /?u=<cdnUrl>           → CORS media proxy
- *   GET /resolve?id=<channelId> → fresh config.php, stamp cip=CF-Connecting-IP
+ *   GET /?u=<cdnUrl>&rh=<base64url JSON headers>  → CORS media proxy
+ *   GET /resolve?id=<channelId>                   → fresh config.php + proxy_url
+ *
+ * hls.js cannot set Referer / Origin / Cookie / User-Agent on cross-origin
+ * CDN fetches. Per-channel headers must be injected here on every request
+ * (master, variants, segments). Pass them as `rh` and preserve `rh` when
+ * rewriting manifest URLs.
  */
 
 const ALLOWED_HOST_SUFFIXES = [
@@ -27,9 +32,14 @@ const ALLOWED_HOST_SUFFIXES = [
   'panorama.com.al',
   'ariu.eu.org',
   'protokolldns.xyz',
+  'gjirafa.com',
+  'gjirafa.net',
+  'aliez.tv',
 ];
 
 const CONFIG_URL = 'https://adsportal.media-colony.com/users/AlbKanaleV9.1/config.php';
+/** Always rewrite through the dedicated A3 host (not phinemi.live/a3proxy origin). */
+const PROXY_ORIGIN = 'https://a3.phinemi.live';
 
 const DEFAULT_HEADERS = {
   'User-Agent': 'APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0',
@@ -75,18 +85,90 @@ function rewriteCip(url, clientIp) {
   return url.replace(/([?&]cip=)[^&]*/i, `$1${encodeURIComponent(clientIp)}`);
 }
 
-function rewriteManifest(text, requestUrl, proxyBase) {
-  const prefix = proxyBase.endsWith('/') ? `${proxyBase}?u=` : `${proxyBase}/?u=`;
+function b64UrlToBytes(b64url = '') {
+  const pad = '='.repeat((4 - (b64url.length % 4)) % 4);
+  const b64 = (b64url + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function bytesToB64Url(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function decodeRh(rhRaw = '') {
+  const raw = String(rhRaw || '').trim();
+  if (!raw) return null;
+  try {
+    const text = new TextDecoder().decode(b64UrlToBytes(raw));
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const out = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      const name = String(k || '').trim();
+      const value = String(v || '').trim();
+      if (!name || !value) continue;
+      if (/^(host|connection|content-length|accept-encoding|transfer-encoding)$/i.test(name)) continue;
+      out[name] = value;
+    }
+    return Object.keys(out).length ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+function encodeRh(headers = {}) {
+  try {
+    const json = JSON.stringify(headers);
+    return bytesToB64Url(new TextEncoder().encode(json));
+  } catch {
+    return '';
+  }
+}
+
+function buildUpstreamHeaders(rhHeaders, clientIp = '') {
+  const out = {
+    Accept: '*/*',
+    'Accept-Encoding': 'identity',
+  };
+  if (rhHeaders) {
+    Object.assign(out, rhHeaders);
+  } else {
+    Object.assign(out, DEFAULT_HEADERS);
+  }
+  if (!Object.keys(out).some((k) => k.toLowerCase() === 'user-agent')) {
+    out['User-Agent'] = DEFAULT_HEADERS['User-Agent'];
+  }
+  // Prefer channel XFF when present; otherwise stamp viewer IP for CDNs that look at it.
+  const hasXff = Object.keys(out).some((k) => k.toLowerCase() === 'x-forwarded-for');
+  if (!hasXff && clientIp && /^\d{1,3}(\.\d{1,3}){3}$/.test(clientIp)) {
+    out['X-Forwarded-For'] = clientIp;
+  }
+  return out;
+}
+
+function proxyPrefix(proxyBase, rh = '') {
+  const base = proxyBase.endsWith('/') ? `${proxyBase}?u=` : `${proxyBase}/?u=`;
+  const rhPart = rh ? `&rh=${encodeURIComponent(rh)}` : '';
+  return { base, rhPart };
+}
+
+function rewriteManifest(text, requestUrl, proxyBase, rh = '') {
+  const { base, rhPart } = proxyPrefix(proxyBase, rh);
   return text.split('\n').map((line) => {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) {
       return line.replace(/URI="([^"]+)"/g, (_, uri) => {
         const abs = new URL(uri, requestUrl).toString();
-        return `URI="${prefix}${encodeURIComponent(abs)}"`;
+        return `URI="${base}${encodeURIComponent(abs)}${rhPart}"`;
       });
     }
     const abs = new URL(trimmed, requestUrl).toString();
-    return `${prefix}${encodeURIComponent(abs)}`;
+    return `${base}${encodeURIComponent(abs)}${rhPart}`;
   }).join('\n');
 }
 
@@ -95,6 +177,21 @@ function deviceFromIp(ip = '') {
   const s = `a3|${ip || 'anon'}`;
   for (let i = 0; i < s.length; i++) hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
   return Math.abs(hash).toString(16).padStart(8, '0') + Math.abs(hash * 31).toString(16).padStart(8, '0');
+}
+
+function normalizeChannelHeaders(headers = {}, customUa = '') {
+  const out = {};
+  for (const [rawName, rawValue] of Object.entries(headers || {})) {
+    const name = String(rawName || '').trim();
+    const value = String(rawValue || '').trim();
+    if (!name || !value) continue;
+    out[name] = value;
+  }
+  const ua = String(customUa || '').trim();
+  if (ua && !Object.keys(out).some((k) => k.toLowerCase() === 'user-agent')) {
+    out['User-Agent'] = ua;
+  }
+  return out;
 }
 
 async function resolveChannel(request) {
@@ -139,12 +236,21 @@ async function resolveChannel(request) {
   let url = String(hit.url || '');
   url = rewriteCip(url, clientIp);
   try { url = new URL(url).toString(); } catch { url = url.replace(/ /g, '%20'); }
+
+  const streamHeaders = normalizeChannelHeaders(hit.headers || {}, hit.custom_user_agent || '');
+  const rh = encodeRh(streamHeaders);
+  const proxyBase = `${PROXY_ORIGIN}/`;
+  const { base, rhPart } = proxyPrefix(proxyBase, rh);
+  const proxyUrl = `${base}${encodeURIComponent(url)}${rhPart}`;
+
   return new Response(JSON.stringify({
     ok: true,
     id: hit.id,
     name: hit.name,
     url,
+    proxy_url: proxyUrl,
     headers: hit.headers || {},
+    custom_user_agent: hit.custom_user_agent || '',
     client_ip: clientIp || '',
     device,
   }), {
@@ -170,11 +276,16 @@ export default {
       return new Response('Forbidden or missing ?u=', { status: 400, headers: corsHeaders(origin) });
     }
 
+    const rhRaw = src.searchParams.get('rh') || '';
+    const rhHeaders = decodeRh(rhRaw);
+    const clientIp = (request.headers.get('CF-Connecting-IP') || '').split(',')[0].trim();
+    const upstreamHeaders = buildUpstreamHeaders(rhHeaders, clientIp);
+
     let upstream;
     try {
       upstream = await fetch(target, {
         method: 'GET',
-        headers: DEFAULT_HEADERS,
+        headers: upstreamHeaders,
         redirect: 'follow',
         cf: { cacheTtl: 2, cacheEverything: false },
       });
@@ -196,22 +307,19 @@ export default {
       return new Response(await upstream.text(), { status: upstream.status, headers });
     }
 
-    const proxyBase = `${src.origin}/`;
+    const proxyBase = `${PROXY_ORIGIN}/`;
+    // Keep the same rh token on rewritten URLs (re-encode from applied headers if needed).
+    const rhKeep = rhRaw || (rhHeaders ? encodeRh(rhHeaders) : '');
 
-    if (
-      ct.includes('mpegurl')
-      || ct.includes('application/vnd.apple')
-      || ct.includes('text/plain')
-      || ct.includes('octet-stream')
-      || /\.m3u8(\?|$)/i.test(target)
-    ) {
-      const body = await upstream.text();
-      if (body.trimStart().startsWith('#EXT')) {
-        headers['Content-Type'] = 'application/vnd.apple.mpegurl';
-        return new Response(rewriteManifest(body, target, proxyBase), { status: 200, headers });
-      }
+    // Peek body: Media-Colony often disguises m3u8 as .js — detect by #EXT magic.
+    const raw = await upstream.arrayBuffer();
+    const peek = new TextDecoder().decode(raw.slice(0, Math.min(raw.byteLength, 64))).trimStart();
+    if (peek.startsWith('#EXT')) {
+      const body = new TextDecoder().decode(raw);
+      headers['Content-Type'] = 'application/vnd.apple.mpegurl';
+      return new Response(rewriteManifest(body, target, proxyBase, rhKeep), { status: 200, headers });
     }
 
-    return new Response(await upstream.arrayBuffer(), { status: 200, headers });
+    return new Response(raw, { status: 200, headers });
   },
 };
