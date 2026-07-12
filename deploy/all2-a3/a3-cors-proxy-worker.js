@@ -37,6 +37,7 @@ const ALLOWED_HOST_SUFFIXES = [
   'crystalweb.net',
   'duckdns.org',
   'aliez.tv',
+  'anytools.eu.org',
 ];
 
 const CONFIG_URL = 'https://adsportal.media-colony.com/users/AlbKanaleV9.1/config.php';
@@ -48,6 +49,8 @@ const DEFAULT_HEADERS = {
   'Referer': 'https://aliez.tv/',
   'Origin': 'https://aliez.tv',
   'Cookie': 'passport=IG2GpFng03_23122025',
+  'X-Forwarded-For': '127.0.0.1',
+  'Icy-MetaData': '1',
   'Accept': '*/*',
   'Accept-Encoding': 'identity',
 };
@@ -115,7 +118,7 @@ function decodeRh(rhRaw = '') {
       const value = String(v || '').trim();
       if (!name || !value) continue;
       if (/^(host|connection|content-length|accept-encoding|transfer-encoding)$/i.test(name)) continue;
-      if (/^x-forwarded-for$/i.test(name) && /^(127\.0\.0\.1|::1|localhost)$/i.test(value)) continue;
+      // Keep X-Forwarded-For: 127.0.0.1 — Vinebre/APlayer sends it on working fastly requests.
       out[name] = value;
     }
     return Object.keys(out).length ? out : null;
@@ -127,12 +130,13 @@ function decodeRh(rhRaw = '') {
 function isDecoyManifest(text = '') {
   const body = String(text || '');
   const lower = body.toLowerCase();
-  if (lower.includes('anytools.eu.org')) return true;
-  if (lower.includes('unique-user-id=')) return true;
-  // Classic Media-Colony DC-block stub: ENDLIST + single 0-duration entry.
-  if (/#ext-x-endlist/i.test(body) && /#extinf:\s*0/i.test(body) && body.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#')).length <= 1) {
-    return true;
+  // Real Media-Colony flow: fastly .js returns HLS with a single EXTINF:0 entry to
+  // cpanel.anytools.eu.org/autologin/.../index.php — that is the next hop, NOT a decoy.
+  if (lower.includes('anytools.eu.org') || lower.includes('unique-user-id=')) {
+    return false;
   }
+  // HTML error bodies mistaken for playlists.
+  if (/<\s*html|404 not found|cyberpanel/i.test(body)) return true;
   return false;
 }
 

@@ -423,7 +423,7 @@ public class ActivityMainV2 extends AppCompatActivity {
             heroPreview.setUseController(false);
 
             DefaultDataSource.Factory factory = IptvPlayerHelper.createDataSourceFactory(
-                    this, sharedPref, channel.channel_url, channel.user_agent);
+                    this, sharedPref, playbackUrl, channel.user_agent);
             MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(playbackUrl, factory);
             heroPlayer.setMediaSource(mediaSource);
             heroPlayer.prepare();

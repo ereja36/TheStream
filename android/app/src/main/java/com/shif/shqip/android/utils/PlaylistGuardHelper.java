@@ -43,9 +43,10 @@ public final class PlaylistGuardHelper {
         }
         String lower = requestUrl.toLowerCase(Locale.US);
         boolean isFastly = lower.contains("fastlycache.com");
+        boolean isAnytools = lower.contains("anytools.eu.org") || lower.contains("unique-user-id=");
         boolean isGcore = lower.contains("gcore-cdn.org");
         boolean isGjirafa = lower.contains("gjirafa.net") || lower.contains("gjirafa.com");
-        if (!isFastly && !isGcore && !isGjirafa) {
+        if (!isFastly && !isAnytools && !isGcore && !isGjirafa) {
             return null;
         }
         PlaylistGuardRule rule = new PlaylistGuardRule();
@@ -57,15 +58,18 @@ public final class PlaylistGuardHelper {
             rule.cookie = "";
             return rule;
         }
-        rule.url_pattern = isFastly ? "fastlycache.com" : "gcore-cdn.org";
+        // Working Vinebre/APlayer capture: aliez + passport + XFF 127.0.0.1 + Icy-MetaData.
+        // .js gate returns HLS pointing at cpanel.anytools.eu.org/.../index.php (same headers).
+        if (isAnytools) {
+            rule.url_pattern = lower.contains("anytools.eu.org") ? "anytools.eu.org" : "unique-user-id=";
+        } else {
+            rule.url_pattern = isFastly ? "fastlycache.com" : "gcore-cdn.org";
+        }
         rule.user_agent = "APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0";
-        // Use Media-Colony aliez headers for fastly/gcore gates. Do NOT force
-        // video.gjirafa.com on all /external/ URLs — that breaks Vizion/News24-style
-        // gates that ship their own Referer (or need none). Gjirafa hosts are
-        // handled above.
         rule.referer = "https://aliez.tv/";
         rule.origin = "https://aliez.tv";
         rule.cookie = "passport=IG2GpFng03_23122025";
+        rule.extra_headers = "{\"X-Forwarded-For\":\"127.0.0.1\",\"Icy-MetaData\":\"1\",\"Accept-Encoding\":\"identity\"}";
         return rule;
     }
 
@@ -381,15 +385,22 @@ public final class PlaylistGuardHelper {
 
     public static DefaultDataSource.Factory createDataSourceFactory(Context context, SharedPref sharedPref, String requestUrl, String channelUserAgent) {
         boolean portalRequest = PlaylistPortalHelper.isPortalUrl(requestUrl);
-        PlaylistGuardRule rule = portalRequest ? null : resolveRule(sharedPref, requestUrl);
-        String userAgent = portalRequest
-                ? "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)"
-                : resolveUserAgent(rule, channelUserAgent);
         if (portalRequest && context != null) {
+            String userAgent = "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)";
             HttpDataSource.Factory httpFactory = new PortalHttpDataSource.Factory(context, sharedPref, userAgent);
             return new DefaultDataSource.Factory(context.getApplicationContext(), httpFactory);
         }
 
+        // Per-request A3 headers (fastly .js → anytools .php hop needs the same aliez/passport/XFF set).
+        if (context != null) {
+            return new DefaultDataSource.Factory(
+                    context.getApplicationContext(),
+                    new IptvHttpDataSource.Factory(context, sharedPref, channelUserAgent)
+            );
+        }
+
+        PlaylistGuardRule rule = resolveRule(sharedPref, requestUrl);
+        String userAgent = resolveUserAgent(rule, channelUserAgent);
         Map<String, String> headers = buildRequestHeaders(rule);
         headers.put("X-Shif-App", "1");
         headers.put("X-Requested-With", BuildConfig.APPLICATION_ID);

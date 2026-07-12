@@ -140,8 +140,7 @@ function normalizeChannelHeaders(headers = {}) {
     if (!name || !value) continue;
     const lower = name.toLowerCase();
     if (lower === 'host' || lower === 'connection' || lower === 'accept-encoding' || lower === 'content-length') continue;
-    // Media-Colony often stamps loopback XFF — never forward that upstream.
-    if (lower === 'x-forwarded-for' && /^(127\.0\.0\.1|::1|localhost)$/i.test(value)) continue;
+    // Keep X-Forwarded-For even when loopback — working APlayer clients send 127.0.0.1.
     out[name] = value;
   }
   const referer = pickHeaderValue(out, 'referer');
@@ -151,9 +150,10 @@ function normalizeChannelHeaders(headers = {}) {
   if (referer) out.Referer = referer;
   if (origin) out.Origin = origin;
   if (cookie) out.Cookie = cookie;
-  if (xForwardedFor && !/^(127\.0\.0\.1|::1|localhost)$/i.test(xForwardedFor)) {
-    out['X-Forwarded-For'] = xForwardedFor;
-  }
+  if (xForwardedFor) out['X-Forwarded-For'] = xForwardedFor;
+  // Fastly/aliez gates expect these even when config omits them.
+  if (!pickHeaderValue(out, 'x-forwarded-for')) out['X-Forwarded-For'] = '127.0.0.1';
+  if (!pickHeaderValue(out, 'icy-metadata')) out['Icy-MetaData'] = '1';
   return out;
 }
 

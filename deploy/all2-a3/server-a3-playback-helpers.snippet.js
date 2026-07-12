@@ -1,4 +1,4 @@
-/** Live excerpt from /root/all/all2/server.js — A3 playback helpers (keep in sync). */
+/** Live excerpt from /root/all/all2/server.js — A3 playback helpers. */
 function encodeA3UpstreamRh(headers = {}, userAgent = '') {
   const payload = {};
   for (const [rawKey, rawValue] of Object.entries(headers && typeof headers === 'object' ? headers : {})) {
@@ -6,7 +6,7 @@ function encodeA3UpstreamRh(headers = {}, userAgent = '') {
     const value = String(rawValue || '').trim();
     if (!name || !value) continue;
     if (/^(host|connection|content-length|accept-encoding|transfer-encoding)$/i.test(name)) continue;
-    if (/^x-forwarded-for$/i.test(name) && /^(127\.0\.0\.1|::1|localhost)$/i.test(value)) continue;
+    // Keep XFF 127.0.0.1 — required by working APlayer/fastly captures.
     payload[name] = value;
   }
   const ua = String(userAgent || '').trim();
@@ -80,6 +80,24 @@ function buildA3PlaybackOptionsFromChannel(channel = {}, req = null) {
       headers.Origin = 'https://video.gjirafa.com';
     }
   }
+  // Match working APlayer/ProxyPin captures for fastly → anytools hop.
+  if (fastly || /anytools\.eu\.org|unique-user-id=/i.test(String(channel?.url || ''))) {
+    if (!Object.keys(headers).some((k) => k.toLowerCase() === 'x-forwarded-for')) {
+      headers['X-Forwarded-For'] = '127.0.0.1';
+    }
+    if (!Object.keys(headers).some((k) => k.toLowerCase() === 'icy-metadata')) {
+      headers['Icy-MetaData'] = '1';
+    }
+    if (!Object.keys(headers).some((k) => k.toLowerCase() === 'referer')) {
+      headers.Referer = 'https://aliez.tv/';
+    }
+    if (!Object.keys(headers).some((k) => k.toLowerCase() === 'origin')) {
+      headers.Origin = 'https://aliez.tv';
+    }
+    if (!Object.keys(headers).some((k) => k.toLowerCase() === 'cookie')) {
+      headers.Cookie = 'passport=IG2GpFng03_23122025';
+    }
+  }
   return {
     headers,
     userAgent: String(channel?.albUserAgent || ALB_DEFAULT_UPSTREAM_UA || '').trim() || ALB_DEFAULT_UPSTREAM_UA,
@@ -97,6 +115,3 @@ async function resolveAlbChannelBySlugRuntime(req, slug, options = {}) {
   if (!isAlbVodSlug && !isAlbLiveSlug) return null;
   const sourceKey = isAlbVodSlug ? 'alb_vod' : 'alb';
   if (!isSourceAccessibleNow(sourceKey)) return null;
-  const clientIpv4 = getLikelyClientIPv4(req);
-  const triesRaw = Number(options.tries || 2);
-  const tries = Number.isFinite(triesRaw) ? Math.min(Math.max(Math.floor(triesRaw), 1), 5) : 2;
