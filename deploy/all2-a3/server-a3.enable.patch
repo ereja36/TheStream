@@ -1,0 +1,726 @@
+--- /root/all/all2/server.js.bak-a3-20260712-154748	2026-07-12 10:01:13.809831794 +0000
++++ /root/all/all2/server.js	2026-07-12 16:34:20.204712891 +0000
+@@ -75,7 +75,8 @@
+ const UPSTREAM_PROFILE_MAX_ENTRIES = 20000;
+ const GEO_LOOKUP_CACHE_MAX_ENTRIES = 15000;
+ const ALB_DEFAULT_UPSTREAM_UA = 'APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0';
+-const ALB_API_REMOVED = true;
++const A3_CORS_PROXY_BASE = 'https://a3.phinemi.live/';
++const ALB_API_REMOVED = false;
+ const ADMIN_USERNAME   = 'admin';
+ const ADMIN_PASSWORD   = 'kanaliim2024';
+ const SESSION_SECRET   = 'kanaliim_super_secret_key_123!@#';
+@@ -148,14 +149,15 @@
+   replace_old_devices_on_login: false
+ };
+ const PLAYER_ENGINES = new Set(['auto', 'browser', 'native', 'shaka', 'hls', 'clappr']);
+-const SOURCE_KEYS = ['api_tv', 'api_sport', 'open_source', 'falcon', 'v2', 'nimi', 'kool', 'kool_lokke', 'custom_tv', 'custom_sport', 'custom_nimi'];
++const SOURCE_KEYS = ['api_tv', 'api_sport', 'open_source', 'falcon', 'v2', 'alb', 'alb_vod', 'nimi', 'kool', 'kool_lokke', 'custom_tv', 'custom_sport', 'custom_nimi'];
+ const SOURCE_LABELS = {
+   api_tv: 'Prod API - TV',
+   api_sport: 'Prod API - Sport',
+   open_source: 'Open Source',
+   falcon: 'Falcon',
+   v2: 'V2',
+-  alb: 'ALB API (removed)',
++  alb: 'A3',
++  alb_vod: 'A3 VOD',
+   nimi: 'Nimi',
+   kool: 'Kool',
+   kool_lokke: 'Kool Lokke',
+@@ -167,6 +169,8 @@
+   { key: 'kool', label: 'Kool', icon: 'satellite-dish', sourceKeys: ['kool'], accent: 'var(--orange)' },
+   { key: 'kool_lokke', label: 'LokkeApp', icon: 'satellite', sourceKeys: ['kool_lokke'], accent: 'var(--purple)' },
+   { key: 'nimi', label: 'Nimi', icon: 'shield-alt', sourceKeys: ['nimi'], accent: 'var(--purple)' },
++  { key: 'alb', label: 'A3', icon: 'broadcast-tower', sourceKeys: ['alb'], accent: 'var(--green)' },
++  { key: 'alb_vod', label: 'A3 VOD', icon: 'film', sourceKeys: ['alb_vod'], accent: 'var(--orange)' },
+   { key: 'kanali_api', label: 'Kanali API', icon: 'tv', sourceKeys: ['api_tv', 'api_sport'], accent: 'var(--accent)' },
+   { key: 'open_source', label: 'Open Source', icon: 'globe', sourceKeys: ['open_source'], accent: 'var(--sport)' },
+   { key: 'falcon', label: 'Falcon', icon: 'broadcast-tower', sourceKeys: ['falcon'], accent: 'var(--orange)' },
+@@ -2076,7 +2080,9 @@
+       api_sport: 'direct',
+       open_source: 'direct',
+       falcon: 'direct',
+-      alb: 'proxy',
++      // A3/gcore blocks many datacenter IPs — deliver direct so client ISP can reach CDN.
++      alb: 'direct',
++      alb_vod: 'direct',
+       nimi: 'proxy',
+       kool: 'proxy',
+       kool_lokke: 'proxy',
+@@ -2254,7 +2260,7 @@
+ function normalizeSourceLinkModes(raw = {}) {
+   const defaults = {};
+   for (const sourceKey of SOURCE_KEYS) {
+-    defaults[sourceKey] = sourceKey === 'alb' ? 'refresh_per_open' : 'cached';
++    defaults[sourceKey] = (sourceKey === 'alb' || sourceKey === 'alb_vod') ? 'refresh_per_open' : 'cached';
+   }
+   if (!raw || typeof raw !== 'object') return defaults;
+   const normalized = {};
+@@ -5641,7 +5647,8 @@
+   if (channel.source === 'open_source') return 'open_source';
+   if (channel.source === 'falcon') return 'falcon';
+   if (channel.source === 'v2') return 'v2';
+-  if (channel.source === 'alb') return 'alb';
++  if (channel.source === 'alb_vod' || channel.sourceKey === 'alb_vod') return 'alb_vod';
++  if (channel.source === 'alb' || channel.sourceKey === 'alb') return 'alb';
+   if (channel.source === 'kool_lokke') return 'kool_lokke';
+   if (channel.custom) return channel.type === 'sport' ? 'custom_sport' : 'custom_tv';
+   if (channel.type === 'sport') return 'api_sport';
+@@ -5667,7 +5674,7 @@
+ function isSourceDeleted(sourceKey) {
+   const key = String(sourceKey || '').trim();
+   if (!key) return false;
+-  if (ALB_API_REMOVED && key === 'alb') return true;
++  if (ALB_API_REMOVED && (key === 'alb' || key === 'alb_vod')) return true;
+   return appConfig.deleted_sources?.[key] === true;
+ }
+ function ensureSourcesEnabled(sourceKeys = []) {
+@@ -6274,23 +6281,28 @@
+     if (!channelsBySource[sourceKey]) continue;
+     channelsBySource[sourceKey].push(channel);
+   }
+-  if (isSourceAccessibleNow('alb')) {
++  if (isSourceAccessibleNow('alb') || isSourceAccessibleNow('alb_vod')) {
+     try {
+-      const albEntries = await albService.fetchPlayableChannels({
+-        force: true,
+-        maxProbe: Math.min(Math.max(parseInt(options.albMaxProbe, 10) || 120, 40), 300),
+-        concurrency: 26,
+-        probeTimeoutMs: 5000
+-      });
+-      channelsBySource.alb = (albEntries || []).map(item => ({ url: String(item?.url || '') }));
+-      sourceCounts.alb = channelsBySource.alb.length;
++      const albEntries = await albService.fetchChannels({ force: true });
++      const live = (albEntries || []).filter(item => String(item?.sourceKey || '') === 'alb');
++      const vod = (albEntries || []).filter(item => String(item?.sourceKey || '') === 'alb_vod');
++      if (isSourceAccessibleNow('alb')) {
++        channelsBySource.alb = live.map(item => ({ url: String(item?.url || '') }));
++        sourceCounts.alb = channelsBySource.alb.length;
++      }
++      if (isSourceAccessibleNow('alb_vod')) {
++        channelsBySource.alb_vod = vod.map(item => ({ url: String(item?.url || '') }));
++        sourceCounts.alb_vod = channelsBySource.alb_vod.length;
++      }
+     } catch {
+-      channelsBySource.alb = [];
+-      sourceCounts.alb = 0;
++      if (isSourceAccessibleNow('alb')) { channelsBySource.alb = []; sourceCounts.alb = 0; }
++      if (isSourceAccessibleNow('alb_vod')) { channelsBySource.alb_vod = []; sourceCounts.alb_vod = 0; }
+     }
+   } else {
+     channelsBySource.alb = [];
+     sourceCounts.alb = 0;
++    channelsBySource.alb_vod = [];
++    sourceCounts.alb_vod = 0;
+   }
+   for (const sourceKey of SOURCE_KEYS) {
+     const count = Number(sourceCounts[sourceKey] || 0);
+@@ -6613,26 +6625,32 @@
+ function buildAlbRuntimeDbFromEntries(entries = [], options = {}) {
+   const db = {};
+   const clientIp = String(options.clientIp || '').trim();
++  const onlySource = String(options.sourceKey || '').trim();
+   for (const entry of entries) {
+     const rawUrl = String(entry?.url || '').trim();
+     const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : '';
+     const name = String(entry?.name || '').trim();
+     if (!url || !name) continue;
+-    const type = String(entry?.type || '').trim().toLowerCase() === 'sport' ? 'sport' : 'tv';
+-    const slug = uniqueSlug(db, `alb_${name}`, `alb-${md5(String(entry?.id || '') || url || name)}`);
++    const entrySource = String(entry?.sourceKey || entry?.source || 'alb').trim() === 'alb_vod' ? 'alb_vod' : 'alb';
++    if (onlySource && entrySource !== onlySource) continue;
++    const rawType = String(entry?.type || '').trim().toLowerCase();
++    const type = rawType === 'sport' ? 'sport' : (rawType === 'vod' ? 'vod' : 'tv');
++    const prefix = entrySource === 'alb_vod' ? 'albvod' : 'alb';
++    const slug = uniqueSlug(db, `${prefix}_${name}`, `${prefix}-${md5(String(entry?.id || '') || url || name)}`);
+     db[slug] = {
+       name,
+       url,
+       type,
+-      source: 'alb',
+-      sourceKey: 'alb',
++      source: entrySource,
++      sourceKey: entrySource,
+       slug,
+       id: md5(slug),
+       albId: String(entry?.id || ''),
+       albHeaders: entry?.headers && typeof entry.headers === 'object' ? { ...entry.headers } : {},
+       albUserAgent: String(entry?.userAgent || ALB_DEFAULT_UPSTREAM_UA).trim() || ALB_DEFAULT_UPSTREAM_UA,
+       albClientIp: clientIp,
+-      albValidatedAt: 0
++      albValidatedAt: 0,
++      vodCategory: String(entry?.vodCategory || '').trim()
+     };
+   }
+   if (appConfig.global_epg?.enabled) {
+@@ -6946,8 +6964,8 @@
+     if (koolSettings.default_playback_mode === 'proxy') return 'proxy';
+     return 'direct';
+   }
+-  return sourceKey === 'alb'
+-    ? 'proxy'
++  return (sourceKey === 'alb' || sourceKey === 'alb_vod')
++    ? 'direct'
+     : (channelUsesProxy(channel) ? 'proxy' : 'direct');
+ }
+ function formatUptime() {
+@@ -7565,6 +7583,13 @@
+ const falconService = createFalconService();
+ const v2Service = createV2Service();
+ const albService = createAlbService();
++setTimeout(() => {
++  albService.fetchChannels({ force: true }).then((list) => {
++    console.log(`[a3] catalog warmed: ${Array.isArray(list) ? list.length : 0} channels`);
++  }).catch((err) => {
++    console.warn('[a3] catalog warm failed:', err?.message || err);
++  });
++}, 2500);
+ const koolLoadJob = { running: false, startedAt: 0, endedAt: 0, error: '', result: null };
+ const koolLokkeLoadJob = { running: false, startedAt: 0, endedAt: 0, error: '', result: null };
+ const legacyVerificationMetaFromAdsRaw = normalizeVerificationMetaTagsText(appConfig?.ad_snippets?.site_verification_meta_tags || '');
+@@ -7576,6 +7601,7 @@
+ appConfig.proxy_rules = normalizeProxyRules(appConfig.proxy_rules);
+ appConfig.source_link_modes = normalizeSourceLinkModes(appConfig.source_link_modes);
+ appConfig.deleted_sources = normalizeDeletedSources(appConfig.deleted_sources);
++ensureSourcesEnabled(['alb', 'alb_vod']);
+ appConfig.source_schedules = normalizeSourceSchedules(appConfig.source_schedules);
+ appConfig.alerts = normalizeAlertsSettings(appConfig.alerts);
+ appConfig.interstitial_ad = normalizeInterstitialAdsConfig(appConfig.interstitial_ad);
+@@ -7923,7 +7949,7 @@
+   const channelSlug = createSlug(slug || channel.slug || '');
+   let rawHeaders = {};
+   let userAgent = '';
+-  if (sourceKey === 'alb') {
++  if (sourceKey === 'alb' || sourceKey === 'alb_vod') {
+     rawHeaders = channel.albHeaders && typeof channel.albHeaders === 'object'
+       ? { ...channel.albHeaders }
+       : {};
+@@ -7948,7 +7974,7 @@
+   }
+   if (!Object.keys(headers).some(key => String(key).toLowerCase() === 'accept-encoding')) headers['Accept-Encoding'] = 'identity';
+   if (!Object.keys(headers).some(key => String(key).toLowerCase() === 'connection')) headers.Connection = 'Keep-Alive';
+-  if (sourceKey === 'alb' && !Object.keys(headers).some(key => String(key).toLowerCase() === 'icy-metadata')) headers['Icy-MetaData'] = '1';
++  if ((sourceKey === 'alb' || sourceKey === 'alb_vod') && !Object.keys(headers).some(key => String(key).toLowerCase() === 'icy-metadata')) headers['Icy-MetaData'] = '1';
+   if (!Object.keys(headers).length && !userAgent) return { sourceKey, channelSlug };
+   return { upstreamHeaders: headers, userAgent, sourceKey, channelSlug };
+ }
+@@ -8094,52 +8120,135 @@
+     albValidatedAt: cached.albValidatedAt || 0
+   };
+ }
++
++function wrapA3CorsProxyUrl(streamUrl = '') {
++  const url = String(streamUrl || '').trim();
++  if (!/^https?:\/\//i.test(url)) return url;
++  // Already proxied
++  if (/^https?:\/\/a3\.phinemi\.live\/?/i.test(url)) return url;
++  if (/phinemi\.live\/a3proxy\/?/i.test(url)) return url;
++  const base = String(A3_CORS_PROXY_BASE || 'https://a3.phinemi.live/').replace(/\/?$/, '/');
++  return `${base}?u=${encodeURIComponent(url)}`;
++}
++function isAlbFastlyUrl(url = '') {
++  return /app-measurement\.fastlycache\.com/i.test(String(url || ''));
++}
++/** gcore works via CF Worker; fastlycache is often DC-blocked — prefer direct browser hit. */
++function buildA3PlaybackUrl(streamUrl = '') {
++  const url = String(streamUrl || '').trim();
++  if (!/^https?:\/\//i.test(url)) return url;
++  if (isAlbFastlyUrl(url)) return url;
++  return wrapA3CorsProxyUrl(url);
++}
++
+ async function resolveAlbChannelBySlugRuntime(req, slug, options = {}) {
+   if (ALB_API_REMOVED) return null;
+-  if (!isSourceAccessibleNow('alb')) return null;
+   const safeSlug = String(slug || '').trim();
+-  if (!/^alb_/i.test(safeSlug)) return null;
++  const isAlbVodSlug = /^albvod_/i.test(safeSlug);
++  const isAlbLiveSlug = /^alb_/i.test(safeSlug);
++  if (!isAlbVodSlug && !isAlbLiveSlug) return null;
++  const sourceKey = isAlbVodSlug ? 'alb_vod' : 'alb';
++  if (!isSourceAccessibleNow(sourceKey)) return null;
+   const clientIpv4 = getLikelyClientIPv4(req);
+   const triesRaw = Number(options.tries || 2);
+   const tries = Number.isFinite(triesRaw) ? Math.min(Math.max(Math.floor(triesRaw), 1), 5) : 2;
+-  const verifyStream = !!options.verifyStream;
++  const verifyStream = options.verifyStream === true;
+   const normalizeName = (value) => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+-  const rawName = safeSlug.replace(/^alb_/i, '');
++  const rawName = safeSlug.replace(/^albvod_/i, '').replace(/^alb_/i, '');
+   const slugNameA = normalizeName(rawName.replace(/-/g, ' '));
+   const slugNameB = normalizeName(rawName.replace(/-/g, ''));
+ 
++  // 1) Prefer matching from warm catalog cache (names/ids only), then
++  // 2) Fresh config.php for THIS user (device tied to IP) to get a playable URL.
++  let catalog = [];
++  try {
++    catalog = await albService.fetchChannels({ force: false, sourceKey });
++  } catch {
++    catalog = [];
++  }
++  let channelRef = null;
++  for (const entry of catalog) {
++    const dbProbe = buildAlbRuntimeDbFromEntries([entry], { clientIp: clientIpv4, sourceKey });
++    if (dbProbe[safeSlug]) {
++      channelRef = { albId: entry.id, id: entry.id, name: entry.name, url: entry.url };
++      break;
++    }
++    const norm = normalizeName(entry?.name || '');
++    if (norm && (norm === slugNameA || norm === slugNameB)) {
++      channelRef = { albId: entry.id, id: entry.id, name: entry.name, url: entry.url };
++      break;
++    }
++  }
++  if (!channelRef) {
++    // Fallback: derive id guess from slug tail / catalog scan after forced fetch
++    channelRef = { name: rawName.replace(/-/g, ' '), albId: '', id: '' };
++  }
++
+   for (let i = 0; i < tries; i += 1) {
+     try {
+-      const entries = await albService.fetchChannels({ force: true, clientIp: clientIpv4 });
+-      const db = buildAlbRuntimeDbFromEntries(entries, { clientIp: clientIpv4 });
+-      let channel = db[safeSlug] || null;
+-
+-      if (!channel) {
+-        for (const candidate of Object.values(db)) {
+-          const norm = normalizeName(candidate?.name || '');
+-          if (!norm) continue;
+-          if (norm === slugNameA || norm === slugNameB) {
+-            channel = { ...candidate };
+-            break;
++      const resolved = await albService.resolveForUser(channelRef, {
++        clientIp: clientIpv4,
++        tries: 1,
++        verifyStream,
++        allowCacheFallback: false,
++        model: 'Google Pixel 9 Pro XL',
++        android: '16'
++      });
++      if (!resolved) {
++        // If name-only ref failed, try matching after a forced catalog refresh
++        const fresh = await albService.fetchChannels({ force: true, clientIp: clientIpv4, sourceKey });
++        const db = buildAlbRuntimeDbFromEntries(fresh, { clientIp: clientIpv4, sourceKey });
++        let hit = db[safeSlug] || null;
++        if (!hit) {
++          for (const candidate of Object.values(db)) {
++            const norm = normalizeName(candidate?.name || '');
++            if (norm && (norm === slugNameA || norm === slugNameB)) { hit = candidate; break; }
+           }
+         }
+-      }
+-      if (!channel) continue;
+-      channel.slug = safeSlug;
+-      channel.source = 'alb';
+-      channel.sourceKey = 'alb';
+-
+-      if (verifyStream) {
+-        const validated = await albService.resolveChannelLive(channel, {
+-          tries: 1,
+-          allowCacheFallback: false,
++        if (!hit?.albId && !hit?.name) continue;
++        const again = await albService.resolveForUser({
++          albId: hit.albId || hit.id,
++          id: hit.albId || hit.id,
++          name: hit.name
++        }, {
+           clientIp: clientIpv4,
+-          verifyStream: true
++          tries: 1,
++          verifyStream,
++          model: 'Google Pixel 9 Pro XL',
++          android: '16'
+         });
+-        if (!validated) continue;
+-        channel = { ...channel, ...validated, albValidatedAt: Date.now() };
++        if (!again) continue;
++        const channel = {
++          ...hit,
++          ...again,
++          slug: safeSlug,
++          source: sourceKey,
++          sourceKey,
++          albId: again.id || hit.albId || '',
++          albHeaders: again.headers || hit.albHeaders || {},
++          albUserAgent: again.userAgent || hit.albUserAgent || ALB_DEFAULT_UPSTREAM_UA,
++          albClientIp: clientIpv4,
++          albValidatedAt: Date.now()
++        };
++        primeStreamCacheFromDb({ [safeSlug]: channel });
++        return channel;
+       }
+ 
++      const channel = {
++        name: resolved.name,
++        url: resolved.url,
++        type: resolved.type || (sourceKey === 'alb_vod' ? 'vod' : 'tv'),
++        source: sourceKey,
++        sourceKey,
++        slug: safeSlug,
++        id: md5(safeSlug),
++        albId: resolved.id || channelRef.albId || '',
++        albHeaders: resolved.headers || {},
++        albUserAgent: resolved.userAgent || ALB_DEFAULT_UPSTREAM_UA,
++        albClientIp: clientIpv4,
++        albValidatedAt: Date.now(),
++        vodCategory: resolved.vodCategory || ''
++      };
+       primeStreamCacheFromDb({ [safeSlug]: channel });
+       return channel;
+     } catch {
+@@ -8589,6 +8698,9 @@
+   if (isSourceAccessibleNow('alb')) {
+     sourceCounts.alb = Number(sourceHealth?.alb?.channelCount || 0);
+   }
++  if (isSourceAccessibleNow('alb_vod')) {
++    sourceCounts.alb_vod = Number(sourceHealth?.alb_vod?.channelCount || 0);
++  }
+   triggerSourceZeroAlerts(sourceCounts, { trigger: 'update_databases' }).catch(() => {});
+   refreshSourceHealthSnapshot(sourceCounts, { sampleSize: 6 }).catch(() => {});
+   refreshStreamTokenCache();
+@@ -14730,25 +14842,33 @@
+       return res.status(502).send('V2 stream unavailable');
+     }
+   }
+-  if (sourceKey === 'alb') {
++  if (sourceKey === 'alb' || sourceKey === 'alb_vod') {
+     try {
+-      const verifiedAlb = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: true, tries: 3 });
+-      if (!verifiedAlb) return res.status(502).send('ALB channel unavailable right now');
++      const verifiedAlb = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 2 });
++      if (!verifiedAlb) return res.status(502).send('A3 channel unavailable right now');
+       channel = verifiedAlb;
+       const streamUrl = String(channel.url || '').trim();
+-      if (!/^https?:\/\//i.test(streamUrl || '')) return res.status(502).send('ALB resolve failed');
+-      const profileToken = issueUpstreamProfile({
+-        upstreamHeaders: channel.albHeaders || {},
+-        userAgent: String(channel.albUserAgent || ALB_DEFAULT_UPSTREAM_UA).trim() || ALB_DEFAULT_UPSTREAM_UA,
+-        sourceKey: 'alb',
+-        channelSlug: slug
+-      });
+-      const candidates = resolveFailoverCandidates(slug, streamUrl);
+-      await proxyManifest(streamUrl, req, res, `alb-proxy:${slug}`, { profileToken, candidates });
+-      return;
++      if (!/^https?:\/\//i.test(streamUrl || '')) return res.status(502).send('A3 resolve failed');
++      // Never probe/proxy from VPS — A3 CDN edges commonly 404 datacenter IPs.
++      // Browser/app (residential IP) must hit the CDN directly (or via CF Worker for gcore).
++      if (String(req.query.play_mode || '').toLowerCase() === 'proxy' || req.query.proxy === '1') {
++        const profileToken = issueUpstreamProfile({
++          upstreamHeaders: channel.albHeaders || {},
++          userAgent: String(channel.albUserAgent || ALB_DEFAULT_UPSTREAM_UA).trim() || ALB_DEFAULT_UPSTREAM_UA,
++          sourceKey,
++          channelSlug: slug
++        });
++        const candidates = resolveFailoverCandidates(slug, streamUrl);
++        await proxyManifest(streamUrl, req, res, `alb-proxy:${slug}`, { profileToken, candidates });
++        return;
++      }
++      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
++      res.setHeader('X-A3-Direct', '1');
++      res.setHeader('X-A3-Cors-Proxy', isAlbFastlyUrl(streamUrl) ? '0' : '1');
++      return res.redirect(302, buildA3PlaybackUrl(streamUrl));
+     } catch (error) {
+-      console.error('ALB redirect error:', error.message);
+-      return res.status(502).send('ALB stream unavailable');
++      console.error('A3 redirect error:', error.message);
++      return res.status(502).send('A3 stream unavailable');
+     }
+   }
+   const profile = buildChannelUpstreamProfile(channel, slug);
+@@ -14772,7 +14892,7 @@
+   if (!tokenData) return res.status(403).send('Forbidden');
+   const slug = tokenData.slug;
+   let channel = resolveChannelBySlug(slug);
+-  if (!channel && /^alb_/i.test(slug)) {
++  if (!channel && /^(alb_|albvod_)/i.test(slug)) {
+     channel = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 1 });
+   }
+   if (!channel) return res.status(404).send('Not Found');
+@@ -14796,7 +14916,7 @@
+   if (!tokenData) return res.status(403).send('Forbidden');
+   const slug = tokenData.slug;
+   let channel = resolveChannelBySlug(slug);
+-  if (!channel && /^alb_/i.test(slug)) {
++  if (!channel && /^(alb_|albvod_)/i.test(slug)) {
+     channel = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 1 });
+   }
+   if (!channel) return res.status(404).send('Not Found');
+@@ -14879,25 +14999,20 @@
+       return res.status(502).send('V2 stream unavailable');
+     }
+   }
+-  if (sourceKey === 'alb') {
++  if (sourceKey === 'alb' || sourceKey === 'alb_vod') {
+     try {
+-      const verifiedAlb = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: true, tries: 3 });
+-      if (!verifiedAlb) return res.status(502).send('ALB channel unavailable right now');
++      const verifiedAlb = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 2 });
++      if (!verifiedAlb) return res.status(502).send('A3 channel unavailable right now');
+       channel = verifiedAlb;
+       const streamUrl = String(channel.url || '').trim();
+-      if (!/^https?:\/\//i.test(streamUrl || '')) return res.status(502).send('ALB resolve failed');
+-      const profileToken = issueUpstreamProfile({
+-        upstreamHeaders: channel.albHeaders || {},
+-        userAgent: String(channel.albUserAgent || ALB_DEFAULT_UPSTREAM_UA).trim() || ALB_DEFAULT_UPSTREAM_UA,
+-        sourceKey: 'alb',
+-        channelSlug: slug
+-      });
+-      const candidates = resolveFailoverCandidates(slug, streamUrl);
+-      await proxyManifest(streamUrl, req, res, `alb-fallback:${slug}`, { profileToken, candidates });
+-      return;
++      if (!/^https?:\/\//i.test(streamUrl || '')) return res.status(502).send('A3 resolve failed');
++      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
++      res.setHeader('X-A3-Direct', '1');
++      res.setHeader('X-A3-Cors-Proxy', isAlbFastlyUrl(streamUrl) ? '0' : '1');
++      return res.redirect(302, buildA3PlaybackUrl(streamUrl));
+     } catch (error) {
+-      console.error('ALB proxy error:', error.message);
+-      return res.status(502).send('ALB stream unavailable');
++      console.error('A3 proxy error:', error.message);
++      return res.status(502).send('A3 stream unavailable');
+     }
+   }
+   await proxyChannelWithOptionalResolve(req, res, slug, channel, 'fallback');
+@@ -17137,11 +17252,23 @@
+ });
+ 
+ router.get('/api/integrations/alb/status', requireLoginOrToken, (req, res) => {
+-  res.status(410).json({ ok: false, error: 'ALB API është hequr nga ky projekt.' });
++  if (ALB_API_REMOVED) return res.status(410).json({ ok: false, error: 'A3 API është hequr nga ky projekt.' });
++  res.json({ ok: true, status: albService.getStatus(), removed: false });
+ });
+ 
+ router.post('/api/integrations/alb/refresh', requireLoginOrToken, async (req, res) => {
+-  res.status(410).json({ ok: false, error: 'ALB API është hequr nga ky projekt.' });
++  if (ALB_API_REMOVED) return res.status(410).json({ ok: false, error: 'A3 API është hequr nga ky projekt.' });
++  if (!isSourceAccessibleNow('alb') && !isSourceAccessibleNow('alb_vod')) {
++    return res.status(404).json({ ok: false, error: 'A3 source unavailable now (OFF or scheduled off).' });
++  }
++  try {
++    const channels = await albService.fetchChannels({ force: true });
++    const live = channels.filter(item => item.sourceKey === 'alb').length;
++    const vod = channels.filter(item => item.sourceKey === 'alb_vod').length;
++    res.json({ ok: true, status: albService.getStatus(), live, vod, total: channels.length });
++  } catch (error) {
++    res.status(502).json({ ok: false, error: String(error?.message || 'A3 refresh failed') });
++  }
+ });
+ 
+ router.get('/api/integrations/falcon/channels', requireLoginOrToken, (req, res) => {
+@@ -17155,7 +17282,43 @@
+ });
+ 
+ router.get('/api/integrations/alb/channels', requireLoginOrToken, async (req, res) => {
+-  res.status(410).json({ ok: false, error: 'ALB API është hequr nga ky projekt.' });
++  if (ALB_API_REMOVED) return res.status(410).json({ ok: false, error: 'A3 API është hequr nga ky projekt.' });
++  const sourceKey = String(req.query.source || req.query.sourceKey || '').trim().toLowerCase();
++  if (sourceKey === 'alb_vod') {
++    if (!ensureSourceAvailableJson(res, 'alb_vod')) return;
++  } else if (sourceKey === 'alb') {
++    if (!ensureSourceAvailableJson(res, 'alb')) return;
++  } else if (!isSourceAccessibleNow('alb') && !isSourceAccessibleNow('alb_vod')) {
++    return res.status(404).json({ ok: false, error: 'A3 source unavailable now (OFF or scheduled off).' });
++  }
++  try {
++    const search = String(req.query.search || '').trim().toLowerCase();
++    const limitRaw = parseInt(req.query.limit, 10);
++    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 5000) : 500;
++    let channels = await albService.fetchChannels({ force: !!req.query.force, sourceKey: sourceKey || '' });
++    if (search) {
++      channels = channels.filter(ch =>
++        String(ch.name || '').toLowerCase().includes(search)
++        || String(ch.id || '').toLowerCase().includes(search)
++      );
++    }
++    res.json({
++      ok: true,
++      total: channels.length,
++      live: channels.filter(ch => ch.sourceKey === 'alb').length,
++      vod: channels.filter(ch => ch.sourceKey === 'alb_vod').length,
++      channels: channels.slice(0, limit).map(ch => ({
++        id: ch.id,
++        name: ch.name,
++        sourceKey: ch.sourceKey,
++        type: ch.type,
++        vodCategory: ch.vodCategory || '',
++        url: ch.url
++      }))
++    });
++  } catch (error) {
++    res.status(502).json({ ok: false, error: String(error?.message || 'A3 channels failed') });
++  }
+ });
+ 
+ function buildViewerSnapshot() {
+@@ -17334,7 +17497,7 @@
+   }
+   const slug = req.params.slug;
+   let channel = resolveChannelBySlug(slug);
+-  if (!channel && /^alb_/i.test(slug)) channel = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 1 });
++  if (!channel && /^(alb_|albvod_)/i.test(slug)) channel = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 1 });
+   if (!channel) return res.status(404).json({ ok: false, error: 'Not found' });
+   const channelAccessTier = resolveChannelAccessTierBySlug(slug);
+   const viewerTier = resolveViewerChannelAccessTier(req);
+@@ -17352,12 +17515,38 @@
+   if (!isSourceAccessibleNow(sourceKey)) return res.status(404).json({ ok: false, error: 'Source unavailable now' });
+   const geoCheck = await validateSourceGeo(req, sourceKey);
+   if (!geoCheck.ok) return res.status(451).json({ ok: false, error: 'Geo blocked', country: geoCheck.countryCode || '??' });
+-  if (sourceKey === 'alb') {
+-    const verifiedAlb = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: true, tries: 2 });
++  if (sourceKey === 'alb' || sourceKey === 'alb_vod') {
++    const verifiedAlb = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 2 });
+     if (!verifiedAlb) {
+-      return res.status(503).json({ ok: false, source_key: 'alb', source_label: SOURCE_LABELS.alb, error: 'ALB channel unavailable right now' });
++      return res.status(503).json({ ok: false, source_key: sourceKey, source_label: SOURCE_LABELS[sourceKey] || sourceKey, error: 'A3 channel unavailable right now' });
+     }
+     channel = verifiedAlb;
++    const streamUrl = String(channel.url || '').trim();
++    if (!/^https?:\/\//i.test(streamUrl)) {
++      return res.status(503).json({
++        ok: false,
++        source_key: sourceKey,
++        source_label: SOURCE_LABELS[sourceKey] || sourceKey,
++        error: 'A3 channel unavailable right now'
++      });
++    }
++    // Fresh URL for this viewer. gcore → CF Worker (CORS); fastly → direct (user IP).
++    const playUrl = buildA3PlaybackUrl(streamUrl);
++    issuePlaybackCookieForSource(req, res, sourceKey, resolvePlayTokenTtlSec(sourceKey));
++    const clientIpv4 = getLikelyClientIPv4(req);
++    res.setHeader('Cache-Control', 'no-store');
++    return res.json({
++      ok: true,
++      source_key: sourceKey,
++      source_label: SOURCE_LABELS[sourceKey] || sourceKey,
++      mode: 'direct',
++      url: playUrl,
++      proxy_url: '',
++      client_ipv4: clientIpv4 || '',
++      expires_in: resolvePlayTokenTtlSec(sourceKey),
++      overloaded: runtimePressureState.overloaded === true,
++      a3_cdn: isAlbFastlyUrl(streamUrl) ? 'fastly' : 'other'
++    });
+   }
+   const playback = resolveWebPrimaryPlaybackPath(slug, req, channel, { disableProxyForSource });
+   issuePlaybackCookieForSource(req, res, playback.sourceKey, resolvePlayTokenTtlSec(playback.sourceKey));
+@@ -18735,31 +18924,32 @@
+   const hasAccessibleSource = (folder.sourceKeys || []).some(sourceKey => isSourceAccessibleNow(sourceKey));
+   if (!hasAccessibleSource) return res.status(404).send('Ky source folder nuk është aktiv tani.');
+   const accent = folder.accent || 'var(--accent)';
+-  if (folderKey === 'alb') {
+-    if (!isSourceAccessibleNow('alb')) return res.status(404).send('ALB source nuk është aktiv në këtë orar.');
++  if (folderKey === 'alb' || folderKey === 'alb_vod') {
++    const a3Key = folderKey === 'alb_vod' ? 'alb_vod' : 'alb';
++    if (!isSourceAccessibleNow(a3Key)) return res.status(404).send(`${folder.label} source nuk është aktiv në këtë orar.`);
+     try {
+       const clientIpv4 = getLikelyClientIPv4(req);
+-      const entries = await albService.fetchPlayableChannels({
+-        force: true,
++      // Do not probe from VPS — gcore/fastly often 404 datacenter IPs and would empty the list.
++      const entries = await albService.fetchChannels({
++        force: false,
+         clientIp: clientIpv4,
+-        concurrency: 30,
+-        maxProbe: 4000,
+-        probeTimeoutMs: 5500
++        sourceKey: a3Key
+       });
+-      const vis = filterChannelsForDevice(buildAlbRuntimeDbFromEntries(entries, { clientIp: clientIpv4 }), req);
++      // Listing uses cached catalog (names/ids). Fresh config.php runs on click.
++      const vis = filterChannelsForDevice(buildAlbRuntimeDbFromEntries(entries, { clientIp: clientIpv4, sourceKey: a3Key }), req);
+       primeStreamCacheFromDb(vis);
+-      const cards = buildCards(vis, { categoryKeyOverride: 'source:alb', pageType: 'category_source' });
+-      const urlMap = buildPlayerUrlMap(vis, req);
++      const cards = buildCards(vis, { categoryKeyOverride: `source:${a3Key}`, pageType: 'category_source' });
++      const urlMap = buildPlayerUrlMap(vis, req, { forceDirectSources: ['alb', 'alb_vod'] });
+       const pageContentHtml = renderCategoryPageContent({
+         basePath: BASE_PATH,
+         backPath: '/',
+         iconClass: `fa-${folder.icon}`,
+         iconColor: accent,
+         title: `${folder.label} (fresh)`,
+-        badgeText: `${Object.keys(vis).length} kanale`,
++        badgeText: `${Object.keys(vis).length} ${a3Key === 'alb_vod' ? 'filma' : 'kanale'}`,
+         count: Object.keys(vis).length,
+         cards,
+-        extraStatusHtml: `<span style="color:var(--muted)"><i class="fas fa-network-wired"></i> IPv4: ${clientIpv4 || 'N/A'}</span>`
++        extraStatusHtml: `<span style="color:var(--muted)"><i class="fas fa-network-wired"></i> IPv4: ${clientIpv4 || 'N/A'}</span><span style="color:var(--muted)"><i class="fas fa-sync"></i> URL refresh per open</span>`
+       });
+       const playerScriptHtml = playerScript(urlMap, appConfig.player_defaults, appConfig.player_source_defaults, {
+         pageType: 'category_source'
+@@ -18774,7 +18964,7 @@
+         playerScriptHtml
+       }));
+     } catch (error) {
+-      return res.status(502).send(`ALB fetch failed: ${String(error?.message || 'unknown error')}`);
++      return res.status(502).send(`${folder.label} fetch failed: ${String(error?.message || 'unknown error')}`);
+     }
+   }
+   if (folderKey === 'kool_lokke' && String(req.query.view || '').trim().toLowerCase() !== 'all') {
+@@ -19051,9 +19241,9 @@
+   if (!isSourceAccessibleNow(sourceKey)) return res.status(404).send('Not Found');
+   const geoCheck = await validateSourceGeo(req, sourceKey);
+   if (!geoCheck.ok) return res.status(451).send('Geo blocked');
+-  if (sourceKey === 'alb') {
+-    const verifiedAlb = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: true, tries: 2 });
+-    if (!verifiedAlb) return res.status(503).send('ALB channel unavailable right now');
++  if (sourceKey === 'alb' || sourceKey === 'alb_vod') {
++    const verifiedAlb = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 2 });
++    if (!verifiedAlb) return res.status(503).send('A3 channel unavailable right now');
+     channel = verifiedAlb;
+   }
+   recordPlaylistAnalyticsEvent(id, {
+@@ -21171,7 +21361,7 @@
+ </tr>`;
+   }).join('');
+   const sourceLinkRows = SOURCE_KEYS.map(sourceKey => {
+-    const mode = normalizeSourceLinkMode(sourceLinkModes[sourceKey], sourceKey === 'alb' ? 'refresh_per_open' : 'cached');
++    const mode = normalizeSourceLinkMode(sourceLinkModes[sourceKey], (sourceKey === 'alb' || sourceKey === 'alb_vod') ? 'refresh_per_open' : 'cached');
+     return `<tr>
+ <td style="padding:8px 6px;font-weight:600">${SOURCE_LABELS[sourceKey] || sourceKey}</td>
+ <td style="padding:8px 6px">
+@@ -21701,7 +21891,7 @@
+     for (const sourceKey of SOURCE_KEYS) {
+       sourceLinkModes[sourceKey] = normalizeSourceLinkMode(
+         req.body[`rl_${sourceKey}`],
+-        sourceKey === 'alb' ? 'refresh_per_open' : 'cached'
++        sourceKey === 'alb' || sourceKey === 'alb_vod' ? 'refresh_per_open' : 'cached'
+       );
+     }
+     appConfig.source_link_modes = sourceLinkModes;
+@@ -25154,24 +25344,19 @@
+       return res.status(502).send('V2 stream unavailable');
+     }
+   }
+-  if (sourceKey === 'alb') {
++  if (sourceKey === 'alb' || sourceKey === 'alb_vod') {
+     try {
+-      const verifiedAlb = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: true, tries: 3 });
+-      if (!verifiedAlb) return res.status(502).send('ALB channel unavailable right now');
++      const verifiedAlb = await resolveAlbChannelBySlugRuntime(req, slug, { verifyStream: false, tries: 2 });
++      if (!verifiedAlb) return res.status(502).send('A3 channel unavailable right now');
+       const streamUrl = String(verifiedAlb.url || '').trim();
+-      if (!/^https?:\/\//i.test(streamUrl || '')) return res.status(502).send('ALB resolve failed');
+-      const profileToken = issueUpstreamProfile({
+-        upstreamHeaders: verifiedAlb.albHeaders || {},
+-        userAgent: String(verifiedAlb.albUserAgent || ALB_DEFAULT_UPSTREAM_UA).trim() || ALB_DEFAULT_UPSTREAM_UA,
+-        sourceKey: 'alb',
+-        channelSlug: slug
+-      });
+-      const candidates = resolveFailoverCandidates(slug, streamUrl);
+-      await proxyManifest(streamUrl, req, res, `appm-alb:${playlistId}:${slug}`, { profileToken, candidates });
+-      return;
++      if (!/^https?:\/\//i.test(streamUrl || '')) return res.status(502).send('A3 resolve failed');
++      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
++      res.setHeader('X-A3-Direct', '1');
++      res.setHeader('X-A3-Cors-Proxy', isAlbFastlyUrl(streamUrl) ? '0' : '1');
++      return res.redirect(302, buildA3PlaybackUrl(streamUrl));
+     } catch (error) {
+-      console.error('App measurement alb proxy error:', error.message);
+-      return res.status(502).send('ALB stream unavailable');
++      console.error('App measurement A3 proxy error:', error.message);
++      return res.status(502).send('A3 stream unavailable');
+     }
+   }
+ 
