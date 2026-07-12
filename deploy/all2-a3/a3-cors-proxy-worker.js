@@ -249,7 +249,24 @@ async function fetchFollowWithCookies(url, headers, maxRedirects = 5) {
  * Media-Colony playlists often glue a quality index onto absolute URLs:
  *   "1https://cache2.../foo.m3u8"
  * URL() treats that as a relative path under the master host → broken.
+ *
+ * Gjirafa live gates also advertise a fake 1080p `tracks-v2a1` (audio-only ~60KB
+ * segments). Real video is `tracks-v1a1` (~1.5MB/seg). Rewrite stub tracks up.
  */
+function preferGjirafaVideoUrl(url = '') {
+  try {
+    const u = new URL(url);
+    if (!/gjirafa\.(net|com)$/i.test(u.hostname)) return url;
+    if (/\/tracks-v[2-9]\d*a\d+\//i.test(u.pathname)) {
+      u.pathname = u.pathname.replace(/\/tracks-v[2-9]\d*a\d+\//i, '/tracks-v1a1/');
+      return u.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
 function normalizeManifestRef(ref = '', baseUrl = '') {
   let s = String(ref || '').replace(/\r/g, '').trim();
   if (!s) return s;
@@ -259,11 +276,11 @@ function normalizeManifestRef(ref = '', baseUrl = '') {
   const spaced = s.match(/^\d+\s+(https?:\/\/.+)$/i);
   if (spaced) s = spaced[1];
   try {
-    return new URL(s, baseUrl).toString();
+    return preferGjirafaVideoUrl(new URL(s, baseUrl).toString());
   } catch {
     const embedded = s.match(/https?:\/\/\S+/i);
     if (embedded) {
-      try { return new URL(embedded[0]).toString(); } catch { /* ignore */ }
+      try { return preferGjirafaVideoUrl(new URL(embedded[0]).toString()); } catch { /* ignore */ }
     }
     return s;
   }
@@ -389,6 +406,8 @@ export default {
     if (!target || !isAllowed(target)) {
       return new Response('Forbidden or missing ?u=', { status: 400, headers: corsHeaders(origin) });
     }
+    // Fix audio-only gjirafa stubs before the first upstream fetch when possible.
+    const normalizedTarget = preferGjirafaVideoUrl(target);
 
     const rhRaw = src.searchParams.get('rh') || '';
     const rhHeaders = decodeRh(rhRaw);
@@ -397,12 +416,20 @@ export default {
 
     let upstream;
     let jarCookie = '';
-    let finalUrl = target;
+    let finalUrl = normalizedTarget;
     try {
-      const followed = await fetchFollowWithCookies(target, upstreamHeaders, 5);
+      const followed = await fetchFollowWithCookies(normalizedTarget, upstreamHeaders, 5);
       upstream = followed.response;
-      finalUrl = followed.finalUrl || target;
-      jarCookie = String(followed.requestHeaders?.Cookie || '').trim();
+      finalUrl = preferGjirafaVideoUrl(followed.finalUrl || normalizedTarget);
+      // If a redirect landed on an audio stub, re-fetch the video track.
+      if (finalUrl !== (followed.finalUrl || normalizedTarget)) {
+        const again = await fetchFollowWithCookies(finalUrl, followed.requestHeaders || upstreamHeaders, 3);
+        upstream = again.response;
+        finalUrl = preferGjirafaVideoUrl(again.finalUrl || finalUrl);
+        jarCookie = String(again.requestHeaders?.Cookie || followed.requestHeaders?.Cookie || '').trim();
+      } else {
+        jarCookie = String(followed.requestHeaders?.Cookie || '').trim();
+      }
     } catch (err) {
       return new Response(`Upstream fetch failed: ${String(err)}`, {
         status: 502,
@@ -419,7 +446,7 @@ export default {
     if (!upstream || upstream.status !== 200) {
       const failBody = upstream ? await upstream.text() : 'Upstream error';
       const looksHtmlBlock = /<\s*html|404 Not Found|CyberPanel|error code:/i.test(failBody);
-      if (looksHtmlBlock || /fastlycache\.com/i.test(target)) {
+      if (looksHtmlBlock || /fastlycache\.com/i.test(normalizedTarget)) {
         return new Response(
           'A3 CDN blocked this edge (datacenter/CF IP). Open this channel in the ShifShqip app on mobile data, or use a feed that is not on fastlycache.',
           {

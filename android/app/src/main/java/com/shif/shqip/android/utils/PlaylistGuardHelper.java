@@ -36,7 +36,7 @@ public final class PlaylistGuardHelper {
     private PlaylistGuardHelper() {
     }
 
-    /** Media-Colony A3 CDNs require aliez.tv Referer/Origin/Cookie from the phone IP. */
+    /** Media-Colony / Gjirafa CDNs need the right Referer from the phone IP (ExoPlayer). */
     public static PlaylistGuardRule buildA3CdnGuardRule(String requestUrl) {
         if (TextUtils.isEmpty(requestUrl)) {
             return null;
@@ -44,15 +44,30 @@ public final class PlaylistGuardHelper {
         String lower = requestUrl.toLowerCase(Locale.US);
         boolean isFastly = lower.contains("fastlycache.com");
         boolean isGcore = lower.contains("gcore-cdn.org");
-        if (!isFastly && !isGcore) {
+        boolean isGjirafa = lower.contains("gjirafa.net") || lower.contains("gjirafa.com");
+        if (!isFastly && !isGcore && !isGjirafa) {
             return null;
         }
         PlaylistGuardRule rule = new PlaylistGuardRule();
+        if (isGjirafa) {
+            rule.url_pattern = lower.contains("gjirafa.net") ? "gjirafa.net" : "gjirafa.com";
+            rule.user_agent = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+            rule.referer = "https://video.gjirafa.com/";
+            rule.origin = "https://video.gjirafa.com";
+            rule.cookie = "";
+            return rule;
+        }
         rule.url_pattern = isFastly ? "fastlycache.com" : "gcore-cdn.org";
         rule.user_agent = "APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0";
-        rule.referer = "https://aliez.tv/";
-        rule.origin = "https://aliez.tv";
-        rule.cookie = "passport=IG2GpFng03_23122025";
+        if (isGcore && lower.contains("/external/")) {
+            rule.referer = "https://video.gjirafa.com/";
+            rule.origin = "https://video.gjirafa.com";
+            rule.cookie = "";
+        } else {
+            rule.referer = "https://aliez.tv/";
+            rule.origin = "https://aliez.tv";
+            rule.cookie = "passport=IG2GpFng03_23122025";
+        }
         return rule;
     }
 
