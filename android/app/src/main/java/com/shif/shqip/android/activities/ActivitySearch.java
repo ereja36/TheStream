@@ -84,8 +84,10 @@ public class ActivitySearch extends AppCompatActivity {
         adsPref = new AdsPref(this);
 
         adsManager = new AdsManager(this);
+        adsManager.initializeAd();
+        adsManager.updateConsentStatus();
         adsManager.loadBannerAd(BANNER_SEARCH);
-        adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
+        adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, com.shif.shqip.android.utils.AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
 
         parent_view = findViewById(R.id.parent_view);
         edtSearch = findViewById(R.id.et_search);
@@ -143,7 +145,7 @@ public class ActivitySearch extends AppCompatActivity {
             Intent intent = new Intent(getApplicationContext(), ActivityChannelDetail.class);
             intent.putExtra(Constant.EXTRA_OBJC, obj);
             startActivity(intent);
-            adsManager.showInterstitialAd();
+            showInterstitialAd();
             adsManager.destroyBannerAd();
         });
 
@@ -156,6 +158,15 @@ public class ActivitySearch extends AppCompatActivity {
         showEmptySearch();
         handleOnBackPressed();
 
+    }
+
+    public void showInterstitialAd() {
+        if (adsManager != null) {
+            adsManager.showInterstitialAd();
+            adsManager.loadInterstitialAd(
+                    INTERSTITIAL_AD_CHANNEL_LIST,
+                    com.shif.shqip.android.utils.AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
+        }
     }
 
     public void handleOnBackPressed() {

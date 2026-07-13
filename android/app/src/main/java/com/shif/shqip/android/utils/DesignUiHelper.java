@@ -17,6 +17,7 @@ import com.shif.shqip.android.activities.ActivityPlaylistSetup;
 import com.shif.shqip.android.activities.ActivitySearch;
 import com.shif.shqip.android.activities.ActivitySettings;
 import com.shif.shqip.android.callbacks.CallbackConfig;
+import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.rests.RestAdapter;
 
@@ -148,6 +149,15 @@ public final class DesignUiHelper {
                         String localDesign = sharedPref.getDesignId();
                         if (resp.app.app_logo_url != null) {
                             sharedPref.saveAppLogoUrl(resp.app.app_logo_url);
+                        }
+                        if (resp.ads != null) {
+                            try {
+                                AdsPref adsPref = new AdsPref(activity);
+                                Tools.saveAds(adsPref, resp.ads);
+                                AdPlacementHelper.onRemoteAdsConfigLoaded(activity);
+                            } catch (Exception ignored) {
+                                // Keep previous ads config on parse/save errors.
+                            }
                         }
                         if (!remoteDesign.equals(localDesign)) {
                             sharedPref.saveDesignId(remoteDesign);

@@ -22,6 +22,7 @@ import com.shif.shqip.android.databases.dao.DAO;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.utils.Tools;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,10 +71,15 @@ public class AdapterChannelCardV2 extends RecyclerView.Adapter<AdapterChannelCar
         holder.channelNameInline.setText(channel.channel_name);
 
         String imageUrl = resolveImageUrl(channel.channel_image);
+        Glide.with(activity).clear(holder.channelLogo);
         if (!TextUtils.isEmpty(imageUrl)) {
             Glide.with(activity)
                     .load(imageUrl)
-                    .apply(new RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                    .apply(new RequestOptions()
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            .centerInside())
+                    .placeholder(R.mipmap.ic_launcher)
+                    .error(R.mipmap.ic_launcher)
                     .into(holder.channelLogo);
         } else {
             holder.channelLogo.setImageResource(R.mipmap.ic_launcher);
@@ -99,13 +105,13 @@ public class AdapterChannelCardV2 extends RecyclerView.Adapter<AdapterChannelCar
     }
 
     private String resolveImageUrl(String image) {
-        if (TextUtils.isEmpty(image)) {
-            return "";
-        }
-        if (image.startsWith("http")) {
-            return image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(image, sharedPref.getBaseUrl());
+    }
+
+    @Override
+    public void onViewRecycled(@NonNull ViewHolder holder) {
+        Glide.with(activity).clear(holder.channelLogo);
+        super.onViewRecycled(holder);
     }
 
     @Override

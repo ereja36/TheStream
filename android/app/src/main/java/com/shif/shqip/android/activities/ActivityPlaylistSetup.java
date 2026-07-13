@@ -31,6 +31,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.models.PlaylistGuardRule;
 import com.shif.shqip.android.utils.DesignRouter;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.DeviceApiHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
@@ -494,7 +495,9 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
 
         channel.channel_id = "m3u_" + index;
         channel.channel_name = channelName;
-        channel.channel_image = extractAttribute(extInfoLine, "tvg-logo");
+        channel.channel_image = ChannelLogoHelper.resolve(
+                normalizePlaylistLogoUrl(extractAttribute(extInfoLine, "tvg-logo")),
+                null);
         channel.channel_url = streamUrl;
         channel.channel_description = "";
         channel.channel_type = "M3U";
@@ -536,12 +539,43 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
         if (TextUtils.isEmpty(extInfoLine)) {
             return "";
         }
-        int commaIndex = extInfoLine.indexOf(',');
+        String tvgName = extractAttribute(extInfoLine, "tvg-name");
+        if (!TextUtils.isEmpty(tvgName)) {
+            return tvgName.trim();
+        }
+        int commaIndex = findLastUnquotedComma(extInfoLine);
         if (commaIndex == -1 || commaIndex >= extInfoLine.length() - 1) {
-            String tvgName = extractAttribute(extInfoLine, "tvg-name");
-            return TextUtils.isEmpty(tvgName) ? "" : tvgName.trim();
+            return "";
         }
         return extInfoLine.substring(commaIndex + 1).trim();
+    }
+
+    private int findLastUnquotedComma(String line) {
+        boolean inQuotes = false;
+        int last = -1;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                inQuotes = !inQuotes;
+            } else if (c == ',' && !inQuotes) {
+                last = i;
+            }
+        }
+        return last;
+    }
+
+    private String normalizePlaylistLogoUrl(String logo) {
+        if (TextUtils.isEmpty(logo)) {
+            return "";
+        }
+        String value = logo.trim();
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return value;
+        }
+        if (value.startsWith("/")) {
+            return "https://shifshqip.com" + value;
+        }
+        return value;
     }
 
     private String extractAttribute(String line, String key) {

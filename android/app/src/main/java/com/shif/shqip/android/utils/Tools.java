@@ -142,11 +142,19 @@ public class Tools {
         } else {
             bgColor = ContextCompat.getColor(activity, R.color.v2_bg);
         }
-        activity.getWindow().setStatusBarColor(bgColor);
-        activity.getWindow().setNavigationBarColor(bgColor);
-        WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView())
+        Window window = activity.getWindow();
+        DesignInsetsHelper.clearImmersiveFlags(window);
+        window.setStatusBarColor(bgColor);
+        window.setNavigationBarColor(bgColor);
+        // Android 10+ / targetSdk 35 can paint a black contrast scrim over the nav bar —
+        // disable it so the gesture area matches the app background (OneIPTV-style).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setNavigationBarContrastEnforced(false);
+            window.setStatusBarContrastEnforced(false);
+        }
+        WindowCompat.getInsetsController(window, window.getDecorView())
                 .setAppearanceLightStatusBars(lightBars);
-        WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView())
+        WindowCompat.getInsetsController(window, window.getDecorView())
                 .setAppearanceLightNavigationBars(lightBars);
     }
 
@@ -1054,14 +1062,10 @@ public class Tools {
     }
 
     private String resolveChannelImage(Channel channel) {
-        if (channel == null || TextUtils.isEmpty(channel.channel_image)) {
+        if (channel == null) {
             return "";
         }
-        String image = channel.channel_image.trim();
-        if (image.startsWith("http://") || image.startsWith("https://")) {
-            return image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(channel.channel_image, sharedPref.getBaseUrl());
     }
 
     public static String getApplicationId() {

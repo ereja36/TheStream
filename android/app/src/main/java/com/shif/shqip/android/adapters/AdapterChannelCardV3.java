@@ -18,6 +18,7 @@ import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.utils.Tools;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -80,13 +81,7 @@ public class AdapterChannelCardV3 extends RecyclerView.Adapter<AdapterChannelCar
     }
 
     private String resolveImageUrl(String image) {
-        if (TextUtils.isEmpty(image)) {
-            return "";
-        }
-        if (image.startsWith("http")) {
-            return image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(image, sharedPref.getBaseUrl());
     }
 
     @Override

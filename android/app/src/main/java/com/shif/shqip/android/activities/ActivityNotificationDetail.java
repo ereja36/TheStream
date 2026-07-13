@@ -45,6 +45,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.AppBarLayoutBehavior;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.Tools;
@@ -249,7 +250,7 @@ public class ActivityNotificationDetail extends AppCompatActivity {
         if (channel.channel_type != null && channel.channel_type.equals("YOUTUBE")) {
             if (!channel.channel_image.equals("")) {
                 Glide.with(this)
-                        .load(sharedPref.getBaseUrl() + "/upload/" + channel.channel_image.replace(" ", "%20"))
+                        .load(resolveAnyChannelImage(channel.channel_image))
                         .placeholder(R.drawable.ic_thumbnail)
                         .diskCacheStrategy(DiskCacheStrategy.ALL)
                         .into(channel_image);
@@ -262,7 +263,7 @@ public class ActivityNotificationDetail extends AppCompatActivity {
             }
         } else {
             Glide.with(this)
-                    .load(sharedPref.getBaseUrl() + "/upload/" + channel.channel_image.replace(" ", "%20"))
+                    .load(resolveAnyChannelImage(channel.channel_image))
                     .placeholder(R.drawable.ic_thumbnail)
                     .diskCacheStrategy(DiskCacheStrategy.ALL)
                     .into(channel_image);
@@ -459,6 +460,10 @@ public class ActivityNotificationDetail extends AppCompatActivity {
             this.callbackCall.cancel();
         }
         adsManager.destroyBannerAd();
+    }
+
+    private String resolveAnyChannelImage(String image) {
+        return ChannelLogoHelper.resolve(image, sharedPref.getBaseUrl());
     }
 
 }
