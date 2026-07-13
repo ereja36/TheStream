@@ -23,3 +23,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "ShifShqip"
 include ':app'
+include ':extension-ffmpeg'

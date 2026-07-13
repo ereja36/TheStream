@@ -41,10 +41,10 @@ import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.EpgHelper;
-import com.shif.shqip.android.utils.NativeAdSlotHelper;
 import com.shif.shqip.android.utils.HomeAdsBootstrap;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.IptvPlayerHelper;
+import com.shif.shqip.android.utils.NativeAdSlotHelper;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 import com.shif.shqip.android.utils.PlaylistRefreshHelper;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
@@ -83,9 +83,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     private long heroPreviewToken;
     private AdsManager adsManager;
     private AdsAntiblockHelper adsAntiblockHelper;
-    private boolean allChannelsNativeBound;
     private boolean heroMuted = true;
-    private final List<AdsManager> nativeSlotManagers = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,8 +94,12 @@ public class ActivityMainV2 extends AppCompatActivity {
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
         setContentView(R.layout.activity_main_v2);
-        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_container,
-                R.id.scroll_home, 0);
+        View bannerStrip = findViewById(R.id.banner_strip);
+        if (bannerStrip != null) {
+            bannerStrip.setVisibility(View.GONE);
+        }
+        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_chrome,
+                R.id.scroll_home, R.id.bottom_nav_pill);
 
         categorySections = findViewById(R.id.category_sections);
         emptyMessage = findViewById(R.id.empty_message);
@@ -111,7 +113,6 @@ public class ActivityMainV2 extends AppCompatActivity {
         bringChromeToFront();
         DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
         HomeAdsBootstrap.initFast(this, adsManager, adsPref, adsAntiblockHelper);
-        bindAllChannelsNativeAd();
         loadChannels();
     }
 
@@ -120,7 +121,7 @@ public class ActivityMainV2 extends AppCompatActivity {
             adsManager.showInterstitialAd();
             adsManager.loadInterstitialAd(
                     Constant.INTERSTITIAL_AD_CHANNEL_LIST,
-                    AdPlacementHelper.resolveInterstitialInterval(adsPref));
+                    AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
         }
     }
 
@@ -134,7 +135,6 @@ public class ActivityMainV2 extends AppCompatActivity {
     protected void onDestroy() {
         destroyBannerAd();
         releaseHeroPreview();
-        nativeSlotManagers.clear();
         super.onDestroy();
         epgExecutor.shutdownNow();
         heroExecutor.shutdownNow();
@@ -226,8 +226,15 @@ public class ActivityMainV2 extends AppCompatActivity {
     private void bringChromeToFront() {
         View topActions = findViewById(R.id.top_actions);
         View bottomNav = findViewById(R.id.bottom_nav_pill);
-        View bottomContainer = findViewById(R.id.bottom_container);
-        DesignInsetsHelper.bringChromeToFront(topActions, bottomContainer, bottomNav);
+        View bottomChrome = findViewById(R.id.bottom_chrome);
+        DesignInsetsHelper.bringChromeToFront(topActions, bottomChrome, bottomNav);
+        View bannerStrip = findViewById(R.id.banner_strip);
+        if (bannerStrip != null && bannerStrip.getVisibility() == View.VISIBLE) {
+            bannerStrip.bringToFront();
+        }
+        if (bottomNav != null) {
+            bottomNav.bringToFront();
+        }
     }
 
     private void loadChannels() {
@@ -533,7 +540,6 @@ public class ActivityMainV2 extends AppCompatActivity {
             });
             recyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
             recyclerView.setNestedScrollingEnabled(false);
-            recyclerView.setNestedScrollingEnabled(false);
             recyclerView.setAdapter(adapter);
             adapter.setItems(categoryChannels);
 
@@ -546,50 +552,18 @@ public class ActivityMainV2 extends AppCompatActivity {
 
             categorySections.addView(section);
             sectionIndex++;
-            addNativeAdSlot();
-        }
-    }
-
-    private void bindAllChannelsNativeAd() {
-        if (allChannelsNativeBound || !adsPref.getAdStatus() || !Constant.NATIVE_AD_CHANNEL_LIST) {
-            return;
-        }
-        View banner = findViewById(R.id.banner_all_channels);
-        if (!(banner.getParent() instanceof LinearLayout)) {
-            return;
-        }
-        LinearLayout parent = (LinearLayout) banner.getParent();
-        int bannerIndex = parent.indexOfChild(banner);
-        LinearLayout nativeHost = new LinearLayout(this);
-        nativeHost.setOrientation(LinearLayout.VERTICAL);
-        int horizontal = (int) getResources().getDimension(R.dimen.spacing_middle);
-        nativeHost.setPadding(horizontal, 0, horizontal, 0);
-        parent.addView(nativeHost, bannerIndex + 1);
-        AdsManager slot = NativeAdSlotHelper.mount(this, nativeHost);
-        if (slot != null) {
-            nativeSlotManagers.add(slot);
-        }
-        allChannelsNativeBound = true;
-    }
-
-    private void addNativeAdSlot() {
-        if (!adsPref.getAdStatus() || !Constant.NATIVE_AD_CHANNEL_LIST) {
-            return;
-        }
-        LinearLayout wrapper = new LinearLayout(this);
-        wrapper.setOrientation(LinearLayout.VERTICAL);
-        int horizontal = (int) getResources().getDimension(R.dimen.spacing_middle);
-        int vertical = (int) getResources().getDimension(R.dimen.spacing_middle);
-        wrapper.setPadding(horizontal, vertical, horizontal, vertical);
-        LinearLayout nativeHost = new LinearLayout(this);
-        nativeHost.setOrientation(LinearLayout.VERTICAL);
-        wrapper.addView(nativeHost, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
-        categorySections.addView(wrapper);
-        AdsManager slot = NativeAdSlotHelper.mount(this, nativeHost);
-        if (slot != null) {
-            nativeSlotManagers.add(slot);
+            // Native between category rows (every 3), same cadence as channel lists.
+            if (sectionIndex % 3 == 0) {
+                LinearLayout nativeHost = new LinearLayout(this);
+                nativeHost.setOrientation(LinearLayout.VERTICAL);
+                nativeHost.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+                int pad = Math.round(12 * getResources().getDisplayMetrics().density);
+                nativeHost.setPadding(pad, pad / 2, pad, pad / 2);
+                categorySections.addView(nativeHost);
+                NativeAdSlotHelper.mount(this, nativeHost);
+            }
         }
     }
 
@@ -639,10 +613,11 @@ public class ActivityMainV2 extends AppCompatActivity {
         if (TextUtils.isEmpty(image)) {
             return "";
         }
-        if (image.startsWith("http")) {
-            return image;
+        String trimmed = image.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed;
         }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return sharedPref.getBaseUrl() + "/upload/" + trimmed.replace(" ", "%20");
     }
 
     private void handleInboxNotificationIntent(Intent intent) {

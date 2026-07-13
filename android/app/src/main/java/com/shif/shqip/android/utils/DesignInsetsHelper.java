@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -13,6 +14,10 @@ import androidx.core.view.WindowInsetsCompat;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 
+/**
+ * Normal (non-immersive) system bars so notifications/status bar work.
+ * Bottom chrome is padded for the gesture line without drawing under the status bar.
+ */
 public final class DesignInsetsHelper {
 
     private DesignInsetsHelper() {
@@ -27,7 +32,9 @@ public final class DesignInsetsHelper {
         SharedPref sharedPref = new SharedPref(activity);
         boolean lightBars = !sharedPref.getIsDarkTheme();
 
-        WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), true);
+        Window window = activity.getWindow();
+        // NOT full-screen / edge-to-edge — status bar stays usable for notifications.
+        WindowCompat.setDecorFitsSystemWindows(window, true);
         Tools.applyDesignSystemBars(activity, lightBars);
 
         View root = activity.findViewById(rootId);
@@ -36,30 +43,33 @@ public final class DesignInsetsHelper {
         }
 
         View topBar = topBarId != 0 ? activity.findViewById(topBarId) : null;
-        View bottomBar = bottomBarId != 0 ? activity.findViewById(bottomBarId) : null;
-        View content = contentId != 0 ? activity.findViewById(contentId) : null;
+        View bottomChrome = activity.findViewById(R.id.bottom_chrome);
+        if (bottomChrome == null && bottomBarId != 0) {
+            bottomChrome = activity.findViewById(bottomBarId);
+        }
         View floatingNav = floatingNavId != 0 ? activity.findViewById(floatingNavId) : null;
+        View bannerStrip = activity.findViewById(R.id.banner_strip);
         final int extraTopDp = dp(activity, 8);
-        final int extraBottomDp = dp(activity, 12);
+        final int extraBottomDp = dp(activity, 8);
 
-        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
-            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            applyTopMargin(topBar, bars.top + extraTopDp);
-            applyBottomMargin(bottomBar, bars.bottom + extraBottomDp);
-            applyBottomMargin(floatingNav, bars.bottom + extraBottomDp + dp(activity, 56));
-            if (content != null) {
-                content.setPadding(
-                        content.getPaddingLeft(),
-                        bars.top,
-                        content.getPaddingRight(),
-                        content.getPaddingBottom());
-            }
-            bringChromeToFront(topBar, bottomBar, floatingNav);
-            return insets;
-        });
+        if (bannerStrip != null) {
+            bannerStrip.setVisibility(View.GONE);
+            bannerStrip.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        }
 
-        ViewCompat.requestApplyInsets(root);
-        bringChromeToFront(topBar, bottomBar, floatingNav);
+        // Small visual padding only — system bars already reserved by decorFits=true.
+        applyTopMargin(topBar, extraTopDp);
+        if (bottomChrome != null) {
+            bottomChrome.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            applyBottomMargin(bottomChrome, extraBottomDp);
+        } else if (floatingNav != null) {
+            applyBottomMargin(floatingNav, extraBottomDp);
+        }
+
+        bringChromeToFront(topBar, bottomChrome, floatingNav);
+        if (floatingNav != null) {
+            floatingNav.bringToFront();
+        }
     }
 
     public static void applyLiquidGlass(View view) {
@@ -106,7 +116,7 @@ public final class DesignInsetsHelper {
         }
         if (bottomBar != null) {
             bottomBar.bringToFront();
-            bottomBar.setElevation(dp(bottomBar, 16));
+            bottomBar.setElevation(dp(bottomBar, 20));
         }
         if (floatingNav != null) {
             floatingNav.bringToFront();

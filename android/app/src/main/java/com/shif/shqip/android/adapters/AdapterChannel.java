@@ -1,15 +1,6 @@
 package com.shif.shqip.android.adapters;
 
 import static com.shif.shqip.android.Config.LOAD_MORE;
-import static com.solodroidx.ads.util.Constant.ADMOB;
-import static com.solodroidx.ads.util.Constant.APPLOVIN;
-import static com.solodroidx.ads.util.Constant.APPLOVIN_DISCOVERY;
-import static com.solodroidx.ads.util.Constant.APPLOVIN_MAX;
-import static com.solodroidx.ads.util.Constant.FACEBOOK;
-import static com.solodroidx.ads.util.Constant.FAN;
-import static com.solodroidx.ads.util.Constant.GOOGLE_AD_MANAGER;
-import static com.solodroidx.ads.util.Constant.STARTAPP;
-import static com.solodroidx.ads.util.Constant.WORTISE;
 
 import android.app.Activity;
 import android.content.Context;
@@ -58,7 +49,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private OnItemClickListener mOnItemClickListener;
     private OnItemOverflowClickListener mOnItemOverflowClickListener;
     boolean scrolling = false;
-    private static final Object NATIVE_AD_BOUND_TAG = new Object();
+    private static final int NATIVE_AD_BOUND_TAG_KEY = R.id.recyclerView;
     SharedPref sharedPref;
     AdsPref adsPref;
     AdsManager adsManager;
@@ -161,10 +152,10 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, final int position) {
         if (holder instanceof OriginalViewHolder) {
-            final Channel p = (Channel) items.get(position);
+            final Channel p = items.get(position);
             final OriginalViewHolder vItem = (OriginalViewHolder) holder;
 
-            vItem.channel_name.setText(p.channel_name);
+            vItem.channel_name.setText(p.channel_name != null ? p.channel_name : "");
 
             vItem.channel_category.setText(CategoryDisplayHelper.displayName(p.category_name));
             if (Config.ENABLE_CHANNEL_LIST_CATEGORY_NAME) {
@@ -174,7 +165,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             }
 
             if (p.channel_type != null && p.channel_type.equals("YOUTUBE")) {
-                if (!p.channel_image.equals("")) {
+                if (!TextUtils.isEmpty(p.channel_image)) {
                     loadChannelImage(vItem.channel_image, resolveChannelImage(p));
                 } else {
                     loadChannelImage(vItem.channel_image,
@@ -203,14 +194,32 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             });
 
         } else if (holder instanceof NativeAdViewHolder) {
-            try {
-                adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
-            } catch (Exception e) {
-                Log.e("AdapterChannel", "native bind failed", e);
+            Object bound = holder.itemView.getTag(NATIVE_AD_BOUND_TAG_KEY);
+            if (bound == null) {
+                try {
+                    holder.itemView.setVisibility(View.VISIBLE);
+                    adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
+                    holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, Boolean.TRUE);
+                } catch (Exception e) {
+                    Log.e("AdapterChannel", "native bind failed", e);
+                    // Keep slot for a later rebind attempt instead of permanently collapsing.
+                    holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, null);
+                    holder.itemView.postDelayed(() -> {
+                        try {
+                            if (holder.getBindingAdapterPosition() == RecyclerView.NO_POSITION) {
+                                return;
+                            }
+                            adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
+                            holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, Boolean.TRUE);
+                            holder.itemView.setVisibility(View.VISIBLE);
+                        } catch (Exception retryError) {
+                            Log.e("AdapterChannel", "native rebind failed", retryError);
+                            holder.itemView.setVisibility(View.GONE);
+                        }
+                    }, 1500L);
+                }
             }
-        }
-
-        else {
+        } else {
             ((ProgressViewHolder) holder).progressBar.setIndeterminate(true);
         }
 
@@ -232,6 +241,17 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     @Override
+    public void onViewRecycled(@NonNull RecyclerView.ViewHolder holder) {
+        if (holder instanceof OriginalViewHolder) {
+            ImageView image = ((OriginalViewHolder) holder).channel_image;
+            if (image != null) {
+                Glide.with(context).clear(image);
+            }
+        }
+        super.onViewRecycled(holder);
+    }
+
+    @Override
     public int getItemCount() {
         return items.size();
     }
@@ -239,14 +259,13 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     @Override
     public int getItemViewType(int position) {
         Channel channel = items.get(position);
-        if (channel != null) {
-            if (channel.channel_name == null || channel.channel_name.equals("")) {
-                return VIEW_AD;
-            }
-            return VIEW_ITEM;
-        } else {
+        if (channel == null) {
             return VIEW_PROG;
         }
+        if (channel.is_native_ad) {
+            return VIEW_AD;
+        }
+        return VIEW_ITEM;
     }
 
     public void insertData(List<Channel> items) {
@@ -260,7 +279,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     public void insertDataWithNativeAd(List<Channel> items) {
         setLoaded();
         int positionStart = getItemCount();
-        if (!adsPref.getAdStatus() || !AdPlacementHelper.shouldInsertNativeAds()) {
+        if (!AdPlacementHelper.shouldInsertNativeAds(adsPref)) {
             this.items.addAll(items);
             notifyItemRangeInserted(positionStart, items.size());
             return;
@@ -271,10 +290,13 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
         int interval = AdPlacementHelper.resolveNativeInterval(adsPref);
         int channelCount = 0;
         for (Channel post : items) {
+            if (post == null || post.is_native_ad) {
+                continue;
+            }
             enriched.add(post);
             channelCount++;
             if (channelCount == startIndex || (channelCount > startIndex && (channelCount - startIndex) % interval == 0)) {
-                enriched.add(new Channel());
+                enriched.add(Channel.nativeAdPlaceholder());
             }
         }
 
@@ -285,7 +307,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
     public void setLoaded() {
         loading = false;
-        for (int i = 0; i < getItemCount(); i++) {
+        for (int i = getItemCount() - 1; i >= 0; i--) {
             if (items.get(i) == null) {
                 items.remove(i);
                 notifyItemRemoved(i);
@@ -306,6 +328,16 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
         notifyDataSetChanged();
     }
 
+    public int getRealChannelCount() {
+        int count = 0;
+        for (Channel channel : items) {
+            if (channel != null && !channel.is_native_ad) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public void setOnLoadMoreListener(OnLoadMoreListener onLoadMoreListener) {
         this.onLoadMoreListener = onLoadMoreListener;
     }
@@ -319,31 +351,10 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
                     super.onScrolled(recyclerView, dx, dy);
                     int lastPos = getLastVisibleItem(layoutManager.findLastVisibleItemPositions(null));
                     if (!loading && lastPos == getItemCount() - 1 && onLoadMoreListener != null) {
-                        if (Constant.NATIVE_AD_CHANNEL_LIST) {
-                            switch (adsPref.getMainAds()) {
-                                case ADMOB:
-                                case GOOGLE_AD_MANAGER:
-                                case FAN:
-                                case FACEBOOK:
-                                case STARTAPP:
-                                case APPLOVIN:
-                                case APPLOVIN_MAX:
-                                case APPLOVIN_DISCOVERY:
-                                case WORTISE: {
-                                    int current_page = getItemCount() / (LOAD_MORE + 1); //posts per page plus 1 Ad
-                                    onLoadMoreListener.onLoadMore(current_page);
-                                    break;
-                                }
-                                default: {
-                                    int current_page = getItemCount() / (LOAD_MORE);
-                                    onLoadMoreListener.onLoadMore(current_page);
-                                    break;
-                                }
-                            }
-                        } else {
-                            int current_page = getItemCount() / (LOAD_MORE);
-                            onLoadMoreListener.onLoadMore(current_page);
-                        }
+                        int realCount = getRealChannelCount();
+                        int pageSize = Math.max(1, LOAD_MORE);
+                        int current_page = realCount / pageSize;
+                        onLoadMoreListener.onLoadMore(current_page);
                     }
                 }
             });
@@ -363,10 +374,19 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     private void loadChannelImage(ImageView imageView, String imageUrl) {
+        if (imageView == null) {
+            return;
+        }
+        if (TextUtils.isEmpty(imageUrl)) {
+            Glide.with(context).clear(imageView);
+            imageView.setImageResource(R.drawable.ic_thumbnail);
+            return;
+        }
         Glide.with(context)
                 .load(imageUrl)
                 .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
                 .placeholder(R.drawable.ic_thumbnail)
+                .error(R.drawable.ic_thumbnail)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
                 .dontAnimate()
                 .into(imageView);

@@ -70,10 +70,15 @@ public class AdapterChannelCardV2 extends RecyclerView.Adapter<AdapterChannelCar
         holder.channelNameInline.setText(channel.channel_name);
 
         String imageUrl = resolveImageUrl(channel.channel_image);
+        Glide.with(activity).clear(holder.channelLogo);
         if (!TextUtils.isEmpty(imageUrl)) {
             Glide.with(activity)
                     .load(imageUrl)
-                    .apply(new RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                    .apply(new RequestOptions()
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            .centerInside())
+                    .placeholder(R.mipmap.ic_launcher)
+                    .error(R.mipmap.ic_launcher)
                     .into(holder.channelLogo);
         } else {
             holder.channelLogo.setImageResource(R.mipmap.ic_launcher);
@@ -102,10 +107,17 @@ public class AdapterChannelCardV2 extends RecyclerView.Adapter<AdapterChannelCar
         if (TextUtils.isEmpty(image)) {
             return "";
         }
-        if (image.startsWith("http")) {
-            return image;
+        String trimmed = image.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed;
         }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return sharedPref.getBaseUrl() + "/upload/" + trimmed.replace(" ", "%20");
+    }
+
+    @Override
+    public void onViewRecycled(@NonNull ViewHolder holder) {
+        Glide.with(activity).clear(holder.channelLogo);
+        super.onViewRecycled(holder);
     }
 
     @Override

@@ -45,6 +45,23 @@
                     android:clickable="false"
                     android:focusable="false" />
 
+                <TextView
+                    android:id="@+id/live_badge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|start"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginTop="56dp"
+                    android:background="@drawable/bg_v2_live_badge"
+                    android:paddingStart="10dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="4dp"
+                    android:text="● LIVE"
+                    android:textColor="@color/color_white"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -53,24 +70,9 @@
                     android:padding="20dp">
 
                     <TextView
-                        android:id="@+id/live_badge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/bg_v2_live_badge"
-                        android:paddingStart="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingEnd="10dp"
-                        android:paddingBottom="4dp"
-                        android:text="● LIVE"
-                        android:textColor="@color/color_white"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
                         android:id="@+id/hero_title"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
                         android:text="Shif Shqip"
                         android:textColor="@color/v2_text_primary"
                         android:textSize="28sp"
@@ -237,11 +239,14 @@
             android:tint="@color/color_white" />
     </LinearLayout>
 
+    <!-- Bottom chrome: 3-button nav ABOVE banner (OneIPTV). Transparent — no black strip when banner gone. -->
     <LinearLayout
-        android:id="@+id/bottom_container"
+        android:id="@+id/bottom_chrome"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
+        android:background="@android:color/transparent"
+        android:elevation="24dp"
         android:gravity="center_horizontal"
         android:orientation="vertical">
 
@@ -251,7 +256,7 @@
             android:layout_height="56dp"
             android:layout_marginBottom="8dp"
             android:background="@drawable/bg_v2_glass_nav_pill"
-            android:elevation="24dp"
+            android:elevation="28dp"
             android:gravity="center"
             android:orientation="horizontal"
             android:paddingStart="12dp"
@@ -261,6 +266,7 @@
                 android:id="@+id/nav_home"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
+                android:layout_marginEnd="14dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/title_nav_recent"
                 android:src="@drawable/ic_nav_home"
@@ -270,6 +276,7 @@
                 android:id="@+id/nav_categories"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
+                android:layout_marginEnd="14dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/title_nav_category"
                 android:src="@drawable/ic_nav_category"
@@ -285,10 +292,25 @@
                 android:tint="@color/color_white" />
         </LinearLayout>
 
-        <com.solodroidx.ads.ui.BannerAdView
-            android:id="@+id/bannerAdView"
+        <!-- Banner ONLY visible when AdMob fills — GONE otherwise (no black bar) -->
+        <FrameLayout
+            android:id="@+id/banner_strip"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:background="@android:color/transparent"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:id="@+id/admob_banner_host"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <com.solodroidx.ads.ui.BannerAdView
+                android:id="@+id/bannerAdView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone" />
+        </FrameLayout>
     </LinearLayout>
 
 </FrameLayout>

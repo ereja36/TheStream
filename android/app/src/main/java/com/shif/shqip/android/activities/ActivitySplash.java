@@ -7,6 +7,7 @@ import android.app.Application;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -28,6 +29,8 @@ import com.google.android.material.button.MaterialButton;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
+import androidx.core.view.WindowCompat;
 
 import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
@@ -49,7 +52,6 @@ import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.Tools;
 import com.bumptech.glide.Glide;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.solodroidx.ads.appopen.AppOpenAd;
 
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -87,7 +89,14 @@ public class ActivitySplash extends AppCompatActivity {
         deviceId = DeviceApiHelper.getLocalDeviceId(this);
 
         img_splash = findViewById(R.id.img_splash);
-        img_splash.setImageResource(R.drawable.bg_splash_default);
+        img_splash.setImageResource(R.drawable.bg_splash_logo_white);
+        // Normal system bars (not immersive) so notifications stay usable.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
+        getWindow().setStatusBarColor(ContextCompat.getColor(this, R.color.shif_red));
+        getWindow().setNavigationBarColor(ContextCompat.getColor(this, R.color.shif_red));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
 
         if (ENABLE_VPN_ACCESS) {
             Tools.postDelayed(this::requestConfig, Config.DELAY_SPLASH);
@@ -471,7 +480,6 @@ public class ActivitySplash extends AppCompatActivity {
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
             adsManager.loadAppOpenAd(true, true, () -> {
-                AppOpenAd.isAppOpenAdLoaded = false;
                 preloadNextAppOpenAd();
                 launch.run();
             });
@@ -500,7 +508,6 @@ public class ActivitySplash extends AppCompatActivity {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        AppOpenAd.isAppOpenAdLoaded = false;
         startupExecutor.shutdownNow();
     }
 

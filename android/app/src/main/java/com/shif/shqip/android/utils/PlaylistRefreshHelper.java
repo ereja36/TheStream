@@ -37,7 +37,7 @@ public final class PlaylistRefreshHelper {
                 if (result.blocked || activity.isFinishing()) {
                     return;
                 }
-                if (onUpdated != null && (result.channelsUpdated || sharedPref.hasPlaylistChannels())) {
+                if (onUpdated != null && result.channelsUpdated) {
                     activity.runOnUiThread(() -> {
                         if (!activity.isFinishing()) {
                             onUpdated.run();
