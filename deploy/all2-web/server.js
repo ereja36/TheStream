@@ -13284,33 +13284,77 @@ function startMpegtsPlayback(url,attemptId){
     scheduleRetry({allowFallback:true},attemptId);
     return;
   }
+  // Resolve relative /k1/a3relay to absolute same-origin URL for fetch().
+  let playUrl=String(url||'');
   try{
+    if(playUrl.startsWith('/')) playUrl=new URL(playUrl, window.location.origin).toString();
+  }catch{}
+  // Cache-bust so each retry gets a fresh proxy race.
+  try{
+    const u=new URL(playUrl);
+    u.searchParams.set('_', String(Date.now()));
+    playUrl=u.toString();
+  }catch{}
+  let loadWatch=null;
+  const clearLoadWatch=()=>{ if(loadWatch){ clearTimeout(loadWatch); loadWatch=null; } };
+  try{
+    if(mpegts.LoggingControl){
+      try{ mpegts.LoggingControl.enableVerbose=false; }catch{}
+    }
     const player=mpegts.createPlayer({
       type:'mse',
       isLive:true,
-      url:url,
-      withCredentials:false
+      liveBufferLatencyChasing:true,
+      url:playUrl,
+      withCredentials:false,
+      hasAudio:true,
+      hasVideo:true
     },{
       enableWorker:true,
       enableStashBuffer:true,
-      stashInitialSize:384,
+      stashInitialSize:512,
+      lazyLoad:false,
+      lazyLoadMaxDuration:0,
+      autoCleanupSourceBuffer:true,
       liveBufferLatencyChasing:true,
-      liveBufferLatencyMaxLatency:8,
-      liveBufferLatencyMinRemain:1.5
+      liveBufferLatencyMaxLatency:10,
+      liveBufferLatencyMinRemain:1.2
     });
     mpegtsPlayer=player;
-    player.on(mpegts.Events.ERROR,()=>{
+    player.on(mpegts.Events.ERROR,(errType, errDetail)=>{
       if(attemptId!==playbackAttempt)return;
+      clearLoadWatch();
+      const detail=String(errDetail||errType||'error');
+      setStatus('warn','MPEG-TS gabim ('+detail.slice(0,40)+'), riprovë...');
       scheduleRetry({allowFallback:false},attemptId);
+    });
+    player.on(mpegts.Events.LOADING_COMPLETE,()=>{
+      // Live streams shouldn't complete — if they do, retry.
+      if(attemptId!==playbackAttempt)return;
     });
     player.on(mpegts.Events.STATISTICS_INFO,()=>{
       if(attemptId!==playbackAttempt)return;
+      clearLoadWatch();
       markHealthyPlayback(attemptId);
+    });
+    player.on(mpegts.Events.MEDIA_INFO,()=>{
+      if(attemptId!==playbackAttempt)return;
+      clearLoadWatch();
+      setStatus('info','MPEG-TS u gjet, po fillon...');
+      video.play().catch(()=>{});
     });
     player.attachMediaElement(video);
     player.load();
     video.play().catch(()=>{});
+    loadWatch=setTimeout(()=>{
+      if(attemptId!==playbackAttempt)return;
+      if(video && !video.paused && video.currentTime>0.2){ markHealthyPlayback(attemptId); return; }
+      setStatus('warn','A3 vonon (proxy), duke riprovuar...');
+      try{ player.pause(); player.unload(); }catch{}
+      scheduleRetry({allowFallback:false},attemptId);
+    }, 14000);
   }catch(err){
+    clearLoadWatch();
     scheduleRetry({allowFallback:true},attemptId);
   }
 }

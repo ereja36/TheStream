@@ -2,11 +2,10 @@
 
 /**
  * Same-origin A3 relay for fastlycache (.js HLS gate) → anytools MPEG-TS.
- * Web Chrome cannot use CF Worker (DC IP blocked). HTTP proxies can reach the
- * gate; this module fetches via a sticky proxy pool.
  *
- * For browser playback we collapse gate→anytools into one video/mp2t response
- * (HLS.js cannot consume an endless MPEG-TS "fragment").
+ * Free HTTP proxies are flaky: race several in parallel with short timeouts,
+ * remember winners, and collapse gate→anytools into one video/mp2t response
+ * (HLS.js cannot consume an endless MPEG-TS fragment).
  */
 
 const axios = require('axios');
@@ -14,9 +13,13 @@ const { URL } = require('url');
 const http = require('http');
 const https = require('https');
 
-const PROXY_LIST_URL =
+const PROXY_LIST_URLS = [
   process.env.A3_PROXY_LIST_URL ||
-  'https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=all&ssl=all&anonymity=elite';
+    'https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=3000&country=all&ssl=all&anonymity=elite',
+  'https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt',
+  'https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt'
+].filter(Boolean);
+
 const STATIC_PROXIES = String(process.env.A3_FASTLY_HTTP_PROXIES || '')
   .split(',')
   .map((s) => s.trim())
@@ -33,9 +36,15 @@ const DEFAULT_HEADERS = {
   'Accept-Encoding': 'identity'
 };
 
+const GATE_TIMEOUT_MS = 8000;
+const STREAM_TIMEOUT_MS = 20000;
+const FIRST_BYTE_MS = 10000;
+const RACE_SIZE = 10;
+
 let proxyPool = STATIC_PROXIES.slice();
 let proxyPoolTs = 0;
 const sticky = new Map();
+const winners = [];
 const PROXY_TTL_MS = 10 * 60 * 1000;
 
 function isAllowedUpstream(url = '') {
@@ -60,20 +69,30 @@ function parseProxy(proxyUrl) {
   };
 }
 
+function normalizeProxyLine(line = '') {
+  const p = String(line || '').trim().replace(/\r/g, '');
+  if (!p) return '';
+  if (/^https?:\/\//i.test(p)) return p;
+  if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(p)) return `http://${p}`;
+  return '';
+}
+
 async function refreshProxyPool(force = false) {
-  if (!force && proxyPool.length && Date.now() - proxyPoolTs < 5 * 60 * 1000) {
+  if (!force && proxyPool.length && Date.now() - proxyPoolTs < 3 * 60 * 1000) {
     return proxyPool;
   }
   const merged = STATIC_PROXIES.slice();
-  try {
-    const res = await axios.get(PROXY_LIST_URL, { timeout: 10000, responseType: 'text' });
-    const text = String(res.data || '');
-    for (const line of text.split(/\r?\n/)) {
-      const p = String(line || '').trim();
-      if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(p)) merged.push(`http://${p}`);
+  for (const listUrl of PROXY_LIST_URLS) {
+    try {
+      const res = await axios.get(listUrl, { timeout: 8000, responseType: 'text', validateStatus: () => true });
+      if (res.status >= 400) continue;
+      for (const line of String(res.data || '').split(/\r?\n/)) {
+        const p = normalizeProxyLine(line);
+        if (p) merged.push(p);
+      }
+    } catch {
+      // keep going
     }
-  } catch {
-    // keep previous
   }
   proxyPool = [...new Set(merged)];
   proxyPoolTs = Date.now();
@@ -112,6 +131,10 @@ function rememberSticky(key, proxy) {
   if (!key || !proxy) return;
   sticky.set(key, { proxy, ts: Date.now() });
   if (sticky.size > 500) sticky.delete(sticky.keys().next().value);
+  if (!winners.includes(proxy)) {
+    winners.unshift(proxy);
+    if (winners.length > 40) winners.pop();
+  }
 }
 
 function corsHeaders(origin = '*') {
@@ -119,39 +142,9 @@ function corsHeaders(origin = '*') {
     'Access-Control-Allow-Origin': origin || '*',
     'Access-Control-Allow-Methods': 'GET,HEAD,OPTIONS',
     'Access-Control-Allow-Headers': '*',
-    'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges, Content-Type',
+    'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges, Content-Type, X-A3-Relay-Format',
     'Cache-Control': 'no-store'
   };
-}
-
-function rewriteManifest(text, requestUrl, relayBase, rh) {
-  const rhPart = rh ? `&rh=${encodeURIComponent(rh)}` : '';
-  const base = `${relayBase}?u=`;
-  return String(text || '')
-    .split('\n')
-    .map((line) => {
-      const trim = line.trim();
-      if (/^#EXTINF:\s*0\s*,?/i.test(trim)) return '#EXTINF:6.000,';
-      if (/^#EXT-X-ENDLIST/i.test(trim)) return '';
-      if (!trim || trim.startsWith('#')) {
-        return line.replace(/URI="([^"]+)"/gi, (_, u) => {
-          try {
-            const abs = new URL(u, requestUrl).toString();
-            return `URI="${base}${encodeURIComponent(abs)}${rhPart}"`;
-          } catch {
-            return _;
-          }
-        });
-      }
-      try {
-        const abs = new URL(trim, requestUrl).toString();
-        return `${base}${encodeURIComponent(abs)}${rhPart}`;
-      } catch {
-        return line;
-      }
-    })
-    .filter((l, i, arr) => l !== '' || (arr[i - 1] || '') !== '')
-    .join('\n');
 }
 
 function extractFirstMediaUri(manifestText = '', baseUrl = '') {
@@ -171,17 +164,92 @@ function isAnytoolsUrl(url = '') {
   return /anytools\.eu\.org|unique-user-id=/i.test(String(url || ''));
 }
 
+function looksLikeGatePlaylist(buf, ct = '') {
+  const peek = Buffer.from(buf || []).slice(0, 120).toString('utf8').trimStart();
+  if (/<\s*html|404 Not Found|CyberPanel/i.test(peek)) return false;
+  return peek.startsWith('#EXT') || /mpegurl|javascript|text\/plain/i.test(String(ct || ''));
+}
+
 async function axiosGet(targetUrl, headers, proxyUrl, opts = {}) {
   const proxy = parseProxy(proxyUrl);
   return axios.get(targetUrl, {
     headers,
     proxy,
-    timeout: opts.timeout || 20000,
+    timeout: opts.timeout || GATE_TIMEOUT_MS,
     maxRedirects: opts.maxRedirects == null ? 5 : opts.maxRedirects,
     responseType: opts.responseType || 'arraybuffer',
     validateStatus: () => true,
-    httpAgent: new http.Agent({ keepAlive: false }),
-    httpsAgent: new https.Agent({ keepAlive: false, rejectUnauthorized: false })
+    transitional: { clarifyTimeoutError: true },
+    httpAgent: new http.Agent({ keepAlive: false, timeout: opts.timeout || GATE_TIMEOUT_MS }),
+    httpsAgent: new https.Agent({
+      keepAlive: false,
+      rejectUnauthorized: false,
+      timeout: opts.timeout || GATE_TIMEOUT_MS
+    })
+  });
+}
+
+function orderProxies(pool, stickyKey) {
+  const prefer = pickSticky(stickyKey, pool);
+  const ordered = [];
+  const seen = new Set();
+  const push = (p) => {
+    if (!p || seen.has(p) || !pool.includes(p)) return;
+    seen.add(p);
+    ordered.push(p);
+  };
+  push(prefer);
+  for (const w of winners) push(w);
+  // Shuffle remainder lightly so races don't all hit the same dead proxies.
+  const rest = pool.filter((p) => !seen.has(p));
+  for (let i = rest.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [rest[i], rest[j]] = [rest[j], rest[i]];
+  }
+  for (const p of rest) push(p);
+  return ordered;
+}
+
+async function raceGate(targetUrl, headers, proxies) {
+  const batch = proxies.slice(0, RACE_SIZE);
+  if (!batch.length) throw new Error('no proxy');
+
+  let lastErr = 'race empty';
+  let remaining = batch.length;
+  return await new Promise((resolve, reject) => {
+    let done = false;
+    const finishOk = (payload) => {
+      if (done) return;
+      done = true;
+      resolve(payload);
+    };
+    const finishErr = () => {
+      remaining -= 1;
+      if (!done && remaining <= 0) reject(new Error(lastErr || 'gate race failed'));
+    };
+
+    for (const proxy of batch) {
+      axiosGet(targetUrl, headers, proxy, { timeout: GATE_TIMEOUT_MS, responseType: 'arraybuffer' })
+        .then((up) => {
+          if (done) return;
+          if (up.status !== 200) {
+            lastErr = `status ${up.status}`;
+            finishErr();
+            return;
+          }
+          const buf = Buffer.from(up.data || []);
+          if (!looksLikeGatePlaylist(buf, up.headers['content-type'])) {
+            lastErr = 'not playlist';
+            finishErr();
+            return;
+          }
+          finishOk({ up, buf, proxy });
+        })
+        .catch((err) => {
+          lastErr = String(err && err.message ? err.message : err);
+          finishErr();
+        });
+    }
   });
 }
 
@@ -196,10 +264,53 @@ function pipeMpegTs(req, res, upstream, origin) {
     'Content-Type': /mp2t|octet-stream|video\//i.test(ct) ? 'video/mp2t' : ct,
     'X-A3-Relay-Format': 'mpegts'
   });
+
+  let gotByte = false;
+  const firstByteTimer = setTimeout(() => {
+    if (gotByte) return;
+    try { upstream.data.destroy(); } catch {}
+    try {
+      if (!res.headersSent) {
+        res.writeHead(502, { ...corsHeaders(origin), 'Content-Type': 'text/plain' });
+      }
+      res.end('A3 relay first-byte timeout');
+    } catch {}
+  }, FIRST_BYTE_MS);
+
+  upstream.data.on('data', () => {
+    if (!gotByte) {
+      gotByte = true;
+      clearTimeout(firstByteTimer);
+    }
+  });
+  upstream.data.on('error', () => {
+    clearTimeout(firstByteTimer);
+  });
+  upstream.data.on('end', () => clearTimeout(firstByteTimer));
+
   upstream.data.pipe(res);
   req.on('close', () => {
+    clearTimeout(firstByteTimer);
     try { upstream.data.destroy(); } catch {}
   });
+}
+
+async function openAnytoolsStream(mediaUri, headers, proxy) {
+  const up = await axiosGet(mediaUri, headers, proxy, {
+    timeout: STREAM_TIMEOUT_MS,
+    maxRedirects: 5,
+    responseType: 'stream'
+  });
+  if (up.status !== 200) {
+    try { up.data.destroy(); } catch {}
+    throw new Error(`anytools ${up.status}`);
+  }
+  const ct = String(up.headers['content-type'] || '');
+  if (/text\/html|application\/json/i.test(ct)) {
+    try { up.data.destroy(); } catch {}
+    throw new Error(`bad ctype ${ct}`);
+  }
+  return up;
 }
 
 async function handleA3Relay(req, res, options = {}) {
@@ -220,15 +331,12 @@ async function handleA3Relay(req, res, options = {}) {
     }
   }
   const rhRaw = String(req.query?.rh || '').trim();
-  // fmt=hls keeps classic rewritten playlist (debug). Default collapses to MPEG-TS for web.
-  const preferHls = String(req.query?.fmt || '').trim().toLowerCase() === 'hls';
   if (!/^https?:\/\//i.test(target) || !isAllowedUpstream(target)) {
     res.writeHead(400, { ...corsHeaders(origin), 'Content-Type': 'text/plain' });
     return res.end('bad u');
   }
 
   const headers = decodeRh(rhRaw);
-  // Sticky by client only — gate (.js) and anytools hop must share the same egress IP.
   const stickyKey = String(options.clientIp || req.ip || req.headers['cf-connecting-ip'] || 'anon');
   const pool = await refreshProxyPool(false);
   if (!pool.length) {
@@ -236,81 +344,40 @@ async function handleA3Relay(req, res, options = {}) {
     return res.end('no proxy');
   }
 
-  const prefer = pickSticky(stickyKey, pool);
-  const ordered = prefer ? [prefer, ...pool.filter((p) => p !== prefer)] : pool.slice();
-  const relayBase = String(options.relayBase || '/k1/a3relay');
-  const wantStream = isAnytoolsUrl(target);
-
+  const ordered = orderProxies(pool, stickyKey);
   let lastErr = '';
-  for (const proxy of ordered.slice(0, 25)) {
-    try {
-      if (wantStream) {
-        const up = await axiosGet(target, headers, proxy, {
-          timeout: 45000,
-          maxRedirects: 5,
-          responseType: 'stream'
-        });
-        if (up.status !== 200) {
-          try { up.data.destroy(); } catch {}
-          throw new Error(`upstream ${up.status}`);
-        }
+
+  // Direct anytools hop (already resolved).
+  if (isAnytoolsUrl(target)) {
+    for (const proxy of ordered.slice(0, 15)) {
+      try {
+        const up = await openAnytoolsStream(target, headers, proxy);
         rememberSticky(stickyKey, proxy);
         pipeMpegTs(req, res, up, origin);
         return;
+      } catch (err) {
+        lastErr = String(err && err.message ? err.message : err);
       }
+    }
+    res.writeHead(502, { ...corsHeaders(origin), 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end(`A3 relay failed (${lastErr || 'anytools'})`);
+  }
 
-      const up = await axiosGet(target, headers, proxy, { timeout: 20000, maxRedirects: 5 });
-      if (up.status !== 200) throw new Error(`status ${up.status}`);
-      const buf = Buffer.from(up.data || []);
-      const peek = buf.slice(0, 64).toString('utf8').trimStart();
-      const ct = String(up.headers['content-type'] || '');
-      if (/<\s*html|404 Not Found|CyberPanel/i.test(peek)) {
-        throw new Error('html block');
-      }
+  // Gate (.js): race proxies, then follow anytools on the winner.
+  for (let round = 0; round < 3; round += 1) {
+    const slice = ordered.slice(round * RACE_SIZE, (round + 1) * RACE_SIZE);
+    if (!slice.length) break;
+    try {
+      const { buf, proxy, up } = await raceGate(target, headers, slice);
       rememberSticky(stickyKey, proxy);
-
-      if (peek.startsWith('#EXT') || /mpegurl|javascript|text\/plain/i.test(ct)) {
-        const finalUrl = String(up.request?.res?.responseUrl || up.config?.url || target);
-        const manifestText = buf.toString('utf8');
-        const mediaUri = extractFirstMediaUri(manifestText, finalUrl);
-
-        // Default web path: follow anytools on the SAME proxy and stream MPEG-TS.
-        // HLS.js cannot finish downloading an endless TS "fragment".
-        if (!preferHls && mediaUri && isAnytoolsUrl(mediaUri) && isAllowedUpstream(mediaUri)) {
-          const tsUp = await axiosGet(mediaUri, headers, proxy, {
-            timeout: 45000,
-            maxRedirects: 5,
-            responseType: 'stream'
-          });
-          if (tsUp.status !== 200) {
-            try { tsUp.data.destroy(); } catch {}
-            throw new Error(`anytools ${tsUp.status}`);
-          }
-          pipeMpegTs(req, res, tsUp, origin);
-          return;
-        }
-
-        const body = rewriteManifest(manifestText, finalUrl, relayBase, rhRaw);
-        res.writeHead(200, {
-          ...corsHeaders(origin),
-          'Content-Type': 'application/vnd.apple.mpegurl',
-          'X-A3-Relay-Format': 'hls'
-        });
-        return res.end(body);
+      const finalUrl = String(up.request?.res?.responseUrl || up.config?.url || target);
+      const mediaUri = extractFirstMediaUri(buf.toString('utf8'), finalUrl);
+      if (!mediaUri || !isAnytoolsUrl(mediaUri) || !isAllowedUpstream(mediaUri)) {
+        throw new Error('no anytools uri');
       }
-      if (buf[0] === 0x47 || /mp2t|octet-stream/i.test(ct)) {
-        res.writeHead(200, {
-          ...corsHeaders(origin),
-          'Content-Type': 'video/mp2t',
-          'X-A3-Relay-Format': 'mpegts'
-        });
-        return res.end(buf);
-      }
-      res.writeHead(200, {
-        ...corsHeaders(origin),
-        'Content-Type': ct || 'application/octet-stream'
-      });
-      return res.end(buf);
+      const tsUp = await openAnytoolsStream(mediaUri, headers, proxy);
+      pipeMpegTs(req, res, tsUp, origin);
+      return;
     } catch (err) {
       lastErr = String(err && err.message ? err.message : err);
     }
