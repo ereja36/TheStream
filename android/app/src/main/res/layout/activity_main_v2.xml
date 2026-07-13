@@ -45,6 +45,23 @@
                     android:clickable="false"
                     android:focusable="false" />
 
+                <TextView
+                    android:id="@+id/live_badge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|start"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginTop="56dp"
+                    android:background="@drawable/bg_v2_live_badge"
+                    android:paddingStart="10dp"
+                    android:paddingTop="4dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="4dp"
+                    android:text="● LIVE"
+                    android:textColor="@color/color_white"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -53,24 +70,9 @@
                     android:padding="20dp">
 
                     <TextView
-                        android:id="@+id/live_badge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/bg_v2_live_badge"
-                        android:paddingStart="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingEnd="10dp"
-                        android:paddingBottom="4dp"
-                        android:text="● LIVE"
-                        android:textColor="@color/color_white"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
                         android:id="@+id/hero_title"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
                         android:text="Shif Shqip"
                         android:textColor="@color/v2_text_primary"
                         android:textSize="28sp"
@@ -242,6 +244,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
+        android:background="@color/v2_bg"
         android:elevation="20dp"
         android:gravity="center_horizontal"
         android:orientation="vertical">
@@ -288,20 +291,18 @@
                 android:tint="@color/color_white" />
         </LinearLayout>
 
-        <!-- Sticky banner strip at the very bottom of the screen -->
+        <!-- Sticky banner: wrap_content only — no reserved empty black strip when ad is loading/missing -->
         <FrameLayout
             android:id="@+id/banner_strip"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@color/v2_bg"
-            android:minHeight="50dp">
+            android:background="@color/v2_bg">
 
             <com.solodroidx.ads.ui.BannerAdView
                 android:id="@+id/bannerAdView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_gravity="bottom"
-                android:minHeight="50dp" />
+                android:layout_gravity="bottom" />
         </FrameLayout>
     </LinearLayout>
 

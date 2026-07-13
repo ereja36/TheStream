@@ -1,9 +1,11 @@
 package com.shif.shqip.android.utils;
 
 import android.app.Activity;
+import android.graphics.Color;
 import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
 
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -27,8 +29,16 @@ public final class DesignInsetsHelper {
         SharedPref sharedPref = new SharedPref(activity);
         boolean lightBars = !sharedPref.getIsDarkTheme();
 
-        WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), true);
+        // Edge-to-edge so content/bg fill behind the gesture bar (no black contrast strip).
+        Window window = activity.getWindow();
+        WindowCompat.setDecorFitsSystemWindows(window, false);
         Tools.applyDesignSystemBars(activity, lightBars);
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setNavigationBarContrastEnforced(false);
+            window.setStatusBarContrastEnforced(false);
+        }
 
         View root = activity.findViewById(rootId);
         if (root == null) {
@@ -40,17 +50,28 @@ public final class DesignInsetsHelper {
         View content = contentId != 0 ? activity.findViewById(contentId) : null;
         View floatingNav = floatingNavId != 0 ? activity.findViewById(floatingNavId) : null;
         final int extraTopDp = dp(activity, 8);
-        final int extraBottomDp = dp(activity, 12);
+        final int extraBottomDp = dp(activity, 8);
 
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             applyTopMargin(topBar, bars.top + extraTopDp);
-            applyBottomMargin(bottomBar, bars.bottom + extraBottomDp);
-            applyBottomMargin(floatingNav, bars.bottom + extraBottomDp + dp(activity, 56));
+            // Pad (don't margin) the bottom chrome so the app bg fills the gesture area —
+            // this removes the solid black system strip under the floating nav.
+            if (bottomBar != null) {
+                applyBottomMargin(bottomBar, 0);
+                bottomBar.setPadding(
+                        bottomBar.getPaddingLeft(),
+                        bottomBar.getPaddingTop(),
+                        bottomBar.getPaddingRight(),
+                        bars.bottom + extraBottomDp);
+            }
+            if (floatingNav != null) {
+                applyBottomMargin(floatingNav, bars.bottom + extraBottomDp + dp(activity, 56));
+            }
             if (content != null) {
                 content.setPadding(
                         content.getPaddingLeft(),
-                        bars.top,
+                        content.getPaddingTop(),
                         content.getPaddingRight(),
                         content.getPaddingBottom());
             }

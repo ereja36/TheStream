@@ -99,17 +99,14 @@ public class AdsManager {
         if (!placement || !adsPref.getAdStatus()) {
             return;
         }
-        // Keep the sticky banner strip visible; Solodroid starts the inner container as GONE.
+        // Keep BannerAdView in the hierarchy; Solodroid toggles admob_* containers on load/fail.
+        // Do not force empty containers visible — that reserved a blank dark strip at the bottom.
         View bannerRoot = activity.findViewById(R.id.bannerAdView);
         if (bannerRoot != null) {
             bannerRoot.setVisibility(View.VISIBLE);
             View strip = activity.findViewById(R.id.banner_strip);
             if (strip != null) {
                 strip.setVisibility(View.VISIBLE);
-            }
-            View admobContainer = bannerRoot.findViewById(com.solodroidx.ads.R.id.admob_banner_view_container);
-            if (admobContainer != null) {
-                admobContainer.setVisibility(View.VISIBLE);
             }
         }
         bannerAd.setAdStatus("1")

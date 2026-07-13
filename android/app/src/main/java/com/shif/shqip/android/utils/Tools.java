@@ -142,11 +142,18 @@ public class Tools {
         } else {
             bgColor = ContextCompat.getColor(activity, R.color.v2_bg);
         }
-        activity.getWindow().setStatusBarColor(bgColor);
-        activity.getWindow().setNavigationBarColor(bgColor);
-        WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView())
+        Window window = activity.getWindow();
+        window.setStatusBarColor(bgColor);
+        window.setNavigationBarColor(bgColor);
+        // Android 10+ / targetSdk 35 can paint a black contrast scrim over the nav bar —
+        // disable it so the gesture area matches the app background (OneIPTV-style).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.setNavigationBarContrastEnforced(false);
+            window.setStatusBarContrastEnforced(false);
+        }
+        WindowCompat.getInsetsController(window, window.getDecorView())
                 .setAppearanceLightStatusBars(lightBars);
-        WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView())
+        WindowCompat.getInsetsController(window, window.getDecorView())
                 .setAppearanceLightNavigationBars(lightBars);
     }
 
