@@ -18,8 +18,6 @@ import com.shif.shqip.android.activities.ActivityPlayerVideo;
 import com.shif.shqip.android.activities.ActivitySplash;
 import com.shif.shqip.android.activities.MyApplication;
 import com.shif.shqip.android.databases.prefs.AdsPref;
-import com.solodroidx.ads.appopen.AppOpenAd;
-
 /**
  * Shows app-open ads when returning from background, similar to OneIPTV.
  */
@@ -97,9 +95,9 @@ public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Appli
             AdsManager adsManager = new AdsManager(activity);
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
+            // Load + show (withListener=true). Do not clear isAppOpenAdLoaded until after dismiss.
             adsManager.loadAppOpenAd(true, true, () -> {
                 lastShownAt = SystemClock.elapsedRealtime();
-                AppOpenAd.isAppOpenAdLoaded = false;
                 preloadNextAppOpenAd(activity);
             });
         } catch (Exception e) {

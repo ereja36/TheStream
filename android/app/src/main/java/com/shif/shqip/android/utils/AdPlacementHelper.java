@@ -3,18 +3,26 @@ package com.shif.shqip.android.utils;
 import android.app.Activity;
 import android.text.TextUtils;
 
+import com.shif.shqip.android.activities.ActivityCategoryDetail;
 import com.shif.shqip.android.activities.ActivityMainV2;
 import com.shif.shqip.android.activities.ActivityMainV3;
+import com.shif.shqip.android.activities.ActivitySearch;
 import com.shif.shqip.android.activities.MainActivity;
 import com.shif.shqip.android.activities.MyApplication;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 
+import java.util.Locale;
+
 /**
  * Central place to show interstitials and refresh app-open ads after remote config.
+ * Click interval is owned here; Solodroid interstitial is loaded with interval=1 so
+ * every show() call actually displays when our counter says so.
  */
 public final class AdPlacementHelper {
 
     public static final int INTERSTITIAL_EVERY_CLICKS = 3;
+    /** Solodroid only shows when its internal counter == interval; use 1 so our counter drives display. */
+    public static final int SOLODROID_SHOW_EVERY_CALL = 1;
     private static final int NATIVE_PRELOAD_COUNT = 2;
 
     private AdPlacementHelper() {
@@ -39,9 +47,11 @@ public final class AdPlacementHelper {
         if (activity == null || adsManager == null || adsPref == null || !adsPref.getAdStatus()) {
             return;
         }
-        int interval = resolveInterstitialInterval(adsPref);
+        if (!hasValidAdNetwork(adsPref)) {
+            return;
+        }
         adsManager.loadBannerAd(Constant.BANNER_HOME);
-        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, interval);
+        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, SOLODROID_SHOW_EVERY_CALL);
         preloadNativeAds(activity, adsManager, NATIVE_PRELOAD_COUNT);
     }
 
@@ -50,7 +60,7 @@ public final class AdPlacementHelper {
             return;
         }
         AdsPref adsPref = new AdsPref(activity);
-        if (!adsPref.getAdStatus()) {
+        if (!adsPref.getAdStatus() || !hasValidAdNetwork(adsPref)) {
             return;
         }
         primary.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
@@ -61,7 +71,10 @@ public final class AdPlacementHelper {
     }
 
     public static int resolveInterstitialInterval(AdsPref adsPref) {
-        return INTERSTITIAL_EVERY_CLICKS;
+        if (adsPref == null) {
+            return INTERSTITIAL_EVERY_CLICKS;
+        }
+        return adsPref.getInterstitialAdInterval();
     }
 
     public static void pauseHomeBanner(Activity activity) {
@@ -79,7 +92,7 @@ public final class AdPlacementHelper {
             return;
         }
         AdsPref adsPref = new AdsPref(activity);
-        if (!adsPref.getAdStatus()) {
+        if (!adsPref.getAdStatus() || !hasValidAdNetwork(adsPref)) {
             return;
         }
         int interval = resolveInterstitialInterval(adsPref);
@@ -95,23 +108,54 @@ public final class AdPlacementHelper {
             ((ActivityMainV2) activity).showInterstitialAd();
         } else if (activity instanceof ActivityMainV3) {
             ((ActivityMainV3) activity).showInterstitialAd();
+        } else if (activity instanceof ActivityCategoryDetail) {
+            ((ActivityCategoryDetail) activity).showInterstitialAd();
+        } else if (activity instanceof ActivitySearch) {
+            ((ActivitySearch) activity).showInterstitialAd();
         } else {
             AdsManager adsManager = new AdsManager(activity);
-            adsManager.loadInterstitialAd(true, interval);
-            adsManager.showInterstitialAd();
+            adsManager.initializeAd();
+            adsManager.loadInterstitialAd(true, SOLODROID_SHOW_EVERY_CALL);
+            // Defer show slightly so the load request can attach; Solodroid keeps the loaded ad.
+            activity.getWindow().getDecorView().postDelayed(adsManager::showInterstitialAd, 400L);
         }
     }
 
+    public static boolean shouldInsertNativeAds(AdsPref adsPref) {
+        return Constant.NATIVE_AD_CHANNEL_LIST
+                && adsPref != null
+                && adsPref.getAdStatus()
+                && hasValidAdNetwork(adsPref)
+                && isValidAdUnit(adsPref.getAdMobNativeId());
+    }
+
+    /** @deprecated Use {@link #shouldInsertNativeAds(AdsPref)} */
+    @Deprecated
     public static boolean shouldInsertNativeAds() {
         return Constant.NATIVE_AD_CHANNEL_LIST;
     }
 
     public static int resolveNativeInterval(AdsPref adsPref) {
-        return 3;
+        if (adsPref == null) {
+            return 3;
+        }
+        int interval = adsPref.getNativeAdInterval();
+        if (interval <= 0) {
+            return 3;
+        }
+        return interval;
     }
 
     public static int resolveNativeStartIndex(AdsPref adsPref) {
-        return 3;
+        if (adsPref == null) {
+            return 3;
+        }
+        int index = adsPref.getNativeAdIndex();
+        // Server index is 0-based position of first native; convert to 1-based channel count.
+        if (index < 0) {
+            return 3;
+        }
+        return Math.max(1, index + 1);
     }
 
     public static boolean hasValidAdNetwork(AdsPref adsPref) {
@@ -128,14 +172,14 @@ public final class AdPlacementHelper {
         }
         String mainAds = adsPref.getMainAds();
         if (!TextUtils.isEmpty(mainAds) && !"0".equals(mainAds)) {
-            return mainAds;
+            return mainAds.trim().toLowerCase(Locale.US);
         }
         if (hasConfiguredAdMobUnits(adsPref)) {
             return "admob";
         }
         String backup = adsPref.getBackupAds();
         if (!TextUtils.isEmpty(backup) && !"0".equals(backup) && !"none".equalsIgnoreCase(backup)) {
-            return backup;
+            return backup.trim().toLowerCase(Locale.US);
         }
         return "";
     }
@@ -143,12 +187,17 @@ public final class AdPlacementHelper {
     private static boolean hasConfiguredAdMobUnits(AdsPref adsPref) {
         return isValidAdUnit(adsPref.getAdMobBannerId())
                 || isValidAdUnit(adsPref.getAdMobInterstitialId())
-                || isValidAdUnit(adsPref.getAdMobNativeId());
+                || isValidAdUnit(adsPref.getAdMobNativeId())
+                || isValidAdUnit(adsPref.getAdMobAppOpenAdId());
     }
 
-    private static boolean isValidAdUnit(String unitId) {
-        return !TextUtils.isEmpty(unitId)
-                && !"0".equals(unitId)
-                && !unitId.startsWith("0");
+    static boolean isValidAdUnit(String unitId) {
+        if (TextUtils.isEmpty(unitId) || "0".equals(unitId)) {
+            return false;
+        }
+        // Reject placeholder-only values like "0" / "000" but allow real ca-app-pub-… IDs.
+        return unitId.startsWith("ca-app-pub-")
+                || unitId.startsWith("/")
+                || (!unitId.startsWith("0") && unitId.length() > 3);
     }
 }

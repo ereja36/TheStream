@@ -49,7 +49,6 @@ import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.Tools;
 import com.bumptech.glide.Glide;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.solodroidx.ads.appopen.AppOpenAd;
 
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -471,7 +470,6 @@ public class ActivitySplash extends AppCompatActivity {
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
             adsManager.loadAppOpenAd(true, true, () -> {
-                AppOpenAd.isAppOpenAdLoaded = false;
                 preloadNextAppOpenAd();
                 launch.run();
             });
@@ -500,7 +498,6 @@ public class ActivitySplash extends AppCompatActivity {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        AppOpenAd.isAppOpenAdLoaded = false;
         startupExecutor.shutdownNow();
     }
 

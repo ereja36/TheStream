@@ -120,7 +120,7 @@ public class ActivityMainV2 extends AppCompatActivity {
             adsManager.showInterstitialAd();
             adsManager.loadInterstitialAd(
                     Constant.INTERSTITIAL_AD_CHANNEL_LIST,
-                    AdPlacementHelper.resolveInterstitialInterval(adsPref));
+                    AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
         }
     }
 
@@ -639,10 +639,11 @@ public class ActivityMainV2 extends AppCompatActivity {
         if (TextUtils.isEmpty(image)) {
             return "";
         }
-        if (image.startsWith("http")) {
-            return image;
+        String trimmed = image.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            return trimmed;
         }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return sharedPref.getBaseUrl() + "/upload/" + trimmed.replace(" ", "%20");
     }
 
     private void handleInboxNotificationIntent(Intent intent) {

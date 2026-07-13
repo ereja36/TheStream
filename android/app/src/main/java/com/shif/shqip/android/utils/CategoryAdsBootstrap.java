@@ -37,14 +37,29 @@ public final class CategoryAdsBootstrap {
         if (activity.isFinishing()) {
             return;
         }
-        try {
-            adsManager.initializeAd();
-            adsManager.updateConsentStatus();
-            adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
-            adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, AdPlacementHelper.resolveInterstitialInterval(adsPref));
-            AdPlacementHelper.preloadNativeAds(activity, adsManager, 3);
-        } catch (Exception e) {
-            Log.e(TAG, "Category ads init failed", e);
+        if (!adsPref.getAdStatus() || !AdPlacementHelper.hasValidAdNetwork(adsPref)) {
+            return;
+        }
+        Runnable load = () -> {
+            if (activity.isFinishing()) {
+                return;
+            }
+            try {
+                adsManager.initializeAd();
+                adsManager.updateConsentStatus();
+                adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
+                adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
+                AdPlacementHelper.preloadNativeAds(activity, adsManager, 3);
+            } catch (Exception e) {
+                Log.e(TAG, "Category ads init failed", e);
+            }
+        };
+        View bannerSlot = activity.findViewById(R.id.bannerAdView);
+        if (bannerSlot != null) {
+            bannerSlot.setVisibility(View.VISIBLE);
+            bannerSlot.post(load);
+        } else {
+            load.run();
         }
     }
 }

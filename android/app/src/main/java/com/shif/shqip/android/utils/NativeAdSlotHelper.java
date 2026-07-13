@@ -25,7 +25,9 @@ public final class NativeAdSlotHelper {
             return null;
         }
         AdsPref adsPref = new AdsPref(activity);
-        if (!adsPref.getAdStatus() || !Constant.NATIVE_AD_CHANNEL_LIST) {
+        if (!adsPref.getAdStatus() || !Constant.NATIVE_AD_CHANNEL_LIST
+                || !AdPlacementHelper.hasValidAdNetwork(adsPref)
+                || !AdPlacementHelper.shouldInsertNativeAds(adsPref)) {
             return null;
         }
         try {

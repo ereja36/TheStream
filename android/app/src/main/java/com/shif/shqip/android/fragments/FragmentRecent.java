@@ -58,6 +58,7 @@ public class FragmentRecent extends Fragment {
     private int post_total = 0;
     private int failed_page = 0;
     private ShimmerFrameLayout lyt_shimmer;
+    private int shimmerGeneration = 0;
     private SharedPref sharedPref;
     private Activity activity;
     Tools tools;
@@ -314,13 +315,24 @@ public class FragmentRecent extends Fragment {
 
     private void swipeProgress(final boolean show) {
         if (!show) {
-            swipeRefreshLayout.setRefreshing(show);
-            lyt_shimmer.setVisibility(View.GONE);
+            shimmerGeneration++;
+            swipeRefreshLayout.setRefreshing(false);
             lyt_shimmer.stopShimmer();
+            lyt_shimmer.setVisibility(View.GONE);
+            if (recyclerView != null) {
+                recyclerView.setVisibility(View.VISIBLE);
+            }
             return;
         }
+        final int gen = ++shimmerGeneration;
+        if (recyclerView != null) {
+            recyclerView.setVisibility(View.INVISIBLE);
+        }
         swipeRefreshLayout.post(() -> {
-            swipeRefreshLayout.setRefreshing(show);
+            if (gen != shimmerGeneration || activity == null || activity.isFinishing()) {
+                return;
+            }
+            swipeRefreshLayout.setRefreshing(true);
             lyt_shimmer.setVisibility(View.VISIBLE);
             lyt_shimmer.startShimmer();
         });
