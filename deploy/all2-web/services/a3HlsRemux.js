@@ -232,17 +232,34 @@ async function handleA3Hls(req, res, options = {}) {
   }
 
   const headers = a3Relay.decodeRh(String(req.query?.rh || ''));
+  // Match AlbKanale PlayerActivity headers exactly (Referer/Origin/Cookie/XFF + APlayer UA).
+  if (!headers['User-Agent']) headers['User-Agent'] = 'APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0';
   const clientIp = String(options.clientIp || req.ip || req.headers['cf-connecting-ip'] || '');
   try {
     const newSid = await ensureSession({ target, headers, clientIp });
     const base = String(options.hlsBase || '/k1/a3hls');
     const play = `${base}/${newSid}/index.m3u8`;
-    res.writeHead(302, {
+    // Prefer inline playlist (200) — HLS.js on Brave/Chrome often mishandles slow 302 bootstraps.
+    // Keep 302 when client asks redirect=1 (debug / older clients).
+    const wantRedirect = String(req.query?.redirect || '') === '1';
+    if (wantRedirect) {
+      res.writeHead(302, {
+        ...cors(origin),
+        Location: play,
+        'X-A3-Hls-Session': newSid
+      });
+      return res.end(`Redirecting to ${play}`);
+    }
+    let body = fs.readFileSync(playlistPath(newSid), 'utf8');
+    // Absolute segment URIs so playlist stays valid if HLS.js resolves against bootstrap query URL.
+    body = body.replace(/^(seg_\d+\.ts)\s*$/gim, `${base}/${newSid}/$1`);
+    res.writeHead(200, {
       ...cors(origin),
-      Location: play,
-      'X-A3-Hls-Session': newSid
+      'Content-Type': 'application/vnd.apple.mpegurl',
+      'X-A3-Hls-Session': newSid,
+      'X-A3-Hls-Playlist': play
     });
-    return res.end(`Redirecting to ${play}`);
+    return res.end(body);
   } catch (err) {
     res.writeHead(502, { ...cors(origin), 'Content-Type': 'text/plain; charset=utf-8' });
     return res.end(`A3 HLS remux failed (${String(err && err.message ? err.message : err)})`);

@@ -31,7 +31,6 @@ const DEFAULT_HEADERS = {
   Origin: 'https://aliez.tv',
   Cookie: 'passport=IG2GpFng03_23122025',
   'X-Forwarded-For': '127.0.0.1',
-  'Icy-MetaData': '1',
   Accept: '*/*',
   'Accept-Encoding': 'identity'
 };

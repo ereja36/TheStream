@@ -8281,13 +8281,11 @@ function buildA3PlaybackOptionsFromChannel(channel = {}, req = null) {
       headers.Origin = 'https://video.gjirafa.com';
     }
   }
-  // Match working APlayer/ProxyPin captures (fastly/anytools + gcore VOD).
-  if (fastly || isA3GcoreUrl(channel?.url || '') || /anytools\.eu\.org|unique-user-id=/i.test(String(channel?.url || ''))) {
+  // Match AlbKanale PlayerActivity.buildDataSourceFactory exactly.
+  // Do NOT invent headers the APK does not send (Icy-MetaData broke some anytools edges).
+  if (fastly || /anytools\.eu\.org|unique-user-id=/i.test(String(channel?.url || ''))) {
     if (!Object.keys(headers).some((k) => k.toLowerCase() === 'x-forwarded-for')) {
       headers['X-Forwarded-For'] = '127.0.0.1';
-    }
-    if (!Object.keys(headers).some((k) => k.toLowerCase() === 'icy-metadata')) {
-      headers['Icy-MetaData'] = '1';
     }
     if (!Object.keys(headers).some((k) => k.toLowerCase() === 'referer')) {
       headers.Referer = 'https://aliez.tv/';
@@ -8297,6 +8295,11 @@ function buildA3PlaybackOptionsFromChannel(channel = {}, req = null) {
     }
     if (!Object.keys(headers).some((k) => k.toLowerCase() === 'cookie')) {
       headers.Cookie = 'passport=IG2GpFng03_23122025';
+    }
+  }
+  if (isA3GcoreUrl(channel?.url || '')) {
+    if (!Object.keys(headers).some((k) => k.toLowerCase() === 'x-forwarded-for')) {
+      headers['X-Forwarded-For'] = '127.0.0.1';
     }
   }
   return {
@@ -13251,18 +13254,37 @@ function startHlsPlayback(url,attemptId){
     scheduleRetry({allowFallback:true},attemptId);
     return;
   }
+  // AlbKanale TV Klan path: gate→anytools MPEG-TS remuxed to HLS. Resolve relative URLs
+  // and cache-bust a3hls bootstrap so each open gets a fresh remux session.
+  let playUrl=String(url||'');
+  try{
+    if(playUrl.startsWith('/')) playUrl=new URL(playUrl, window.location.origin).toString();
+  }catch{}
+  const isA3Hls=/\\/a3hls(\\?|\\/|$)/i.test(playUrl);
+  if(isA3Hls){
+    try{
+      const u=new URL(playUrl);
+      if(!u.pathname.match(/\\.m3u8$/i)){
+        u.searchParams.set('_', String(Date.now()));
+        playUrl=u.toString();
+      }
+    }catch{}
+    setStatus('info','Po ngarkohet (A3 HLS / AlbKanale)...');
+  }
   const player=new Hls({
-    enableWorker:true,
+    enableWorker:!isA3Hls,
     lowLatencyMode:false,
-    liveSyncDurationCount:6,
-    liveMaxLatencyDurationCount:20,
+    liveSyncDurationCount:isA3Hls?3:6,
+    liveMaxLatencyDurationCount:isA3Hls?18:20,
     maxLiveSyncPlaybackRate:1,
     backBufferLength:90,
-    maxBufferLength:60,
-    maxMaxBufferLength:120,
-    manifestLoadingMaxRetry:3,
-    levelLoadingMaxRetry:4,
-    fragLoadingMaxRetry:5
+    maxBufferLength:isA3Hls?30:60,
+    maxMaxBufferLength:isA3Hls?90:120,
+    manifestLoadingMaxRetry:4,
+    levelLoadingMaxRetry:5,
+    fragLoadingMaxRetry:6,
+    manifestLoadingTimeOut:isA3Hls?30000:10000,
+    fragLoadingTimeOut:isA3Hls?20000:20000
   });
   hlsPlayer=player;
   player.on(Hls.Events.ERROR,(_,data)=>{
@@ -13276,14 +13298,21 @@ function startHlsPlayback(url,attemptId){
       scheduleRetry({allowFallback:false},attemptId);
       return;
     }
+    // Network/manifest fatal on a3hls → soft retry same engine (new remux via cache-bust).
+    if(isA3Hls){
+      setStatus('warn','A3 HLS gabim, riprovë...');
+      scheduleRetry({allowFallback:false},attemptId);
+      return;
+    }
     scheduleRetry({allowFallback:true},attemptId);
   });
   player.on(Hls.Events.MEDIA_ATTACHED,()=>{
     if(attemptId!==playbackAttempt)return;
-    try{player.loadSource(url);}catch{scheduleRetry({allowFallback:true},attemptId);}
+    try{player.loadSource(playUrl);}catch{scheduleRetry({allowFallback:true},attemptId);}
   });
   player.on(Hls.Events.MANIFEST_PARSED,()=>{
     if(attemptId!==playbackAttempt)return;
+    setStatus('ok','Po luhet (HLS.js)');
     video.play().catch(()=>{});
   });
   player.on(Hls.Events.FRAG_BUFFERED,()=>{

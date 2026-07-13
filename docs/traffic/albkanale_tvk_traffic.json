@@ -1,0 +1,56 @@
+{
+  "apk": "https://albkanale.com/AlbKanaleV9Release5-OLD.apk",
+  "note": "No KVM/Android emulator in cloud sandbox; used ExoPlayer-faithful OkHttp replay + VPS residential proxy race.",
+  "channel": {
+    "id": "tvk",
+    "display": "TV Klan",
+    "gate": "g52l7ShD2I.js"
+  },
+  "apk_player": {
+    "ua": "APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0",
+    "headers": {
+      "Referer": "https://aliez.tv/",
+      "Origin": "https://aliez.tv",
+      "Cookie": "passport=IG2GpFng03_23122025",
+      "X-Forwarded-For": "127.0.0.1"
+    },
+    "engine_order": [
+      "DefaultMediaSourceFactory",
+      "HLS",
+      "DASH",
+      "Progressive"
+    ],
+    "source": "PlayerActivity.buildDataSourceFactory + fallbackEngine"
+  },
+  "hops": [
+    {
+      "step": "0_CHANNEL",
+      "url": "https://app-measurement.fastlycache.com/out/190126/EQZV32L053X/g52l7ShD2I.js?cid=ea92086dc75115f67f7c&time=13:07:2026&15:15:52&cip=57.128.254.213&v=16&m=Google%"
+    },
+    {
+      "step": "0_DIRECT_DC",
+      "status": 404,
+      "ct": "text/html",
+      "peek": "<!DOCTYPE html>\n<html style=\"height:100%\">\n<head>\n<meta name=\"viewport\" content="
+    },
+    {
+      "step": "3_ANYTOOLS_OPEN",
+      "status": 200,
+      "ct": "video/mp2t",
+      "finalUrl": "https://cpanel18-3211.anytools.eu.org/autologin/unique-user-id=658B85XKS25MN63/2?index.php&token=TxteABBYEwgUCQoIVgpbUABWUF4EV1ZXBgZSWgRSUVEGXQIAAVIHUwYSHhNARkoBVwg7DwIRCVAeFRRKVBZqD1AbDENSEh0QQllfVBEICVMOVl1SXgUDVx4VEVBVRg9EBggCVloSHRBTSEZUQVxZCGkBARAPUFZACFkUVV1IFwlaZlIEDlFfVhQKEAERHhoNRRVGXAhGXw4eFQNQRRZUElEbDENbBgIQGhJRXkZcTBZPR15EM2ARThBSGU1UCkYPW1cUW0FEQhAaEltCbEBdF0IXAQcLVkFACBVRGx1GWAdMZlUODV5UUUJZXV9AEAJGBkdIRAtcXQtGWBNmQQ1RRA4bBFFVBQkQSw=="
+    },
+    {
+      "step": "4_TS_VALIDATE",
+      "bytes": 13862,
+      "sync": true,
+      "hex": "474011100042f0250001c10000ff01ff"
+    }
+  ],
+  "gate_playlist": "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXT-X-ENDLIST\n#EXT-X-ALLOW-CACHE:NO\n#EXTINF:0,\nhttps://cpanel.anytools.eu.org/autologin/unique-user-id=658B85XKS25MN63/2?index.php",
+  "conclusion": [
+    "Datacenter IP => gate 404 CyberPanel HTML",
+    "Residential HTTP proxy => gate #EXTM3U with anytools URI",
+    "anytools => redirect + video/mp2t sync 0x47 (endless MPEG-TS)",
+    "Web cannot play TS directly reliably => /k1/a3hls ffmpeg remux for HLS.js"
+  ]
+}
