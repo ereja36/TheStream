@@ -138,34 +138,45 @@ async function ensureSession({ target, headers, clientIp }) {
 
   // Reuse disk playlist from any cluster worker (do not start a second ffmpeg).
   if (playlistReady(sid)) {
-    const local = sessions.get(sid);
-    if (!local || local.dead) {
-      // Another worker owns ffmpeg; just serve files.
-      return sid;
-    }
     return sid;
   }
 
   const existing = sessions.get(sid);
   if (existing && !existing.dead) {
-    await waitPlaylist(sid, 25000);
+    await waitPlaylist(sid, 28000);
     return sid;
   }
   if (existing) cleanupSession(sid);
 
-  const upstream = await a3Relay.openCollapsedTsStream(target, headers, clientIp);
-  const ffmpeg = startFfmpeg(sid, upstream);
-  sessions.set(sid, {
-    target,
-    clientIp,
-    ffmpeg,
-    upstream,
-    lastAccess: Date.now(),
-    dead: false
-  });
-  touch(sid);
-  await waitPlaylist(sid, 25000);
-  return sid;
+  let lastErr = '';
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      if (playlistReady(sid)) return sid;
+      const upstream = await a3Relay.openCollapsedTsStream(target, headers, clientIp);
+      const ffmpeg = startFfmpeg(sid, upstream);
+      sessions.set(sid, {
+        target,
+        clientIp,
+        ffmpeg,
+        upstream,
+        lastAccess: Date.now(),
+        dead: false
+      });
+      touch(sid);
+      await waitPlaylist(sid, 28000);
+      return sid;
+    } catch (err) {
+      lastErr = String(err && err.message ? err.message : err);
+      cleanupSession(sid);
+    }
+  }
+  throw new Error(lastErr || 'remux failed');
+}
+
+/** Fire-and-forget warm so /a3hls bootstrap returns before CF origin timeout. */
+function prefetchSession(target, headers, clientIp) {
+  if (!target) return;
+  ensureSession({ target, headers, clientIp }).catch(() => {});
 }
 
 function cors(origin = '*') {
@@ -268,5 +279,7 @@ async function handleA3Hls(req, res, options = {}) {
 
 module.exports = {
   handleA3Hls,
-  cleanupSession
+  cleanupSession,
+  prefetchSession,
+  ensureSession
 };

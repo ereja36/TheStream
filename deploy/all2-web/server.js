@@ -8296,6 +8296,10 @@ function buildA3PlaybackOptionsFromChannel(channel = {}, req = null) {
     if (!Object.keys(headers).some((k) => k.toLowerCase() === 'cookie')) {
       headers.Cookie = 'passport=IG2GpFng03_23122025';
     }
+    // Strip headers the APK never sends on fastly/anytools.
+    for (const key of Object.keys(headers)) {
+      if (String(key).toLowerCase() === 'icy-metadata') delete headers[key];
+    }
   }
   if (isA3GcoreUrl(channel?.url || '')) {
     if (!Object.keys(headers).some((k) => k.toLowerCase() === 'x-forwarded-for')) {
@@ -18122,6 +18126,16 @@ router.get('/api/channel-url/:slug', async (req, res) => {
     const playOpts = buildA3PlaybackOptionsFromChannel(channel, req);
     const playUrl = buildA3PlaybackUrl(streamUrl, playOpts);
     const workerUrl = wrapA3CorsProxyUrl(streamUrl, { ...playOpts, preferFastlyRelay: false });
+    // Warm ffmpeg remux before the browser hits /a3hls (beats CF origin idle timeout).
+    if (playOpts.preferFastlyRelay && playOpts.preferHlsRemux !== false && !playOpts.preferDirect) {
+      try {
+        a3HlsRemux.prefetchSession(
+          streamUrl,
+          playOpts.headers || {},
+          getLikelyClientIPv4(req) || getForwardClientIp(req) || ''
+        );
+      } catch {}
+    }
     issuePlaybackCookieForSource(req, res, sourceKey, resolvePlayTokenTtlSec(sourceKey));
     const clientIpv4 = getLikelyClientIPv4(req);
     const a3Cdn = isAlbFastlyUrl(streamUrl) ? 'fastly' : 'other';
