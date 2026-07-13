@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head><%- baseStyle %><title>Statistika</title></head>
+<body>
+<%- navAdminHtml %>
+<div class="page">
+<div class="page-header">
+<a href="<%= basePath %>/admin" style="color:var(--muted)"><i class="fas fa-arrow-left"></i></a>
+<i class="fas fa-chart-bar" style="color:var(--orange)"></i><h2>Statistika</h2>
+<button class="a-btn a-btn-primary" onclick="loadStats()"><i class="fas fa-sync"></i> Refresh</button>
+</div>
+
+<div class="health-grid" id="statsGrid">
+<div class="health-card"><div class="value" style="color:var(--accent)" id="st-views">...</div><div class="label">Total Views</div></div>
+<div class="health-card"><div class="value" style="color:var(--sport)" id="st-unique">...</div><div class="label">Unique IPs</div></div>
+<div class="health-card"><div class="value" style="color:var(--purple)" id="st-peak">...</div><div class="label">Peak Users</div></div>
+<div class="health-card"><div class="value" style="color:var(--orange)" id="st-active">...</div><div class="label">Online Tani</div></div>
+<div class="health-card"><div class="value" style="color:var(--orange)" id="st-day-sessions">...</div><div class="label">Daily Sessions</div></div>
+<div class="health-card"><div class="value" style="color:var(--sport)" id="st-week-sessions">...</div><div class="label">Weekly Sessions</div></div>
+<div class="health-card"><div class="value" style="color:var(--accent)" id="st-month-sessions">...</div><div class="label">Monthly Sessions</div></div>
+<div class="health-card"><div class="value" style="color:var(--purple)" id="st-week-unique">...</div><div class="label">Weekly Unique IPs</div></div>
+<div class="health-card"><div class="value" style="color:var(--accent)" id="st-week-trend-sessions">...</div><div class="label">7d Trend Sessions</div></div>
+<div class="health-card"><div class="value" style="color:var(--purple)" id="st-week-trend-unique">...</div><div class="label">7d Trend Unique</div></div>
+<div class="health-card"><div class="value" style="color:var(--sport)" id="st-month-trend-sessions">...</div><div class="label">30d Trend Sessions</div></div>
+<div class="health-card"><div class="value" style="color:var(--orange)" id="st-month-trend-unique">...</div><div class="label">30d Trend Unique</div></div>
+<div class="health-card"><div class="value" style="color:var(--accent)" id="st-vod-views">...</div><div class="label">VOD Views</div></div>
+<div class="health-card"><div class="value" style="color:var(--sport)" id="st-vod-watch-hours">...</div><div class="label">VOD Watch Hours</div></div>
+<div class="health-card"><div class="value" style="color:var(--orange)" id="st-vod-completions">...</div><div class="label">VOD Completions</div></div>
+<div class="health-card"><div class="value" style="color:var(--purple)" id="st-vod-completion-rate">...</div><div class="label">VOD Completion Rate</div></div>
+</div>
+
+<div class="admin-section">
+<h3><i class="fas fa-chart-line" style="color:var(--accent)"></i> Sesione 7 Ditët e Fundit</h3>
+<div id="trafficSeries"><div style="text-align:center;color:var(--muted);padding:24px"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</div></div>
+</div>
+
+<div class="admin-section">
+<h3><i class="fas fa-fire" style="color:var(--orange)"></i> Top 20 Kanalet Më Të Shikuara</h3>
+<div id="topChannels"><div style="text-align:center;color:var(--muted);padding:30px"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</div></div>
+</div>
+
+<div class="admin-section">
+<h3><i class="fas fa-layer-group" style="color:var(--purple)"></i> Views by Source</h3>
+<div id="sourceViews"><div style="text-align:center;color:var(--muted);padding:24px"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</div></div>
+</div>
+
+<div class="admin-section">
+<h3><i class="fas fa-globe" style="color:var(--accent)"></i> Traffic Weekly by Country</h3>
+<div id="trafficCountries"><div style="text-align:center;color:var(--muted);padding:24px"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</div></div>
+</div>
+<div class="admin-section">
+<h3><i class="fas fa-mobile-alt" style="color:var(--purple)"></i> Traffic Weekly by App / Source</h3>
+<div id="trafficApps"><div style="text-align:center;color:var(--muted);padding:24px"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</div></div>
+</div>
+<div class="admin-section">
+<h3><i class="fas fa-link" style="color:var(--sport)"></i> Top Referrers (Weekly)</h3>
+<div id="trafficReferrers"><div style="text-align:center;color:var(--muted);padding:24px"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</div></div>
+</div>
+<div class="admin-section">
+<h3><i class="fas fa-photo-video" style="color:var(--orange)"></i> Ads Performance</h3>
+<div id="adStats"><div style="text-align:center;color:var(--muted);padding:24px"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</div></div>
+</div>
+<div class="admin-section">
+<h3><i class="fas fa-ad" style="color:var(--accent)"></i> Ad Snippets Stats (7d)</h3>
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+  <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.75rem">Days
+    <input id="adSnippetCsvDays" type="number" min="1" max="60" value="7" class="form-input" style="margin:0;width:74px;padding:6px 8px">
+  </label>
+  <a id="adSnippetCsvDayLink" class="a-btn a-btn-primary" href="<%= basePath %>/admin/stats/ad-snippets.csv?group=day&days=7"><i class="fas fa-file-csv"></i> CSV Day</a>
+  <a id="adSnippetCsvCountryLink" class="a-btn a-btn-green" href="<%= basePath %>/admin/stats/ad-snippets.csv?group=country&days=7"><i class="fas fa-file-csv"></i> CSV Country</a>
+  <a id="adSnippetCsvIpLink" class="a-btn a-btn-orange" href="<%= basePath %>/admin/stats/ad-snippets.csv?group=ip&days=7&limit=10000"><i class="fas fa-file-csv"></i> CSV IP</a>
+  <a id="adSnippetCsvKindLink" class="a-btn a-btn-purple" href="<%= basePath %>/admin/stats/ad-snippets.csv?group=kind&days=7"><i class="fas fa-file-csv"></i> CSV Kind</a>
+</div>
+<div id="adSnippetTotals"><div style="text-align:center;color:var(--muted);padding:24px"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</div></div>
+</div>
+<div class="admin-section">
+<h3><i class="fas fa-globe" style="color:var(--purple)"></i> Ad Snippets by Country (7d)</h3>
+<div id="adSnippetCountries"><div style="text-align:center;color:var(--muted);padding:24px"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</div></div>
+</div>
+<div class="admin-section">
+<h3><i class="fas fa-network-wired" style="color:var(--orange)"></i> Ad Snippets by IP (7d)</h3>
+<div id="adSnippetIps"><div style="text-align:center;color:var(--muted);padding:24px"><i class="fas fa-spinner fa-spin"></i> Duke ngarkuar...</div></div>
+</div>
+</div>
+<script>
+const BASE='<%= basePath %>';
+const ATOKEN='<%= adminToken %>';
+function esc(v){return String(v||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function renderTopList(containerId, rows, emptyText){
+  const root=document.getElementById(containerId);
+  if(!rows||!rows.length){
+    root.innerHTML='<p style="color:var(--muted);text-align:center;padding:20px">'+emptyText+'</p>';
+    return;
+  }
+  root.innerHTML=rows.map((row,idx)=>'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="color:var(--muted);font-size:.72rem;min-width:18px">#'+(idx+1)+'</span><span style="font-weight:600;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(row.name)+'</span></div><span style="color:var(--accent);font-weight:700;font-size:.82rem">'+Number(row.count||0).toLocaleString()+'</span></div>').join('');
+}
+function trendHtml(trend){
+  const pct=Number(trend?.percent||0);
+  const dir=String(trend?.direction||'flat');
+  const arrow=dir==='up'?'↑':(dir==='down'?'↓':'→');
+  const color=dir==='up'?'var(--green)':(dir==='down'?'var(--red)':'var(--muted)');
+  return '<span style="color:'+color+';font-weight:700">'+arrow+' '+pct.toFixed(1)+'%</span>';
+}
+function setTrend(id, trend){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.innerHTML=trendHtml(trend);
+}
+function renderSeries(series){
+  const rows=(Array.isArray(series)?series:[]).slice(-7);
+  const root=document.getElementById('trafficSeries');
+  if(!rows.length){
+    root.innerHTML='<p style="color:var(--muted);text-align:center;padding:20px">Nuk ka seri ditore akoma.</p>';
+    return;
+  }
+  const max=Math.max(...rows.map(r=>Number(r.sessions||0)),1);
+  root.innerHTML='<div style="display:grid;grid-template-columns:repeat('+rows.length+',1fr);gap:8px;align-items:end;min-height:160px">'
+    + rows.map(r=>{
+      const sessions=Number(r.sessions||0);
+      const unique=Number(r.uniqueIps||0);
+      const h=Math.max(8, Math.round((sessions/max)*110));
+      return '<div title="'+esc(r.day)+' | sessions '+sessions+' | unique '+unique+'" style="display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:flex-end">'
+        + '<div style="width:100%;max-width:42px;height:'+h+'px;border-radius:8px 8px 4px 4px;background:linear-gradient(180deg,var(--accent),rgba(0,212,255,.35));border:1px solid rgba(0,212,255,.4)"></div>'
+        + '<div style="font-size:.66rem;color:var(--muted)">'+esc(String(r.day||'').slice(5))+'</div>'
+        + '<div style="font-size:.72rem;font-weight:700">'+sessions.toLocaleString()+'</div>'
+        + '</div>';
+    }).join('')
+    + '</div>';
+}
+function renderSourceViews(sourceViews){
+  const rows=(sourceViews&&Array.isArray(sourceViews.topSources))?sourceViews.topSources:[];
+  const root=document.getElementById('sourceViews');
+  if(!rows.length){
+    root.innerHTML='<p style="color:var(--muted);text-align:center;padding:20px">Nuk ka views sipas source ende.</p>';
+    return;
+  }
+  const total=Number(sourceViews.totalTrackedViews||0);
+  root.innerHTML='<div style="margin-bottom:10px;color:var(--muted);font-size:.75rem">Tracked total views: <b style="color:var(--text)">'+total.toLocaleString()+'</b></div>'
+    + rows.map((row,idx)=>{
+      const views=Number(row.views||0);
+      const pct=total>0?((views/total)*100):0;
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:7px">'
+        + '<span style="color:var(--muted);font-size:.72rem;min-width:18px">#'+(idx+1)+'</span>'
+        + '<div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.82rem">'+esc(row.sourceLabel||row.sourceKey||'unknown')+'</div>'
+        + '<div style="background:var(--border);border-radius:4px;height:4px;margin-top:5px"><div style="background:var(--purple);width:'+Math.round(pct)+'%;height:4px;border-radius:4px"></div></div></div>'
+        + '<div style="text-align:right"><div style="font-weight:700;color:var(--purple)">'+views.toLocaleString()+'</div><div style="font-size:.68rem;color:var(--muted)">'+pct.toFixed(1)+'%</div></div></div>';
+    }).join('');
+}
+function renderAdSnippetStats(stats){
+  const s=stats&&typeof stats==='object'?stats:{};
+  const totals=s.totals||{};
+  const byKind=Array.isArray(s.byKind)?s.byKind:[];
+  const countries=Array.isArray(s.topCountries)?s.topCountries:[];
+  const ips=Array.isArray(s.topIps)?s.topIps:[];
+  let totalsHtml='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:10px">'
+    +'<div class="health-card"><div class="value" style="color:var(--accent)">'+Number(totals.impression||0).toLocaleString()+'</div><div class="label">Impressions</div></div>'
+    +'<div class="health-card"><div class="value" style="color:var(--purple)">'+Number(totals.click||0).toLocaleString()+'</div><div class="label">Clicks</div></div>'
+    +'<div class="health-card"><div class="value" style="color:var(--sport)">'+Number(totals.ctr||0).toFixed(2)+'%</div><div class="label">CTR</div></div>'
+    +'</div>';
+  if(byKind.length){
+    totalsHtml+='<div style="margin-top:6px">';
+    byKind.forEach(item=>{
+      totalsHtml+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">'
+        +'<span style="font-size:.8rem">'+esc(item.name)+'</span>'
+        +'<span style="font-size:.72rem;color:var(--muted)">imp '+Number(item.impression||0)+' · click '+Number(item.click||0)+' · ctr '+Number(item.ctr||0).toFixed(2)+'%</span></div>';
+    });
+    totalsHtml+='</div>';
+  } else {
+    totalsHtml+='<p style="color:var(--muted);text-align:center;padding:12px">Nuk ka evente snippets akoma.</p>';
+  }
+  document.getElementById('adSnippetTotals').innerHTML=totalsHtml;
+  renderTopList('adSnippetCountries', countries.map(r=>({name:r.name,count:r.impression})), 'Nuk ka të dhëna sipas shtetit.');
+  renderTopList('adSnippetIps', ips.map(r=>({name:r.name,count:r.impression})), 'Nuk ka të dhëna sipas IP.');
+}
+function refreshAdSnippetCsvLinks(){
+  const daysInput=document.getElementById('adSnippetCsvDays');
+  const rawDays=Number(daysInput&&daysInput.value?daysInput.value:7);
+  const days=Math.max(1,Math.min(60,Number.isFinite(rawDays)?rawDays:7));
+  if(daysInput) daysInput.value=String(days);
+  const setHref=(id,group,extra='')=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.href=BASE+'/admin/stats/ad-snippets.csv?group='+group+'&days='+days+extra;
+  };
+  setHref('adSnippetCsvDayLink','day');
+  setHref('adSnippetCsvCountryLink','country');
+  setHref('adSnippetCsvIpLink','ip','&limit=10000');
+  setHref('adSnippetCsvKindLink','kind');
+}
+function loadStats(){
+  fetch(BASE+'/api/stats',{credentials:'include',headers:{'x-admin-token':ATOKEN}}).then(r=>r.json()).then(d=>{
+    document.getElementById('st-views').textContent=Number(d.totalViews||0).toLocaleString();
+    document.getElementById('st-unique').textContent=Number(d.uniqueIps||0).toLocaleString();
+    document.getElementById('st-peak').textContent=Number(d.peakUsers||0).toLocaleString();
+    document.getElementById('st-active').textContent=Number(d.activeNow||0).toLocaleString();
+    const traffic=d.traffic||{};
+    const daily=traffic.daily||{};
+    const weekly=traffic.weekly||{};
+    const monthly=traffic.monthly||{};
+    document.getElementById('st-day-sessions').textContent=Number(daily.sessions||0).toLocaleString();
+    document.getElementById('st-week-sessions').textContent=Number(weekly.sessions||0).toLocaleString();
+    document.getElementById('st-month-sessions').textContent=Number(monthly.sessions||0).toLocaleString();
+    document.getElementById('st-week-unique').textContent=Number(weekly.uniqueIps||0).toLocaleString();
+    const vod=d.vod||{};
+    const vodViews=Number(vod.views||0);
+    const vodWatchSec=Number(vod.watchTimeSec||0);
+    const vodCompletions=Number(vod.completions||0);
+    const vodCompletionRate=vodViews>0?((vodCompletions/vodViews)*100):0;
+    document.getElementById('st-vod-views').textContent=vodViews.toLocaleString();
+    document.getElementById('st-vod-watch-hours').textContent=(vodWatchSec/3600).toFixed(1)+'h';
+    document.getElementById('st-vod-completions').textContent=vodCompletions.toLocaleString();
+    document.getElementById('st-vod-completion-rate').textContent=vodCompletionRate.toFixed(1)+'%';
+    setTrend('st-week-trend-sessions', traffic.weeklyTrend&&traffic.weeklyTrend.sessions);
+    setTrend('st-week-trend-unique', traffic.weeklyTrend&&traffic.weeklyTrend.uniqueIps);
+    setTrend('st-month-trend-sessions', traffic.monthlyTrend&&traffic.monthlyTrend.sessions);
+    setTrend('st-month-trend-unique', traffic.monthlyTrend&&traffic.monthlyTrend.uniqueIps);
+
+    renderSeries(traffic.series7d||traffic.series||[]);
+    renderSourceViews(d.sourceViews||{});
+
+    if(!d.topChannels||!d.topChannels.length){
+      document.getElementById('topChannels').innerHTML='<p style="color:var(--muted);text-align:center;padding:20px">Akoma nuk ka të dhëna.</p>';
+    } else {
+      const max=d.topChannels[0].views||1;
+      let html='';
+      d.topChannels.forEach((ch,i)=>{
+        const pct=Math.round((Number(ch.views||0)/max)*100);
+        const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+        html+='<div style="display:flex;align-items:center;gap:12px;padding:10px;background:var(--card);border-radius:8px;margin-bottom:8px;border:1px solid var(--border)">'
+          +'<span style="color:var(--muted);min-width:24px;text-align:right">'+(medal||('#'+(i+1)))+'</span>'
+          +'<div style="flex:1"><div style="font-weight:600;font-size:.85rem">'+esc(ch.name)+'</div>'
+          +'<div style="background:var(--border);border-radius:4px;height:4px;margin-top:6px"><div style="background:var(--accent);width:'+pct+'%;height:4px;border-radius:4px;transition:width .5s"></div></div></div>'
+          +'<span style="color:var(--accent);font-weight:700;font-size:.9rem">'+Number(ch.views||0).toLocaleString()+'</span></div>';
+      });
+      document.getElementById('topChannels').innerHTML=html;
+    }
+
+    renderTopList('trafficCountries', traffic.topCountriesWeekly||[], 'Nuk ka traffic data për vendet.');
+    renderTopList('trafficApps', traffic.topAppsWeekly||[], 'Nuk ka traffic data për app/source.');
+    renderTopList('trafficReferrers', traffic.topReferrersWeekly||[], 'Nuk ka referrer data.');
+
+    const ad=traffic.ad||{};
+    const adTotal=ad.total||{};
+    const adWeek=ad.weekly||{};
+    const bySource=(ad.bySource||[]).slice(0,10);
+    let adHtml='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px">'
+      +'<div class="health-card"><div class="value" style="color:var(--accent)">'+Number(adTotal.impression||0).toLocaleString()+'</div><div class="label">Impressions (all)</div></div>'
+      +'<div class="health-card"><div class="value" style="color:var(--sport)">'+Number(adTotal.complete||0).toLocaleString()+'</div><div class="label">Completed (all)</div></div>'
+      +'<div class="health-card"><div class="value" style="color:var(--orange)">'+Number(adTotal.skip||0).toLocaleString()+'</div><div class="label">Skipped (all)</div></div>'
+      +'<div class="health-card"><div class="value" style="color:var(--purple)">'+Number(adTotal.click||0).toLocaleString()+'</div><div class="label">Clicks (all)</div></div>'
+      +'<div class="health-card"><div class="value" style="color:var(--accent)">'+Number(adWeek.impression||0).toLocaleString()+'</div><div class="label">Impressions (7d)</div></div>'
+      +'<div class="health-card"><div class="value" style="color:var(--sport)">'+Number(adWeek.complete||0).toLocaleString()+'</div><div class="label">Completed (7d)</div></div>'
+      +'</div>';
+    if(bySource.length){
+      adHtml+='<div style="margin-top:6px">';
+      bySource.forEach(item=>{
+        adHtml+='<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:6px">'
+          +'<span style="font-size:.8rem">'+esc(item.sourceKey)+'</span>'
+          +'<span style="font-size:.72rem;color:var(--muted)">imp '+Number(item.impression||0)+' · comp '+Number(item.complete||0)+' · skip '+Number(item.skip||0)+' · click '+Number(item.click||0)+'</span></div>';
+      });
+      adHtml+='</div>';
+    }
+    document.getElementById('adStats').innerHTML=adHtml;
+    renderAdSnippetStats(d.adSnippetStats||{});
+  }).catch(e=>console.error(e));
+}
+document.getElementById('adSnippetCsvDays')?.addEventListener('change',refreshAdSnippetCsvLinks);
+refreshAdSnippetCsvLinks();
+loadStats();
+setInterval(loadStats,30000);
+</script>
+</body>
+</html>

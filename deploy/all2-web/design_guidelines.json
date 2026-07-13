@@ -1,0 +1,89 @@
+{
+  "project_domain": "Live TV & VOD Streaming Platform",
+  "theme": "Dark",
+  "archetype": "Archetype 5 (Jewel & Luxury / Cinematic Premium)",
+  "typography": {
+    "headings": {
+      "font_family": "Outfit, system-ui, sans-serif",
+      "strategy": "Expressive, tight letter spacing (tracking-tight) for large sizes, font-bold or font-black for major titles.",
+      "scales": {
+        "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-none",
+        "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight leading-tight",
+        "h3": "text-xl sm:text-2xl font-semibold leading-snug"
+      }
+    },
+    "body": {
+      "font_family": "Work Sans, system-ui, sans-serif",
+      "strategy": "Clean, readable text, geometric, with leading-relaxed.",
+      "scales": {
+        "base": "text-base sm:text-lg",
+        "small": "text-sm",
+        "labels": "text-xs uppercase tracking-[0.2em] font-medium"
+      }
+    }
+  },
+  "colors": {
+    "background": {
+      "primary": "bg-[#09090b]",
+      "secondary": "bg-[#18181b]",
+      "overlay": "bg-black/60 backdrop-blur-xl"
+    },
+    "text": {
+      "primary": "text-white",
+      "secondary": "text-zinc-400",
+      "accent": "text-[#e11d48]"
+    },
+    "brand": {
+      "primary": "#e11d48",
+      "secondary": "#2563eb",
+      "success": "#16a34a",
+      "warning": "#d97706",
+      "muted": "#3f3f46"
+    }
+  },
+  "spacing_and_layout": {
+    "strategy": "Generous spacing. p-6 or p-8 inside cards. Gap of gap-6 or gap-8 in grids.",
+    "bento_grid": "grid grid-cols-1 md:grid-cols-12 gap-6",
+    "mobile_first": true,
+    "alignment": "Left-align dense data. Center hero text and empty states."
+  },
+  "motion_and_interactions": {
+    "hover_states": "hover:scale-[1.02] transition-transform duration-300 ease-out",
+    "focus_states": "focus-visible:ring-2 focus-visible:ring-[#e11d48] focus-visible:outline-none",
+    "click_states": "active:scale-95 transition-transform"
+  },
+  "components_strategy": {
+    "cards": "Dark flat backgrounds with 1px border-white/10. No heavy box shadows, use subtle glowing drop-shadows on hover.",
+    "buttons": {
+      "live_tv_vod": "Make them significantly larger (e.g., py-4 px-8 text-xl) and position them lower in the hero section or viewport for better user reachability (ergonomic mobile design)."
+    },
+    "banners": {
+      "behavior": "Hybrid sizing: auto-size on desktop, responsive 100% width on mobile. Ensure images use object-cover or object-contain properly depending on ad specifications."
+    }
+  },
+  "technical_instructions_to_main_agent": [
+    "Multi-banner order: Implement a round-robin rotation or sequence (e.g., ad network 1 on line 1, ad network 2 on line 2, etc.) for ad snippets.",
+    "Banner size behavior: Set to auto-size based on native banner dimensions, hybrid strategy (auto-size on desktop, responsive/scaled on mobile).",
+    "Custom notifications: Build an admin toggle to show/hide notifications on the public page for Live matches, Partnerships, Ads.",
+    "Parental Controls PIN: Store session state (e.g., in sessionStorage or React Context) so the PIN is required only 1 time per session, and apply this guard ONLY for categories explicitly marked as 'restricted' (like 'Big Brother').",
+    "Source folder cleanup: Ensure any raw/source code folders are removed or ignored from the public/build directory to prevent source code leakage.",
+    "VOD statistics: Implement or fix tracking for VOD view counts and watch times.",
+    "Live TV and VOD buttons: Increase their physical size (`h-14` or `h-16`, `text-lg`) and move them lower in the layout hierarchy (closer to the thumb zone on mobile)."
+  ],
+  "accessibility_and_testing": {
+    "data_testid": "All interactive elements, forms, and ad containers MUST include a `data-testid` attribute (e.g., data-testid='live-tv-button').",
+    "contrast": "Ensure minimum 4.5:1 text contrast. Overlay text on images must have text-shadow."
+  },
+  "image_urls": [
+    {
+      "url": "https://images.unsplash.com/photo-1717548373009-73f5cacec59a",
+      "category": "Live Sports Background",
+      "description": "Abstract live sports TV screen for hero background"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1760170437237-a3654545ab4c",
+      "category": "VOD Cinema",
+      "description": "Dark empty vintage cinema hall for VOD hero or empty state background"
+    }
+  ]
+}

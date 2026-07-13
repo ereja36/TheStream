@@ -36,6 +36,95 @@ public final class PlaylistGuardHelper {
     private PlaylistGuardHelper() {
     }
 
+    /**
+     * Persist headers returned by /api/channel-url (or portal /u/) for an A3 CDN host.
+     * Falls back to buildA3CdnGuardRule when the JSON has no headers.
+     */
+    public static void rememberA3HeadersFromChannelUrl(SharedPref sharedPref, String playUrl, JSONObject json) {
+        if (sharedPref == null || TextUtils.isEmpty(playUrl)) {
+            return;
+        }
+        PlaylistGuardRule rule = buildA3CdnGuardRule(playUrl);
+        if (rule == null) {
+            return;
+        }
+        if (json != null) {
+            String ua = json.optString("user_agent", "").trim();
+            if (!TextUtils.isEmpty(ua)) {
+                rule.user_agent = ua;
+            }
+            JSONObject headers = json.optJSONObject("headers");
+            if (headers != null) {
+                String referer = headers.optString("Referer", headers.optString("referer", "")).trim();
+                String origin = headers.optString("Origin", headers.optString("origin", "")).trim();
+                String cookie = headers.optString("Cookie", headers.optString("cookie", "")).trim();
+                if (!TextUtils.isEmpty(referer)) rule.referer = referer;
+                if (!TextUtils.isEmpty(origin)) rule.origin = origin;
+                if (!TextUtils.isEmpty(cookie)) rule.cookie = cookie;
+                try {
+                    JSONObject extra = new JSONObject();
+                    java.util.Iterator<String> keys = headers.keys();
+                    while (keys.hasNext()) {
+                        String key = keys.next();
+                        if (TextUtils.isEmpty(key)) continue;
+                        String lower = key.toLowerCase(Locale.US);
+                        if ("referer".equals(lower) || "origin".equals(lower) || "cookie".equals(lower)
+                                || "user-agent".equals(lower)) {
+                            continue;
+                        }
+                        String value = headers.optString(key, "").trim();
+                        if (!TextUtils.isEmpty(value)) {
+                            extra.put(key, value);
+                        }
+                    }
+                    if (extra.length() > 0) {
+                        rule.extra_headers = extra.toString();
+                    }
+                } catch (Exception ignored) {
+                    // keep defaults from buildA3CdnGuardRule
+                }
+            }
+        }
+        rememberRuleForPlaylist(sharedPref, playUrl, rule);
+    }
+
+    /** Media-Colony / Gjirafa CDNs need the right Referer from the phone IP (ExoPlayer). */
+    public static PlaylistGuardRule buildA3CdnGuardRule(String requestUrl) {
+        if (TextUtils.isEmpty(requestUrl)) {
+            return null;
+        }
+        String lower = requestUrl.toLowerCase(Locale.US);
+        boolean isFastly = lower.contains("fastlycache.com");
+        boolean isAnytools = lower.contains("anytools.eu.org") || lower.contains("unique-user-id=");
+        boolean isGcore = lower.contains("gcore-cdn.org");
+        boolean isGjirafa = lower.contains("gjirafa.net") || lower.contains("gjirafa.com");
+        if (!isFastly && !isAnytools && !isGcore && !isGjirafa) {
+            return null;
+        }
+        PlaylistGuardRule rule = new PlaylistGuardRule();
+        if (isGjirafa) {
+            rule.url_pattern = lower.contains("gjirafa.net") ? "gjirafa.net" : "gjirafa.com";
+            rule.user_agent = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+            rule.referer = "https://video.gjirafa.com/";
+            rule.origin = "https://video.gjirafa.com";
+            rule.cookie = "";
+            return rule;
+        }
+        // Working Vinebre/APlayer capture: aliez + passport + XFF 127.0.0.1 + Icy-MetaData.
+        // .js gate returns HLS pointing at cpanel.anytools.eu.org/.../index.php (same headers).
+        if (isAnytools) {
+            rule.url_pattern = lower.contains("anytools.eu.org") ? "anytools.eu.org" : "unique-user-id=";
+        } else {
+            rule.url_pattern = isFastly ? "fastlycache.com" : "gcore-cdn.org";
+        }
+        rule.user_agent = "APlayer/9.0 (Linux; Android 16) ExoPlayer/1.0";
+        rule.referer = "https://aliez.tv/";
+        rule.origin = "https://aliez.tv";
+        rule.cookie = "passport=IG2GpFng03_23122025";
+        rule.extra_headers = "{\"X-Forwarded-For\":\"127.0.0.1\",\"Icy-MetaData\":\"1\",\"Accept-Encoding\":\"identity\"}";
+        return rule;
+    }
+
     public static PlaylistGuardRule findMatchingRule(String urlString, List<PlaylistGuardRule> rules) {
         if (TextUtils.isEmpty(urlString) || rules == null || rules.isEmpty()) {
             return null;
@@ -74,6 +163,10 @@ public final class PlaylistGuardHelper {
     public static PlaylistGuardRule resolveRule(SharedPref sharedPref, String requestUrl) {
         if (sharedPref == null) {
             return null;
+        }
+        PlaylistGuardRule a3Rule = buildA3CdnGuardRule(requestUrl);
+        if (a3Rule != null) {
+            return a3Rule;
         }
         if (PlaylistPortalHelper.isK1UpstreamUrl(requestUrl)) {
             return PlaylistPortalHelper.buildK1UpstreamStreamRule();
@@ -344,15 +437,22 @@ public final class PlaylistGuardHelper {
 
     public static DefaultDataSource.Factory createDataSourceFactory(Context context, SharedPref sharedPref, String requestUrl, String channelUserAgent) {
         boolean portalRequest = PlaylistPortalHelper.isPortalUrl(requestUrl);
-        PlaylistGuardRule rule = portalRequest ? null : resolveRule(sharedPref, requestUrl);
-        String userAgent = portalRequest
-                ? "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)"
-                : resolveUserAgent(rule, channelUserAgent);
         if (portalRequest && context != null) {
+            String userAgent = "ShifShqip/" + BuildConfig.VERSION_NAME + " (Android)";
             HttpDataSource.Factory httpFactory = new PortalHttpDataSource.Factory(context, sharedPref, userAgent);
             return new DefaultDataSource.Factory(context.getApplicationContext(), httpFactory);
         }
 
+        // Per-request A3 headers (fastly .js → anytools .php hop needs the same aliez/passport/XFF set).
+        if (context != null) {
+            return new DefaultDataSource.Factory(
+                    context.getApplicationContext(),
+                    new IptvHttpDataSource.Factory(context, sharedPref, channelUserAgent)
+            );
+        }
+
+        PlaylistGuardRule rule = resolveRule(sharedPref, requestUrl);
+        String userAgent = resolveUserAgent(rule, channelUserAgent);
         Map<String, String> headers = buildRequestHeaders(rule);
         headers.put("X-Shif-App", "1");
         headers.put("X-Requested-With", BuildConfig.APPLICATION_ID);

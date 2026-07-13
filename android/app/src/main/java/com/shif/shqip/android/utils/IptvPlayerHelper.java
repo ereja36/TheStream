@@ -19,6 +19,7 @@ import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import com.google.android.exoplayer2.upstream.DefaultLoadErrorHandlingPolicy;
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 
@@ -119,6 +120,14 @@ public final class IptvPlayerHelper {
   }
 
   private static MediaItem buildMediaItem(String playbackUrl, Uri uri) {
+    // Media-Colony fastly gates use .js / anytools .php URLs that are HLS playlists.
+    // Without an explicit M3U8 mime, ExoPlayer treats .js as progressive and never follows the .php hop.
+    if (isAlbHlsGateUrl(playbackUrl)) {
+      return new MediaItem.Builder()
+              .setUri(uri)
+              .setMimeType(MimeTypes.APPLICATION_M3U8)
+              .build();
+    }
     return MediaItem.fromUri(uri);
   }
 
@@ -155,10 +164,29 @@ public final class IptvPlayerHelper {
             || lower.contains("/channel/")
             || lower.contains("/channel-proxy/")
             || lower.contains("/r/")
-            || lower.contains("/proxy/");
+            || lower.contains("/proxy/")
+            || isAlbHlsGateUrl(url);
+  }
+
+  /**
+   * A3 / Media-Colony: gate URLs look like .js or autologin .php but body is HLS.
+   * Flow: fastlycache .js → m3u8 with cpanel.anytools.eu.org/.../index.php → real segments.
+   */
+  public static boolean isAlbHlsGateUrl(String url) {
+    if (url == null || url.isEmpty()) {
+      return false;
+    }
+    String lower = url.toLowerCase(Locale.US);
+    return lower.contains("fastlycache.com")
+            || lower.contains("anytools.eu.org")
+            || lower.contains("unique-user-id=")
+            || (lower.contains("gcore-cdn.org") && (lower.contains(".php") || lower.contains("/twitch/")));
   }
 
   private static int inferStreamType(String playbackUrl, Uri uri) {
+    if (isAlbHlsGateUrl(playbackUrl)) {
+      return C.TYPE_HLS;
+    }
     int type = Util.inferContentType(uri);
     if (type == C.TYPE_OTHER && PlaylistPortalHelper.isPortalStreamEndpoint(playbackUrl)) {
       return C.TYPE_HLS;

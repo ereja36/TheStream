@@ -109,7 +109,23 @@ public final class K1ChannelUrlHelper {
             if (!json.optBoolean("ok", false)) {
                 return "";
             }
-            return json.optString("url", "").trim();
+            // Prefer direct CDN (fastly .js / gcore / crystalweb) over Worker proxy URLs.
+            String direct = json.optString("direct_url", "").trim();
+            String url = json.optString("url", "").trim();
+            String playUrl = "";
+            if (PortalResolveHelper.isDirectCdnUrl(direct)) {
+                playUrl = direct;
+            } else if (PortalResolveHelper.isDirectCdnUrl(url)) {
+                playUrl = url;
+            } else if (!TextUtils.isEmpty(direct)) {
+                playUrl = direct;
+            } else {
+                playUrl = url;
+            }
+            if (!TextUtils.isEmpty(playUrl)) {
+                PlaylistGuardHelper.rememberA3HeadersFromChannelUrl(sharedPref, playUrl, json);
+            }
+            return playUrl;
         } catch (Exception e) {
             Log.d(TAG, "resolvePlayableUrl failed for " + slug + ": " + e.getMessage());
             return "";

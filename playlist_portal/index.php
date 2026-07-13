@@ -81,22 +81,45 @@ if ($path['channel'] === '') {
 }
 
 if ($path['channel'] === 'u' && $path['stream'] !== '') {
-    $playUrl = PortalService::resolveK1ChannelPortalUrl($portal, $host, $path['stream'], $accessKey);
+    $clientIpv4 = '';
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        $clientIpv4 = $_SERVER['HTTP_CF_CONNECTING_IP'];
+    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $xff = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+        if (preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $xff)) {
+            $clientIpv4 = $xff;
+        }
+    } elseif (!empty($_SERVER['REMOTE_ADDR']) && preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $_SERVER['REMOTE_ADDR'])) {
+        $clientIpv4 = $_SERVER['REMOTE_ADDR'];
+    }
+    $resolved = PortalService::resolveK1ChannelPortalUrl($portal, $host, $path['stream'], $accessKey, $clientIpv4);
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
-    if ($playUrl === '') {
+    if (!is_array($resolved) || empty($resolved['url'])) {
         echo json_encode(array('ok' => false, 'error' => 'channel_not_found'));
         exit;
     }
+    $playUrl = (string) $resolved['url'];
     if (!PortalService::isDirectCdnUrl($playUrl)) {
         echo json_encode(array('ok' => false, 'error' => 'resolve_not_direct'));
         exit;
     }
-    echo json_encode(array(
+    $payload = array(
         'ok' => true,
         'mode' => 'direct',
-        'url' => $playUrl
-    ), JSON_UNESCAPED_SLASHES);
+        'url' => $playUrl,
+        'direct_url' => !empty($resolved['direct_url']) ? $resolved['direct_url'] : $playUrl
+    );
+    if (!empty($resolved['headers']) && is_array($resolved['headers'])) {
+        $payload['headers'] = $resolved['headers'];
+    }
+    if (!empty($resolved['user_agent'])) {
+        $payload['user_agent'] = $resolved['user_agent'];
+    }
+    if (!empty($resolved['a3_cdn'])) {
+        $payload['a3_cdn'] = $resolved['a3_cdn'];
+    }
+    echo json_encode($payload, JSON_UNESCAPED_SLASHES);
     exit;
 }
 

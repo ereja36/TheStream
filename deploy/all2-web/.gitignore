@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Data directory (runtime state)
+data/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment / secrets
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local backups / old server snapshots
+server.js.before-*
+server.js.pre-*
+*.tar.gz
+
+# Junk / local snapshots
+server.js.save
+*.pre-*
+*.before-*
+.gitconfig
+test_reports/
