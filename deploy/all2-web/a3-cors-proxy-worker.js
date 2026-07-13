@@ -450,6 +450,22 @@ export default {
     if (!upstream || upstream.status !== 200) {
       const failBody = upstream ? await upstream.text() : 'Upstream error';
       const looksHtmlBlock = /<\s*html|404 Not Found|CyberPanel|error code:/i.test(failBody);
+      const upStatus = upstream ? upstream.status : 0;
+      // 526 = invalid/expired origin TLS (seen on gcore-cdn.org). Not the same as fastly DC block.
+      if (upStatus === 526 || /gcore-cdn\.org/i.test(normalizedTarget)) {
+        return new Response(
+          'A3 CDN TLS failed at edge (expired/invalid cert on origin). Use origin /a3proxy relay.',
+          {
+            status: 502,
+            headers: {
+              ...corsHeaders(origin),
+              'Content-Type': 'text/plain; charset=utf-8',
+              'Cache-Control': 'no-store',
+              'X-A3-Upstream-Status': String(upStatus),
+            },
+          }
+        );
+      }
       if (looksHtmlBlock || /fastlycache\.com/i.test(normalizedTarget)) {
         return new Response(
           'A3 CDN blocked this edge (datacenter/CF IP). Open this channel in the ShifShqip app on mobile data, or use a feed that is not on fastlycache.',
@@ -459,7 +475,7 @@ export default {
               ...corsHeaders(origin),
               'Content-Type': 'text/plain; charset=utf-8',
               'Cache-Control': 'no-store',
-              'X-A3-Upstream-Status': String(upstream ? upstream.status : 0),
+              'X-A3-Upstream-Status': String(upStatus),
             },
           }
         );

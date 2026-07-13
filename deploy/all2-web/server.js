@@ -194,6 +194,8 @@ const API_HEADERS_BASE = {
 };
 const KEEPALIVE_HTTP_AGENT = new http.Agent({ keepAlive: true, maxSockets: 2048, maxFreeSockets: 512, timeout: 30000 });
 const KEEPALIVE_HTTPS_AGENT = new https.Agent({ keepAlive: true, maxSockets: 2048, maxFreeSockets: 512, timeout: 30000 });
+// gcore-cdn.org leaf cert expired (2026-07-06) → CF Worker returns 526; origin proxy must skip verify.
+const A3_INSECURE_HTTPS_AGENT = new https.Agent({ keepAlive: true, maxSockets: 256, maxFreeSockets: 64, timeout: 30000, rejectUnauthorized: false });
 const PROD_API_HTTP_AGENT = new http.Agent({ keepAlive: true, family: 4, maxSockets: 128, maxFreeSockets: 32, timeout: 30000 });
 const PROD_API_HTTPS_AGENT = new https.Agent({ keepAlive: true, family: 4, maxSockets: 128, maxFreeSockets: 32, timeout: 30000 });
 try { dns.setDefaultResultOrder('ipv4first'); } catch {}
@@ -2349,7 +2351,7 @@ function getStreamProxyBaseUrl() {
 }
 function isStreamProxyPath(path = '') {
   const safePath = String(path || '');
-  return /^\/(?:playlist|private-playlist|channel|channel-proxy|proxy|app-measurement)(\/|$)/.test(safePath)
+  return /^\/(?:playlist|private-playlist|channel|channel-proxy|proxy|a3proxy|a3sw|app-measurement)(\/|$)/.test(safePath)
     || /\.m3u8($|\?)/i.test(safePath)
     || /\.m3u($|\?)/i.test(safePath);
 }
@@ -8162,14 +8164,34 @@ function encodeA3UpstreamRh(headers = {}, userAgent = '') {
   if (!Object.keys(payload).length) return '';
   return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
 }
+function isA3GcoreUrl(url = '') {
+  return /gcore-cdn\.org/i.test(String(url || ''));
+}
+function getA3OriginProxyBase() {
+  const streamBase = String(getStreamProxyBaseUrl() || 'https://phinemi.live').replace(/\/+$/, '');
+  return `${streamBase}${BASE_PATH}/a3proxy`;
+}
+function shouldUseOriginA3Proxy(url = '', options = {}) {
+  const raw = String(url || '');
+  if (options.forceOriginProxy === true) return true;
+  if (isAlbFastlyUrl(raw)) return false; // fastly: residential IP / special path
+  // gcore leaf cert expired → CF Worker 526; origin proxy skips TLS verify + hides host.
+  if (isA3GcoreUrl(raw)) return true;
+  return /gjirafa\.(net|com)|akamaized\.net|cloudfront\.net|bozztv\.com|sednastream\.com/i.test(raw);
+}
 function wrapA3CorsProxyUrl(streamUrl = '', options = {}) {
   const url = String(streamUrl || '').trim();
   if (!/^https?:\/\//i.test(url)) return url;
-  // Already proxied
   if (/^https?:\/\/a3\.phinemi\.live\/?/i.test(url)) return url;
-  if (/phinemi\.live\/a3proxy\/?/i.test(url)) return url;
-  const base = String(A3_CORS_PROXY_BASE || 'https://a3.phinemi.live/').replace(/\/?$/, '/');
+  if (String(url).includes(`${BASE_PATH}/a3proxy`)) return url;
   const rh = String(options.rh || encodeA3UpstreamRh(options.headers || {}, options.userAgent || '')).trim();
+  if (shouldUseOriginA3Proxy(url, options)) {
+    // Encrypt upstream so gcore/CDN host is not visible in player/network URLs.
+    let out = `${getA3OriginProxyBase()}?id=${encodeURIComponent(encrypt(url))}`;
+    if (rh) out += `&rh=${encodeURIComponent(rh)}`;
+    return out;
+  }
+  const base = String(A3_CORS_PROXY_BASE || 'https://a3.phinemi.live/').replace(/\/?$/, '/');
   let out = `${base}?u=${encodeURIComponent(url)}`;
   if (rh) out += `&rh=${encodeURIComponent(rh)}`;
   return out;
@@ -8226,8 +8248,8 @@ function buildA3PlaybackOptionsFromChannel(channel = {}, req = null) {
       headers.Origin = 'https://video.gjirafa.com';
     }
   }
-  // Match working APlayer/ProxyPin captures for fastly → anytools hop.
-  if (fastly || /anytools\.eu\.org|unique-user-id=/i.test(String(channel?.url || ''))) {
+  // Match working APlayer/ProxyPin captures (fastly/anytools + gcore VOD).
+  if (fastly || isA3GcoreUrl(channel?.url || '') || /anytools\.eu\.org|unique-user-id=/i.test(String(channel?.url || ''))) {
     if (!Object.keys(headers).some((k) => k.toLowerCase() === 'x-forwarded-for')) {
       headers['X-Forwarded-For'] = '127.0.0.1';
     }
@@ -17553,6 +17575,148 @@ router.post('/api/parental/verify', (req, res) => {
 });
 
 /** Service Worker that fetches A3/fastly from the viewer's IP (not CF/VPS egress). */
+
+/** Origin A3 media proxy — skips broken CDN TLS (gcore cert expired) and hides CDN host. */
+function decodeA3RhQuery(rhRaw = '') {
+  const raw = String(rhRaw || '').trim();
+  if (!raw) return {};
+  try {
+    const text = Buffer.from(raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      const name = String(k || '').trim();
+      const value = String(v || '').trim();
+      if (!name || !value) continue;
+      if (/^(host|connection|content-length|accept-encoding|transfer-encoding)$/i.test(name)) continue;
+      out[name] = value;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+function buildA3OriginUpstreamHeaders(rhHeaders = {}) {
+  const out = {
+    'User-Agent': ALB_DEFAULT_UPSTREAM_UA,
+    Referer: 'https://aliez.tv/',
+    Origin: 'https://aliez.tv',
+    Cookie: 'passport=IG2GpFng03_23122025',
+    'X-Forwarded-For': '127.0.0.1',
+    'Icy-MetaData': '1',
+    Accept: '*/*',
+    'Accept-Encoding': 'identity'
+  };
+  for (const [k, v] of Object.entries(rhHeaders || {})) {
+    if (!k || v == null || v === '') continue;
+    out[k] = String(v);
+  }
+  return out;
+}
+function isAllowedA3OriginUpstream(url = '') {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const host = u.hostname.toLowerCase();
+    const allow = [
+      'gcore-cdn.org','fastlycache.com','akamaized.net','akamaihd.net','cloudfront.net',
+      'bozztv.com','sednastream.com','gjirafa.com','gjirafa.net','aliez.tv','anytools.eu.org',
+      'mediaset.net','onestream.studio','ekranet.com','mediadesk.al','crystalweb.net'
+    ];
+    if (allow.some((s) => host === s || host.endsWith('.' + s))) return true;
+    return /\.(m3u8|m3u|ts|m4s|mp4|aac|mp3)(\/|$)/i.test(u.pathname) || /\/(index|playlist|manifest)/i.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+function rewriteA3OriginManifest(text, requestUrl, proxyBase, rhRaw = '') {
+  const rhPart = rhRaw ? `&rh=${encodeURIComponent(rhRaw)}` : '';
+  const abs = (ref) => {
+    try {
+      let s = String(ref || '').trim();
+      const glued = s.match(/^\d+(https?:\/\/.+)$/i);
+      if (glued) s = glued[1];
+      return new URL(s, requestUrl).toString();
+    } catch {
+      return '';
+    }
+  };
+  const wrap = (full) => `${proxyBase}?id=${encodeURIComponent(encrypt(full))}${rhPart}`;
+  return String(text || '').split(/\r?\n/).map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+    if (trimmed.startsWith('#')) {
+      return line.replace(/URI="([^"]+)"/g, (_, uri) => {
+        const full = abs(uri);
+        return full ? `URI="${wrap(full)}"` : `URI="${uri}"`;
+      });
+    }
+    const full = abs(trimmed);
+    return full ? wrap(full) : line;
+  }).join('\n');
+}
+
+router.options('/a3proxy', (req, res) => { setProxyCorsHeaders(res); res.sendStatus(204); });
+router.get('/a3proxy', async (req, res) => {
+  const rhRaw = String(req.query.rh || '').trim();
+  let target = String(req.query.u || req.query.url || '').trim();
+  const encId = String(req.query.id || '').trim();
+  if (!target && encId) {
+    const decoded = decrypt(encId);
+    if (decoded && /^https?:\/\//i.test(decoded)) target = decoded;
+  }
+  if (!/^https?:\/\//i.test(target) || !isAllowedA3OriginUpstream(target)) {
+    return res.status(400).send('Forbidden or missing ?u=');
+  }
+  setProxyCorsHeaders(res);
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.setHeader('X-A3-Origin-Proxy', '1');
+  // Never leak upstream host in response headers.
+  res.removeHeader('X-Upstream-Url');
+  const upstreamHeaders = buildA3OriginUpstreamHeaders(decodeA3RhQuery(rhRaw));
+  try {
+    const response = await axios.get(target, {
+      timeout: 28000,
+      maxRedirects: 5,
+      responseType: 'arraybuffer',
+      httpAgent: KEEPALIVE_HTTP_AGENT,
+      httpsAgent: /gcore-cdn\.org/i.test(target) ? A3_INSECURE_HTTPS_AGENT : KEEPALIVE_HTTPS_AGENT,
+      headers: upstreamHeaders,
+      validateStatus: () => true
+    });
+    const buf = Buffer.from(response.data || []);
+    const ct = String(response.headers['content-type'] || '').toLowerCase();
+    const peek = buf.slice(0, Math.min(buf.length, 80)).toString('utf8').trimStart();
+    if (response.status >= 400) {
+      res.status(response.status >= 500 ? 502 : response.status);
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('X-A3-Upstream-Status', String(response.status));
+      return res.send(peek.startsWith('<') || /404 Not Found|CyberPanel/i.test(peek)
+        ? 'A3 upstream unavailable (CDN TLS/block). Retry or refresh channel.'
+        : (buf.toString('utf8').slice(0, 500) || 'Upstream error'));
+    }
+    const proxyBase = `${getA3OriginProxyBase()}`;
+    if (peek.startsWith('#EXT') || ct.includes('mpegurl') || /\.m3u8?(\?|$)/i.test(target)) {
+      const finalUrl = String(response.request?.res?.responseUrl || response.config?.url || target);
+      const body = rewriteA3OriginManifest(buf.toString('utf8'), finalUrl, proxyBase, rhRaw);
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      return res.send(body);
+    }
+    if (ct) res.setHeader('Content-Type', response.headers['content-type']);
+    else if (/\.ts(\?|$)/i.test(target)) res.setHeader('Content-Type', 'video/mp2t');
+    else if (/\.m4s(\?|$)/i.test(target)) res.setHeader('Content-Type', 'video/iso.segment');
+    else if (/\.mp4(\?|$)/i.test(target)) res.setHeader('Content-Type', 'video/mp4');
+    if (response.headers['content-length']) res.setHeader('Content-Length', response.headers['content-length']);
+    if (response.headers['accept-ranges']) res.setHeader('Accept-Ranges', response.headers['accept-ranges']);
+    return res.status(200).send(buf);
+  } catch (error) {
+    console.error('A3 origin proxy error:', error.message);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.status(502).send('A3 origin proxy failed');
+  }
+});
+
 router.get('/a3sw.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -17663,9 +17827,10 @@ router.get('/a3sw', (req, res) => {
   const target = String(req.query.u || req.query.url || '').trim();
   const rh = String(req.query.rh || '').trim();
   if (!/^https?:\/\//i.test(target)) return res.status(400).send('missing u');
-  const worker = wrapA3CorsProxyUrl(target, { rh });
+  // Prefer origin proxy (hides CDN host; works when gcore TLS is broken for CF Worker).
+  const next = wrapA3CorsProxyUrl(target, { rh, forceOriginProxy: shouldUseOriginA3Proxy(target) });
   res.setHeader('Cache-Control', 'no-store');
-  return res.redirect(302, worker);
+  return res.redirect(302, next);
 });
 
 router.get('/api/channel-url/:slug', async (req, res) => {

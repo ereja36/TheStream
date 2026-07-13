@@ -20,3 +20,7 @@ VPS backup: `/root/backups/all2-backup-20260712-224326.tar.gz`
 
 ## Feature flags
 Removed UX flags are force-disabled in `normalizeFeatureFlags` (cannot be re-enabled via UI).
+
+## A3 / alb_vod (2026-07-13)
+- Root cause: `cdn*.gcore-cdn.org` TLS cert expired (2026-07-06) → CF Worker `a3.phinemi.live` returned 526 and a misleading “CDN blocked” message.
+- Fix: origin `/k1/a3proxy` with insecure TLS + encrypted `id=` URLs (hides gcore). HLS.js works over HTTPS without browser insecure confirm.
