@@ -27,7 +27,7 @@
                     android:id="@+id/hero_image"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
+                    android:scaleType="fitCenter"
                     android:src="@mipmap/ic_launcher" />
 
                 <FrameLayout
@@ -51,7 +51,7 @@
                     android:layout_height="wrap_content"
                     android:layout_gravity="top|start"
                     android:layout_marginStart="16dp"
-                    android:layout_marginTop="56dp"
+                    android:layout_marginTop="16dp"
                     android:background="@drawable/bg_v2_live_badge"
                     android:paddingStart="10dp"
                     android:paddingTop="4dp"

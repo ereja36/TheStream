@@ -143,6 +143,7 @@ public class Tools {
             bgColor = ContextCompat.getColor(activity, R.color.v2_bg);
         }
         Window window = activity.getWindow();
+        DesignInsetsHelper.clearImmersiveFlags(window);
         window.setStatusBarColor(bgColor);
         window.setNavigationBarColor(bgColor);
         // Android 10+ / targetSdk 35 can paint a black contrast scrim over the nav bar —
@@ -1061,17 +1062,10 @@ public class Tools {
     }
 
     private String resolveChannelImage(Channel channel) {
-        if (channel == null || TextUtils.isEmpty(channel.channel_image)) {
+        if (channel == null) {
             return "";
         }
-        String image = channel.channel_image.trim();
-        if (image.startsWith("http://") || image.startsWith("https://")) {
-            return image;
-        }
-        if (image.startsWith("/")) {
-            return "https://shifshqip.com" + image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(channel.channel_image, sharedPref.getBaseUrl());
     }
 
     public static String getApplicationId() {

@@ -34,6 +34,7 @@ import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdPlacementHelper;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.AdsAntiblockHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.CategoryDisplayHelper;
@@ -297,7 +298,9 @@ public class ActivityMainV2 extends AppCompatActivity {
         if (!TextUtils.isEmpty(imageUrl)) {
             Glide.with(this)
                     .load(imageUrl)
-                    .apply(new RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                    .apply(new RequestOptions()
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            .fitCenter())
                     .into(heroImage);
         }
 
@@ -610,17 +613,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private String resolveImageUrl(String image) {
-        if (TextUtils.isEmpty(image)) {
-            return "";
-        }
-        String value = image.trim();
-        if (value.startsWith("http://") || value.startsWith("https://")) {
-            return value;
-        }
-        if (value.startsWith("/")) {
-            return "https://shifshqip.com" + value;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + value.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(image, sharedPref.getBaseUrl());
     }
 
     private void handleInboxNotificationIntent(Intent intent) {

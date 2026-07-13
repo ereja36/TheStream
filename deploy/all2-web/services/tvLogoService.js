@@ -66,6 +66,9 @@ const LOGO_ALIASES = {
   klan: ['tv klan', 'klan'],
   'klan tv': ['tv klan', 'klan'],
   'tv klan': ['tv klan', 'klan'],
+  ktv: ['kohavision', 'ktv'],
+  kohavision: ['kohavision', 'ktv'],
+  'koha vision': ['kohavision', 'ktv'],
   'vizion plus': ['vizion plus'],
   'news 24': ['news24', 'news 24'],
   news24: ['news24', 'news 24'],
@@ -90,6 +93,22 @@ const LOGO_ALIASES = {
   'rtsh 1': ['rtsh1', 'rtsh 1'],
   'rtsh 2': ['rtsh2', 'rtsh 2'],
   'rtsh 3': ['rtsh3', 'rtsh 3'],
+  'rtk 1': ['rtk1', 'rtk 1'],
+  'rtk 2': ['rtk2', 'rtk 2'],
+  'rtk 3': ['rtk3', 'rtk 3'],
+  'rtk 4': ['rtk4', 'rtk 4'],
+  rtk1: ['rtk1', 'rtk 1'],
+  rtk2: ['rtk2', 'rtk 2'],
+  rtk3: ['rtk3', 'rtk 3'],
+  rtk4: ['rtk4', 'rtk 4'],
+  'rtv 21': ['rtv 21', 'rtv21'],
+  rtv21: ['rtv 21', 'rtv21'],
+  '21 rtv': ['rtv 21', 'rtv21'],
+  'rtv 21 mk': ['rtv 21 mk', 'rtv21 mk'],
+  'tring sport 1': ['tring sport 1', 'tringsport 1'],
+  'tring sport 2': ['tring sport 2', 'tringsport 2'],
+  'tring sport 3': ['tring sport 3', 'tringsport 3'],
+  'tring sport 4': ['tring sport 4', 'tringsport 4'],
   'klan kosova': ['klan kosova'],
   'klan plus': ['klanplus', 'klan plus'],
   'klan news': ['klan news'],
@@ -100,6 +119,25 @@ const LOGO_ALIASES = {
   'bbc news': ['bbc news'],
   'bbc world news': ['bbc world news'],
   'sky sport news': ['sky sport news', 'sky sports news']
+};
+
+/**
+ * Exact display-name overrides (after normalize). Prevents bad fuzzy hits
+ * like KTV → Austria K-TV, and maps relative filenames from Prod API.
+ */
+const HARD_LOGO_FILES = {
+  ktv: 'countries/albania/kohavision-al.png',
+  kohavision: 'countries/albania/kohavision-al.png',
+  'rtk 1': 'countries/albania/rtk1-al.png',
+  'rtk 2': 'countries/albania/rtk2-al.png',
+  'rtk 3': 'countries/albania/rtk3-al.png',
+  'rtk 4': 'countries/albania/rtk4-al.png',
+  'rtv 21': 'countries/albania/rtv-21-al.png',
+  'rtv 21 mk': 'countries/albania/rtv-21-mk-al.png',
+  'tring sport 1': 'countries/albania/tring-sport-1-al.png',
+  'tring sport 2': 'countries/albania/tring-sport-2-al.png',
+  'tring sport 3': 'countries/albania/tring-sport-3-al.png',
+  'tring sport 4': 'countries/albania/tring-sport-4-al.png'
 };
 
 function normalizeLogoKey(value = '') {
@@ -277,6 +315,12 @@ function createTvLogoService(options = {}) {
     const compact = compactLogoKey(rawName);
     if (!key && !compact) return '';
 
+    const hard = HARD_LOGO_FILES[key] || HARD_LOGO_FILES[compact];
+    if (hard) {
+      const abs = path.join(logoRoot, hard);
+      if (fs.existsSync(abs)) return publicUrlFor(hard);
+    }
+
     const aliasKeys = LOGO_ALIASES[key] || LOGO_ALIASES[compact] || [];
     const searchKeys = [key, compact, ...aliasKeys];
 
@@ -289,6 +333,12 @@ function createTvLogoService(options = {}) {
       }
     }
     if (!hit) return '';
+    // Never map Albanian/Kosovo KTV to Austrian religious K-TV
+    if ((key === 'ktv' || key === 'kohavision') && /austria\/k-tv/i.test(hit.file)) {
+      const fallback = HARD_LOGO_FILES.ktv;
+      if (fallback && fs.existsSync(path.join(logoRoot, fallback))) return publicUrlFor(fallback);
+      return '';
+    }
     return publicUrlFor(hit.file);
   }
 
@@ -300,10 +350,13 @@ function createTvLogoService(options = {}) {
       if (!channel || typeof channel !== 'object') continue;
       const current = String(channel.logo || '').trim();
       const looksRemoteGitHub = /githubusercontent\.com|github\.com\/.*\/raw\//i.test(current);
-      const looksRelative = current && !/^https?:\/\//i.test(current) && !current.startsWith(publicBase + '/');
+      const looksRelative = current && !/^https?:\/\//i.test(current);
+      const looksWrongAustriaKtv = /\/austria\/k-tv/i.test(current) && /ktv|kohavision/i.test(String(channel.name || ''));
       const missing = !current || /default|placeholder|missing/i.test(current);
       const alreadyLocal = current.startsWith(publicBase + '/');
-      if (!force && !missing && !looksRemoteGitHub && !looksRelative && !alreadyLocal && /^https?:\/\//i.test(current)) continue;
+      if (!force && !missing && !looksRemoteGitHub && !looksRelative && !looksWrongAustriaKtv && !alreadyLocal && /^https?:\/\//i.test(current)) continue;
+      // Always rewrite relative + wrong austria KTV; for already-local allow force refresh
+      if (!force && alreadyLocal && !looksWrongAustriaKtv) continue;
 
       const sourceKey = String(channel.sourceKey || channel.source || '');
       let countryHint = channel.koolCategory || channel.category || channel.country || '';

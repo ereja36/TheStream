@@ -26,6 +26,7 @@ import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.utils.AdPlacementHelper;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.CategoryDisplayHelper;
 import com.shif.shqip.android.utils.Constant;
@@ -384,7 +385,9 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
         Glide.with(context)
                 .load(imageUrl)
-                .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
+                .apply(new RequestOptions()
+                        .override(Constant.list_image_width, Constant.list_image_height)
+                        .fitCenter())
                 .placeholder(R.drawable.ic_thumbnail)
                 .error(R.drawable.ic_thumbnail)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
@@ -393,17 +396,10 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     private String resolveChannelImage(Channel channel) {
-        if (channel == null || TextUtils.isEmpty(channel.channel_image)) {
+        if (channel == null) {
             return "";
         }
-        String image = channel.channel_image.trim();
-        if (image.startsWith("http://") || image.startsWith("https://")) {
-            return image;
-        }
-        if (image.startsWith("/")) {
-            return "https://shifshqip.com" + image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(channel.channel_image, sharedPref.getBaseUrl());
     }
 
 }

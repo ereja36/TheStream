@@ -26,6 +26,8 @@
         <item name="android:windowBackground">@color/v2_bg</item>
         <item name="android:navigationBarColor">@color/v2_bg</item>
         <item name="android:statusBarColor">@color/v2_bg</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="p">default</item>
         <item name="android:enforceNavigationBarContrast" tools:targetApi="q">false</item>
         <item name="android:enforceStatusBarContrast" tools:targetApi="q">false</item>
         <item name="android:fontFamily">@font/custom_font</item>

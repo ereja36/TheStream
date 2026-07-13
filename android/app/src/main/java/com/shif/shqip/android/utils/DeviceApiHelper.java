@@ -645,7 +645,9 @@ public final class DeviceApiHelper {
 
         channel.channel_id = "m3u_" + index;
         channel.channel_name = channelName;
-        channel.channel_image = normalizePlaylistLogoUrl(extractAttribute(extInfoLine, "tvg-logo"));
+        channel.channel_image = ChannelLogoHelper.resolve(
+                normalizePlaylistLogoUrl(extractAttribute(extInfoLine, "tvg-logo")),
+                null);
         channel.channel_url = streamUrl;
         channel.channel_description = "";
         channel.channel_type = "M3U";

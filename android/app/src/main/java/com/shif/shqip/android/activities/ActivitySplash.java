@@ -45,6 +45,7 @@ import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.AdsAntiblockHelper;
+import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignRouter;
 import com.shif.shqip.android.utils.DeviceApiHelper;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
@@ -91,6 +92,7 @@ public class ActivitySplash extends AppCompatActivity {
         img_splash = findViewById(R.id.img_splash);
         img_splash.setImageResource(R.drawable.bg_splash_logo_white);
         // Normal system bars (not immersive) so notifications stay usable.
+        DesignInsetsHelper.clearImmersiveFlags(getWindow());
         WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
         getWindow().setStatusBarColor(ContextCompat.getColor(this, R.color.shif_red));
         getWindow().setNavigationBarColor(ContextCompat.getColor(this, R.color.shif_red));

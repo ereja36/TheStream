@@ -31,6 +31,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.models.PlaylistGuardRule;
 import com.shif.shqip.android.utils.DesignRouter;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.DeviceApiHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
@@ -494,7 +495,9 @@ public class ActivityPlaylistSetup extends AppCompatActivity {
 
         channel.channel_id = "m3u_" + index;
         channel.channel_name = channelName;
-        channel.channel_image = normalizePlaylistLogoUrl(extractAttribute(extInfoLine, "tvg-logo"));
+        channel.channel_image = ChannelLogoHelper.resolve(
+                normalizePlaylistLogoUrl(extractAttribute(extInfoLine, "tvg-logo")),
+                null);
         channel.channel_url = streamUrl;
         channel.channel_description = "";
         channel.channel_type = "M3U";

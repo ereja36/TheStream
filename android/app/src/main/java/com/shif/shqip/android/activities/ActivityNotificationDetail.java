@@ -45,6 +45,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.AppBarLayoutBehavior;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.Tools;
@@ -462,17 +463,7 @@ public class ActivityNotificationDetail extends AppCompatActivity {
     }
 
     private String resolveAnyChannelImage(String image) {
-        if (image == null || image.trim().isEmpty()) {
-            return "";
-        }
-        String value = image.trim();
-        if (value.startsWith("http://") || value.startsWith("https://")) {
-            return value;
-        }
-        if (value.startsWith("/")) {
-            return "https://shifshqip.com" + value;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + value.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(image, sharedPref.getBaseUrl());
     }
 
 }
