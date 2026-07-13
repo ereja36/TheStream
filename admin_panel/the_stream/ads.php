@@ -1136,7 +1136,7 @@
                                         </div>    
                                     </div>
 
-                                    <input type="hidden" class="form-control" name="native_ad_interval" id="native_ad_interval" value="<?php echo isset($settings_row['native_ad_interval']) ? (int) $settings_row['native_ad_interval'] : 6; ?>" required>
+                                    <input type="hidden" class="form-control" name="native_ad_interval" id="native_ad_interval" value="<?php echo isset($settings_row['native_ad_interval']) ? (int) $settings_row['native_ad_interval'] : 3; ?>" required>
 
 
                                     <div class="col-sm-12" style="font-size: 16px; margin-top: 20px;"><b>INFORMATION</b></div>

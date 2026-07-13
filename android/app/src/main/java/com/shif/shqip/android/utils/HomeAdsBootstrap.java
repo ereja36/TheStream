@@ -63,11 +63,23 @@ public final class HomeAdsBootstrap {
             try {
                 adsManager.initializeAd();
                 adsManager.updateConsentStatus();
-                AdPlacementHelper.loadHomePlacementAds(activity, adsManager, adsPref);
+                // Banner first and alone on home — natives load in channel lists on bind.
+                adsManager.loadBannerAd(Constant.BANNER_HOME);
+                adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
+                        AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
+                // One soft retry if the first banner request misses.
+                View bannerSlot = activity.findViewById(R.id.bannerAdView);
+                if (bannerSlot != null) {
+                    bannerSlot.postDelayed(() -> {
+                        if (!activity.isFinishing()) {
+                            adsManager.loadBannerAd(Constant.BANNER_HOME);
+                        }
+                    }, 2_500L);
+                }
                 if (antiblockHelper != null) {
                     antiblockHelper.onAdLoadFailed(() -> {
                         if (!activity.isFinishing()) {
-                            AdPlacementHelper.loadHomePlacementAds(activity, adsManager, adsPref);
+                            adsManager.loadBannerAd(Constant.BANNER_HOME);
                         }
                     });
                 }
@@ -78,6 +90,10 @@ public final class HomeAdsBootstrap {
         View bannerSlot = activity.findViewById(R.id.bannerAdView);
         if (bannerSlot != null) {
             bannerSlot.setVisibility(View.VISIBLE);
+            View strip = activity.findViewById(R.id.banner_strip);
+            if (strip != null) {
+                strip.setVisibility(View.VISIBLE);
+            }
             bannerSlot.post(loadAds);
         } else {
             loadAds.run();

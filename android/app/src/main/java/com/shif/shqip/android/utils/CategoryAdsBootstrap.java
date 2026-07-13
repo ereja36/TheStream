@@ -49,7 +49,15 @@ public final class CategoryAdsBootstrap {
                 adsManager.updateConsentStatus();
                 adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
                 adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
-                AdPlacementHelper.preloadNativeAds(activity, adsManager, 3);
+                // Natives load on bind in AdapterChannel (every 3 channels).
+                View bannerSlot = activity.findViewById(R.id.bannerAdView);
+                if (bannerSlot != null) {
+                    bannerSlot.postDelayed(() -> {
+                        if (!activity.isFinishing()) {
+                            adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
+                        }
+                    }, 2_000L);
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Category ads init failed", e);
             }

@@ -41,7 +41,6 @@ import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignInsetsHelper;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.EpgHelper;
-import com.shif.shqip.android.utils.NativeAdSlotHelper;
 import com.shif.shqip.android.utils.HomeAdsBootstrap;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.IptvPlayerHelper;
@@ -83,9 +82,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     private long heroPreviewToken;
     private AdsManager adsManager;
     private AdsAntiblockHelper adsAntiblockHelper;
-    private boolean allChannelsNativeBound;
     private boolean heroMuted = true;
-    private final List<AdsManager> nativeSlotManagers = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,7 +108,6 @@ public class ActivityMainV2 extends AppCompatActivity {
         bringChromeToFront();
         DesignUiHelper.bindAppLogo(this, findViewById(R.id.img_app_logo), sharedPref);
         HomeAdsBootstrap.initFast(this, adsManager, adsPref, adsAntiblockHelper);
-        bindAllChannelsNativeAd();
         loadChannels();
     }
 
@@ -134,7 +130,6 @@ public class ActivityMainV2 extends AppCompatActivity {
     protected void onDestroy() {
         destroyBannerAd();
         releaseHeroPreview();
-        nativeSlotManagers.clear();
         super.onDestroy();
         epgExecutor.shutdownNow();
         heroExecutor.shutdownNow();
@@ -502,20 +497,12 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void buildCategorySections() {
-        // Drop previous native slot managers before wiping the view tree.
-        nativeSlotManagers.clear();
         categorySections.removeAllViews();
         List<Category> categories = sharedPref.hasPlaylistChannels()
                 ? sharedPref.getPlaylistCategories()
                 : buildCategoriesFromChannels(allChannels);
 
         LayoutInflater inflater = LayoutInflater.from(this);
-        int visibleSection = 0;
-        int nativeStart = AdPlacementHelper.resolveNativeStartIndex(adsPref);
-        int nativeInterval = AdPlacementHelper.resolveNativeInterval(adsPref);
-        int nativesMounted = 0;
-        final int maxHomeNatives = 2; // Avoid flooding AdMob (kills banner fill too).
-
         for (Category category : categories) {
             List<Channel> categoryChannels = getChannelsForCategory(category.category_name);
             if (categoryChannels.isEmpty()) {
@@ -551,77 +538,7 @@ public class ActivityMainV2 extends AppCompatActivity {
             });
 
             categorySections.addView(section);
-            visibleSection++;
-
-            // Place natives using panel native_ad_index / native_ad_interval — not after every row.
-            boolean shouldPlaceNative = nativesMounted < maxHomeNatives
-                    && (visibleSection == nativeStart
-                    || (visibleSection > nativeStart
-                    && nativeInterval > 0
-                    && (visibleSection - nativeStart) % nativeInterval == 0));
-            if (shouldPlaceNative) {
-                addNativeAdSlot();
-                nativesMounted++;
-            }
         }
-    }
-
-    private void bindAllChannelsNativeAd() {
-        if (allChannelsNativeBound || !AdPlacementHelper.shouldInsertNativeAds(adsPref)) {
-            return;
-        }
-        View banner = findViewById(R.id.banner_all_channels);
-        if (!(banner.getParent() instanceof LinearLayout)) {
-            return;
-        }
-        LinearLayout parent = (LinearLayout) banner.getParent();
-        int bannerIndex = parent.indexOfChild(banner);
-        LinearLayout nativeHost = new LinearLayout(this);
-        nativeHost.setOrientation(LinearLayout.VERTICAL);
-        int horizontal = (int) getResources().getDimension(R.dimen.spacing_middle);
-        nativeHost.setPadding(horizontal, 0, horizontal, 0);
-        parent.addView(nativeHost, bannerIndex + 1);
-        // Defer native so banner request wins the first AdMob slot.
-        nativeHost.postDelayed(() -> {
-            if (isFinishing()) {
-                return;
-            }
-            AdsManager slot = NativeAdSlotHelper.mount(this, nativeHost);
-            if (slot != null) {
-                nativeSlotManagers.add(slot);
-            }
-        }, 600L);
-        allChannelsNativeBound = true;
-    }
-
-    private void addNativeAdSlot() {
-        if (!AdPlacementHelper.shouldInsertNativeAds(adsPref)) {
-            return;
-        }
-        LinearLayout wrapper = new LinearLayout(this);
-        wrapper.setOrientation(LinearLayout.VERTICAL);
-        int horizontal = (int) getResources().getDimension(R.dimen.spacing_middle);
-        int vertical = (int) getResources().getDimension(R.dimen.spacing_middle);
-        wrapper.setPadding(horizontal, vertical, horizontal, vertical);
-        LinearLayout nativeHost = new LinearLayout(this);
-        nativeHost.setOrientation(LinearLayout.VERTICAL);
-        wrapper.addView(nativeHost, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
-        categorySections.addView(wrapper);
-        // Stagger mounts so we don't fire a burst of native requests that starves banner.
-        int delayMs = 700 + (nativeSlotManagers.size() * 400);
-        nativeHost.postDelayed(() -> {
-            if (isFinishing() || categorySections.indexOfChild(wrapper) < 0) {
-                return;
-            }
-            AdsManager slot = NativeAdSlotHelper.mount(this, nativeHost);
-            if (slot != null) {
-                nativeSlotManagers.add(slot);
-            } else if (wrapper.getParent() != null) {
-                categorySections.removeView(wrapper);
-            }
-        }, delayMs);
     }
 
     private List<Category> buildCategoriesFromChannels(List<Channel> channels) {

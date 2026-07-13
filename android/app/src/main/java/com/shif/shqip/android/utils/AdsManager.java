@@ -96,23 +96,35 @@ public class AdsManager {
     }
 
     public void loadBannerAd(boolean placement) {
-        if (placement) {
-            if (adsPref.getAdStatus()) {
-                bannerAd.setAdStatus("1")
-                        .setAdNetwork(activeAdNetwork())
-                        .setBackupAdNetwork(adsPref.getBackupAds())
-                        .setAdMobBannerId(adsPref.getAdMobBannerId())
-                        .setGoogleAdManagerBannerId(adsPref.getAdManagerBannerId())
-                        .setFanBannerId(adsPref.getFanBannerId())
-                        .setUnityBannerId(adsPref.getUnityBannerPlacementId())
-                        .setAppLovinBannerId(adsPref.getAppLovinBannerAdUnitId())
-                        .setAppLovinBannerZoneId(adsPref.getAppLovinBannerZoneId())
-                        .setIronSourceBannerId(adsPref.getIronSourceBannerId())
-                        .setIsCollapsibleBanner(false)
-                        .setDarkTheme(sharedPref.getIsDarkTheme())
-                        .build();
+        if (!placement || !adsPref.getAdStatus()) {
+            return;
+        }
+        // Keep the sticky banner strip visible; Solodroid starts the inner container as GONE.
+        View bannerRoot = activity.findViewById(R.id.bannerAdView);
+        if (bannerRoot != null) {
+            bannerRoot.setVisibility(View.VISIBLE);
+            View strip = activity.findViewById(R.id.banner_strip);
+            if (strip != null) {
+                strip.setVisibility(View.VISIBLE);
+            }
+            View admobContainer = bannerRoot.findViewById(com.solodroidx.ads.R.id.admob_banner_view_container);
+            if (admobContainer != null) {
+                admobContainer.setVisibility(View.VISIBLE);
             }
         }
+        bannerAd.setAdStatus("1")
+                .setAdNetwork(activeAdNetwork())
+                .setBackupAdNetwork(adsPref.getBackupAds())
+                .setAdMobBannerId(adsPref.getAdMobBannerId())
+                .setGoogleAdManagerBannerId(adsPref.getAdManagerBannerId())
+                .setFanBannerId(adsPref.getFanBannerId())
+                .setUnityBannerId(adsPref.getUnityBannerPlacementId())
+                .setAppLovinBannerId(adsPref.getAppLovinBannerAdUnitId())
+                .setAppLovinBannerZoneId(adsPref.getAppLovinBannerZoneId())
+                .setIronSourceBannerId(adsPref.getIronSourceBannerId())
+                .setIsCollapsibleBanner(false)
+                .setDarkTheme(sharedPref.getIsDarkTheme())
+                .build();
     }
 
     public void destroyBannerAd() {

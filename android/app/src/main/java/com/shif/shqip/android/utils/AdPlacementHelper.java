@@ -50,9 +50,9 @@ public final class AdPlacementHelper {
         if (!hasValidAdNetwork(adsPref)) {
             return;
         }
+        // Home: banner + interstitial only. Native loads naturally in channel lists (every N items).
         adsManager.loadBannerAd(Constant.BANNER_HOME);
         adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, SOLODROID_SHOW_EVERY_CALL);
-        preloadNativeAds(activity, adsManager, NATIVE_PRELOAD_COUNT);
     }
 
     public static void preloadNativeAds(Activity activity, AdsManager primary, int count) {
@@ -116,7 +116,6 @@ public final class AdPlacementHelper {
             AdsManager adsManager = new AdsManager(activity);
             adsManager.initializeAd();
             adsManager.loadInterstitialAd(true, SOLODROID_SHOW_EVERY_CALL);
-            // Defer show slightly so the load request can attach; Solodroid keeps the loaded ad.
             activity.getWindow().getDecorView().postDelayed(adsManager::showInterstitialAd, 400L);
         }
     }
@@ -136,28 +135,13 @@ public final class AdPlacementHelper {
     }
 
     public static int resolveNativeInterval(AdsPref adsPref) {
-        if (adsPref == null) {
-            return 3;
-        }
-        int interval = adsPref.getNativeAdInterval();
-        if (interval <= 0) {
-            return 3;
-        }
-        return interval;
+        // Native every 3 channels (normal Solodroid list pattern).
+        return 3;
     }
 
     public static int resolveNativeStartIndex(AdsPref adsPref) {
-        if (adsPref == null) {
-            return 3;
-        }
-        // Panel: 0-based position of first native in the post list.
-        // Insertion uses 1-based channel count ("after N channels").
-        int index = adsPref.getNativeAdIndex();
-        if (index < 0) {
-            return 3;
-        }
-        // index 0 / 1 => after first channel; higher values map 1:1 as after-N.
-        return Math.max(1, index <= 0 ? 1 : index);
+        // First native after the 3rd channel, then every 3 thereafter.
+        return 3;
     }
 
     public static boolean hasValidAdNetwork(AdsPref adsPref) {
