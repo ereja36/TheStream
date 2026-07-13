@@ -150,12 +150,14 @@ public final class AdPlacementHelper {
         if (adsPref == null) {
             return 3;
         }
+        // Panel: 0-based position of first native in the post list.
+        // Insertion uses 1-based channel count ("after N channels").
         int index = adsPref.getNativeAdIndex();
-        // Server index is 0-based position of first native; convert to 1-based channel count.
         if (index < 0) {
             return 3;
         }
-        return Math.max(1, index + 1);
+        // index 0 / 1 => after first channel; higher values map 1:1 as after-N.
+        return Math.max(1, index <= 0 ? 1 : index);
     }
 
     public static boolean hasValidAdNetwork(AdsPref adsPref) {

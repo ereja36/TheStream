@@ -90,9 +90,13 @@ public final class HomeAdsBootstrap {
             return;
         }
         try {
+            // Prefer a light banner refresh; avoid full placement reload unless antiblock asks for it.
             adsManager.resumeBannerAd(Constant.BANNER_HOME);
             if (antiblockHelper != null && antiblockHelper.shouldForceAdReloadOnResume()) {
-                AdPlacementHelper.loadHomePlacementAds(activity, adsManager, adsPref);
+                // Soft reload: banner + interstitial only (do not spam native preloads on every resume).
+                adsManager.loadBannerAd(Constant.BANNER_HOME);
+                adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
+                        AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
             }
         } catch (Exception e) {
             Log.e(TAG, "Home ads resume failed", e);

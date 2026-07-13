@@ -502,13 +502,20 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void buildCategorySections() {
+        // Drop previous native slot managers before wiping the view tree.
+        nativeSlotManagers.clear();
         categorySections.removeAllViews();
         List<Category> categories = sharedPref.hasPlaylistChannels()
                 ? sharedPref.getPlaylistCategories()
                 : buildCategoriesFromChannels(allChannels);
 
         LayoutInflater inflater = LayoutInflater.from(this);
-        int sectionIndex = 0;
+        int visibleSection = 0;
+        int nativeStart = AdPlacementHelper.resolveNativeStartIndex(adsPref);
+        int nativeInterval = AdPlacementHelper.resolveNativeInterval(adsPref);
+        int nativesMounted = 0;
+        final int maxHomeNatives = 2; // Avoid flooding AdMob (kills banner fill too).
+
         for (Category category : categories) {
             List<Channel> categoryChannels = getChannelsForCategory(category.category_name);
             if (categoryChannels.isEmpty()) {
@@ -533,7 +540,6 @@ public class ActivityMainV2 extends AppCompatActivity {
             });
             recyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
             recyclerView.setNestedScrollingEnabled(false);
-            recyclerView.setNestedScrollingEnabled(false);
             recyclerView.setAdapter(adapter);
             adapter.setItems(categoryChannels);
 
@@ -545,13 +551,23 @@ public class ActivityMainV2 extends AppCompatActivity {
             });
 
             categorySections.addView(section);
-            sectionIndex++;
-            addNativeAdSlot();
+            visibleSection++;
+
+            // Place natives using panel native_ad_index / native_ad_interval — not after every row.
+            boolean shouldPlaceNative = nativesMounted < maxHomeNatives
+                    && (visibleSection == nativeStart
+                    || (visibleSection > nativeStart
+                    && nativeInterval > 0
+                    && (visibleSection - nativeStart) % nativeInterval == 0));
+            if (shouldPlaceNative) {
+                addNativeAdSlot();
+                nativesMounted++;
+            }
         }
     }
 
     private void bindAllChannelsNativeAd() {
-        if (allChannelsNativeBound || !adsPref.getAdStatus() || !Constant.NATIVE_AD_CHANNEL_LIST) {
+        if (allChannelsNativeBound || !AdPlacementHelper.shouldInsertNativeAds(adsPref)) {
             return;
         }
         View banner = findViewById(R.id.banner_all_channels);
@@ -565,15 +581,21 @@ public class ActivityMainV2 extends AppCompatActivity {
         int horizontal = (int) getResources().getDimension(R.dimen.spacing_middle);
         nativeHost.setPadding(horizontal, 0, horizontal, 0);
         parent.addView(nativeHost, bannerIndex + 1);
-        AdsManager slot = NativeAdSlotHelper.mount(this, nativeHost);
-        if (slot != null) {
-            nativeSlotManagers.add(slot);
-        }
+        // Defer native so banner request wins the first AdMob slot.
+        nativeHost.postDelayed(() -> {
+            if (isFinishing()) {
+                return;
+            }
+            AdsManager slot = NativeAdSlotHelper.mount(this, nativeHost);
+            if (slot != null) {
+                nativeSlotManagers.add(slot);
+            }
+        }, 600L);
         allChannelsNativeBound = true;
     }
 
     private void addNativeAdSlot() {
-        if (!adsPref.getAdStatus() || !Constant.NATIVE_AD_CHANNEL_LIST) {
+        if (!AdPlacementHelper.shouldInsertNativeAds(adsPref)) {
             return;
         }
         LinearLayout wrapper = new LinearLayout(this);
@@ -587,10 +609,19 @@ public class ActivityMainV2 extends AppCompatActivity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
         categorySections.addView(wrapper);
-        AdsManager slot = NativeAdSlotHelper.mount(this, nativeHost);
-        if (slot != null) {
-            nativeSlotManagers.add(slot);
-        }
+        // Stagger mounts so we don't fire a burst of native requests that starves banner.
+        int delayMs = 700 + (nativeSlotManagers.size() * 400);
+        nativeHost.postDelayed(() -> {
+            if (isFinishing() || categorySections.indexOfChild(wrapper) < 0) {
+                return;
+            }
+            AdsManager slot = NativeAdSlotHelper.mount(this, nativeHost);
+            if (slot != null) {
+                nativeSlotManagers.add(slot);
+            } else if (wrapper.getParent() != null) {
+                categorySections.removeView(wrapper);
+            }
+        }, delayMs);
     }
 
     private List<Category> buildCategoriesFromChannels(List<Channel> channels) {

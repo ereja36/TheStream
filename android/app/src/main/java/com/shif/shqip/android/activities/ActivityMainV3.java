@@ -132,14 +132,18 @@ public class ActivityMainV3 extends AppCompatActivity {
     }
 
     private void bindHomeNativeAds() {
-        if (!adsPref.getAdStatus() || !Constant.NATIVE_AD_CHANNEL_LIST) {
+        if (!AdPlacementHelper.shouldInsertNativeAds(adsPref)) {
             return;
         }
         android.widget.LinearLayout host = findViewById(R.id.native_ad_home);
         if (host == null) {
             return;
         }
-        NativeAdSlotHelper.mount(this, host);
+        host.postDelayed(() -> {
+            if (!isFinishing()) {
+                NativeAdSlotHelper.mount(this, host);
+            }
+        }, 600L);
     }
 
     private void reloadHomeAds() {

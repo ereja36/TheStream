@@ -200,11 +200,9 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
                     holder.itemView.setVisibility(View.VISIBLE);
                     adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
                     holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, Boolean.TRUE);
-                    // Collapse empty native rows that never fill (avoids grey skeleton bars).
-                    holder.itemView.postDelayed(() -> collapseEmptyNativeRow(holder), 2_500L);
                 } catch (Exception e) {
                     Log.e("AdapterChannel", "native bind failed", e);
-                    collapseEmptyNativeRow(holder);
+                    holder.itemView.setVisibility(View.GONE);
                 }
             }
         } else {
@@ -212,23 +210,6 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
 
         applyStaggeredSpan(holder, getItemViewType(position) == VIEW_PROG || getItemViewType(position) == VIEW_AD);
-    }
-
-    private void collapseEmptyNativeRow(RecyclerView.ViewHolder holder) {
-        if (holder == null || holder.itemView == null) {
-            return;
-        }
-        View item = holder.itemView;
-        // If the native template never became meaningful height, hide the placeholder row.
-        if (item.getVisibility() != View.VISIBLE || item.getHeight() < 24) {
-            ViewGroup.LayoutParams lp = item.getLayoutParams();
-            if (lp != null) {
-                lp.height = 0;
-                item.setLayoutParams(lp);
-            }
-            item.setVisibility(View.GONE);
-            item.setPadding(0, 0, 0, 0);
-        }
     }
 
     private void applyStaggeredSpan(RecyclerView.ViewHolder holder, boolean fullSpan) {
