@@ -202,7 +202,21 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
                     holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, Boolean.TRUE);
                 } catch (Exception e) {
                     Log.e("AdapterChannel", "native bind failed", e);
-                    holder.itemView.setVisibility(View.GONE);
+                    // Keep slot for a later rebind attempt instead of permanently collapsing.
+                    holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, null);
+                    holder.itemView.postDelayed(() -> {
+                        try {
+                            if (holder.getBindingAdapterPosition() == RecyclerView.NO_POSITION) {
+                                return;
+                            }
+                            adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
+                            holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, Boolean.TRUE);
+                            holder.itemView.setVisibility(View.VISIBLE);
+                        } catch (Exception retryError) {
+                            Log.e("AdapterChannel", "native rebind failed", retryError);
+                            holder.itemView.setVisibility(View.GONE);
+                        }
+                    }, 1500L);
                 }
             }
         } else {

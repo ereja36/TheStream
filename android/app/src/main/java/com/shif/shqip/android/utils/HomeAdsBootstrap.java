@@ -10,7 +10,7 @@ import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 
 /**
- * Safe, deferred home-screen ad initialization shared by all design variants.
+ * Home-screen ad bootstrap. Banner stays hidden until AdMob fills (no black strip).
  */
 public final class HomeAdsBootstrap {
 
@@ -24,49 +24,44 @@ public final class HomeAdsBootstrap {
         initFast(activity, adsManager, adsPref, antiblockHelper);
     }
 
-    /** Immediate ad SDK + banner/interstitial preload (Design 2 smooth start). */
     public static void initFast(AppCompatActivity activity, AdsManager adsManager, AdsPref adsPref,
                                 AdsAntiblockHelper antiblockHelper) {
         if (activity == null || adsManager == null || adsPref == null) {
             return;
         }
-        initNow(activity, adsManager, adsPref, antiblockHelper);
-    }
-
-    private static void initNow(Activity activity, AdsManager adsManager, AdsPref adsPref,
-                                AdsAntiblockHelper antiblockHelper) {
-        if (activity.isFinishing()) {
-            return;
+        // Always collapse banner plate until a real ad arrives.
+        View strip = activity.findViewById(R.id.banner_strip);
+        if (strip != null) {
+            strip.setVisibility(View.GONE);
         }
         if (!adsPref.getAdStatus() || !AdPlacementHelper.hasValidAdNetwork(adsPref)) {
             return;
         }
-        Runnable loadAds = () -> {
+        View foundAnchor = activity.findViewById(R.id.bottom_chrome);
+        if (foundAnchor == null) {
+            foundAnchor = activity.findViewById(R.id.design_root);
+        }
+        if (foundAnchor == null) {
+            foundAnchor = activity.getWindow().getDecorView();
+        }
+        final View anchor = foundAnchor;
+        final View bannerStrip = strip;
+        anchor.post(() -> {
             if (activity.isFinishing()) {
                 return;
             }
             try {
                 adsManager.initializeAd();
                 adsManager.updateConsentStatus();
-                // Banner waits for MobileAds.initialize internally (DirectAdMobBannerHelper).
                 adsManager.loadBannerAd(Constant.BANNER_HOME);
                 adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
                         AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
-                // Soft retries — DirectAdMobBannerHelper also retries on failure.
-                View root = activity.findViewById(R.id.design_root);
-                if (root == null) {
-                    root = activity.getWindow().getDecorView();
-                }
-                root.postDelayed(() -> {
+                // One delayed retry if first request missed fill / init race.
+                anchor.postDelayed(() -> {
                     if (!activity.isFinishing()) {
                         adsManager.loadBannerAd(Constant.BANNER_HOME);
                     }
-                }, 2_500L);
-                root.postDelayed(() -> {
-                    if (!activity.isFinishing()) {
-                        adsManager.loadBannerAd(Constant.BANNER_HOME);
-                    }
-                }, 6_000L);
+                }, 5_000L);
                 if (antiblockHelper != null) {
                     antiblockHelper.onAdLoadFailed(() -> {
                         if (!activity.isFinishing()) {
@@ -76,20 +71,11 @@ public final class HomeAdsBootstrap {
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Home ads bootstrap failed", e);
+                if (bannerStrip != null) {
+                    bannerStrip.setVisibility(View.GONE);
+                }
             }
-        };
-        View anchor = activity.findViewById(R.id.banner_strip);
-        if (anchor == null) {
-            anchor = activity.findViewById(R.id.bannerAdView);
-        }
-        if (anchor == null) {
-            anchor = activity.findViewById(R.id.design_root);
-        }
-        if (anchor != null) {
-            anchor.post(loadAds);
-        } else {
-            loadAds.run();
-        }
+        });
     }
 
     public static void resume(Activity activity, AdsManager adsManager, AdsPref adsPref,

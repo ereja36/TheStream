@@ -94,7 +94,11 @@ public class ActivityMainV2 extends AppCompatActivity {
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
         setContentView(R.layout.activity_main_v2);
-        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, 0,
+        View bannerStrip = findViewById(R.id.banner_strip);
+        if (bannerStrip != null) {
+            bannerStrip.setVisibility(View.GONE);
+        }
+        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_chrome,
                 R.id.scroll_home, R.id.bottom_nav_pill);
 
         categorySections = findViewById(R.id.category_sections);
@@ -222,9 +226,10 @@ public class ActivityMainV2 extends AppCompatActivity {
     private void bringChromeToFront() {
         View topActions = findViewById(R.id.top_actions);
         View bottomNav = findViewById(R.id.bottom_nav_pill);
+        View bottomChrome = findViewById(R.id.bottom_chrome);
+        DesignInsetsHelper.bringChromeToFront(topActions, bottomChrome, bottomNav);
         View bannerStrip = findViewById(R.id.banner_strip);
-        DesignInsetsHelper.bringChromeToFront(topActions, bannerStrip, bottomNav);
-        if (bannerStrip != null) {
+        if (bannerStrip != null && bannerStrip.getVisibility() == View.VISIBLE) {
             bannerStrip.bringToFront();
         }
         if (bottomNav != null) {

@@ -28,16 +28,20 @@ public final class NativeAdSlotHelper {
         if (!adsPref.getAdStatus() || !Constant.NATIVE_AD_CHANNEL_LIST
                 || !AdPlacementHelper.hasValidAdNetwork(adsPref)
                 || !AdPlacementHelper.shouldInsertNativeAds(adsPref)) {
+            host.setVisibility(View.GONE);
             return null;
         }
         try {
+            host.setVisibility(View.VISIBLE);
             Tools.setNativeAdStyle(activity, host, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
             AdsManager slotAds = new AdsManager(activity);
+            slotAds.initializeAd();
             slotAds.loadNativeAd(Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
             slotAds.loadNativeAdView(host, Constant.NATIVE_AD_CHANNEL_LIST, Constant.NATIVE_AD_STYLE_CHANNEL_LIST);
             return slotAds;
         } catch (Exception e) {
             Log.e(TAG, "mount failed", e);
+            host.setVisibility(View.GONE);
             return null;
         }
     }

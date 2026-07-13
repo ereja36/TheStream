@@ -101,48 +101,71 @@ public class AdsManager {
         if (!placement || !adsPref.getAdStatus()) {
             return;
         }
-        // AdMob: load directly after MobileAds.initialize (OneIPTV-style reliability).
-        // Solodroid banner often races init and fails silently → empty black strip.
-        if ("admob".equals(activeAdNetwork())
-                && AdPlacementHelper.isValidAdUnit(adsPref.getAdMobBannerId())) {
-            directBanner.load();
-            return;
-        }
-        View bannerRoot = activity.findViewById(R.id.bannerAdView);
-        if (bannerRoot != null) {
-            bannerRoot.setVisibility(View.VISIBLE);
+        try {
+            if ("admob".equals(activeAdNetwork())
+                    && AdPlacementHelper.isValidAdUnit(adsPref.getAdMobBannerId())) {
+                directBanner.load();
+                return;
+            }
+            // Non-AdMob fallback via Solodroid — never force-show empty strip.
             View strip = activity.findViewById(R.id.banner_strip);
             if (strip != null) {
-                strip.setVisibility(View.VISIBLE);
+                strip.setVisibility(View.GONE);
+            }
+            bannerAd.setAdStatus("1")
+                    .setAdNetwork(activeAdNetwork())
+                    .setBackupAdNetwork(adsPref.getBackupAds())
+                    .setAdMobBannerId(adsPref.getAdMobBannerId())
+                    .setGoogleAdManagerBannerId(adsPref.getAdManagerBannerId())
+                    .setFanBannerId(adsPref.getFanBannerId())
+                    .setUnityBannerId(adsPref.getUnityBannerPlacementId())
+                    .setAppLovinBannerId(adsPref.getAppLovinBannerAdUnitId())
+                    .setAppLovinBannerZoneId(adsPref.getAppLovinBannerZoneId())
+                    .setIronSourceBannerId(adsPref.getIronSourceBannerId())
+                    .setIsCollapsibleBanner(false)
+                    .setDarkTheme(sharedPref.getIsDarkTheme())
+                    .build();
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "loadBannerAd failed", e);
+            View strip = activity.findViewById(R.id.banner_strip);
+            if (strip != null) {
+                strip.setVisibility(View.GONE);
             }
         }
-        bannerAd.setAdStatus("1")
-                .setAdNetwork(activeAdNetwork())
-                .setBackupAdNetwork(adsPref.getBackupAds())
-                .setAdMobBannerId(adsPref.getAdMobBannerId())
-                .setGoogleAdManagerBannerId(adsPref.getAdManagerBannerId())
-                .setFanBannerId(adsPref.getFanBannerId())
-                .setUnityBannerId(adsPref.getUnityBannerPlacementId())
-                .setAppLovinBannerId(adsPref.getAppLovinBannerAdUnitId())
-                .setAppLovinBannerZoneId(adsPref.getAppLovinBannerZoneId())
-                .setIronSourceBannerId(adsPref.getIronSourceBannerId())
-                .setIsCollapsibleBanner(false)
-                .setDarkTheme(sharedPref.getIsDarkTheme())
-                .build();
     }
 
     public void destroyBannerAd() {
-        if (directBanner != null) {
-            directBanner.destroy();
+        try {
+            if (directBanner != null) {
+                directBanner.destroy();
+            }
+        } catch (Exception ignored) {
         }
-        if (adsPref.getAdStatus()) {
-            bannerAd.destroyAndDetachBanner();
+        try {
+            if (adsPref.getAdStatus()) {
+                bannerAd.destroyAndDetachBanner();
+            }
+        } catch (Exception ignored) {
+        }
+        View strip = activity.findViewById(R.id.banner_strip);
+        if (strip != null) {
+            strip.setVisibility(View.GONE);
         }
     }
 
     public void resumeBannerAd(boolean placement) {
-        if (adsPref.getAdStatus()) {
+        if (!placement || !adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if ("admob".equals(activeAdNetwork())
+                    && AdPlacementHelper.isValidAdUnit(adsPref.getAdMobBannerId())) {
+                directBanner.onResume();
+                return;
+            }
             loadBannerAd(placement);
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "resumeBannerAd failed", e);
         }
     }
 
