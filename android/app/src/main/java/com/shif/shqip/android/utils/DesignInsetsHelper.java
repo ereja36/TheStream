@@ -29,7 +29,6 @@ public final class DesignInsetsHelper {
         SharedPref sharedPref = new SharedPref(activity);
         boolean lightBars = !sharedPref.getIsDarkTheme();
 
-        // Edge-to-edge so content/bg fill behind the gesture bar (no black contrast strip).
         Window window = activity.getWindow();
         WindowCompat.setDecorFitsSystemWindows(window, false);
         Tools.applyDesignSystemBars(activity, lightBars);
@@ -49,33 +48,42 @@ public final class DesignInsetsHelper {
         View bottomBar = bottomBarId != 0 ? activity.findViewById(bottomBarId) : null;
         View content = contentId != 0 ? activity.findViewById(contentId) : null;
         View floatingNav = floatingNavId != 0 ? activity.findViewById(floatingNavId) : null;
+        View bannerStrip = activity.findViewById(R.id.banner_strip);
         final int extraTopDp = dp(activity, 8);
         final int extraBottomDp = dp(activity, 8);
 
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             applyTopMargin(topBar, bars.top + extraTopDp);
-            // Pad (don't margin) the bottom chrome so the app bg fills the gesture area —
-            // this removes the solid black system strip under the floating nav.
+
+            // Banner sits at the physical bottom (OneIPTV). Gesture line overlays the ad;
+            // do NOT create an empty dark padded strip under the floating nav.
+            if (bannerStrip != null && bannerStrip.getVisibility() == View.VISIBLE
+                    && bannerStrip.getHeight() > 0) {
+                // Banner visible — pill floats above banner height (managed by DirectAdMobBannerHelper).
+                if (floatingNav != null && floatingNav.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+                    // Keep whatever banner helper set; only ensure minimum clearance.
+                    ViewGroup.MarginLayoutParams lp =
+                            (ViewGroup.MarginLayoutParams) floatingNav.getLayoutParams();
+                    if (lp.bottomMargin < bannerStrip.getHeight() + extraBottomDp) {
+                        lp.bottomMargin = bannerStrip.getHeight() + extraBottomDp;
+                        floatingNav.setLayoutParams(lp);
+                    }
+                }
+            } else if (floatingNav != null) {
+                applyBottomMargin(floatingNav, bars.bottom + extraBottomDp);
+            }
+
             if (bottomBar != null) {
-                applyBottomMargin(bottomBar, 0);
-                bottomBar.setPadding(
-                        bottomBar.getPaddingLeft(),
-                        bottomBar.getPaddingTop(),
-                        bottomBar.getPaddingRight(),
-                        bars.bottom + extraBottomDp);
-            }
-            if (floatingNav != null) {
-                applyBottomMargin(floatingNav, bars.bottom + extraBottomDp + dp(activity, 56));
-            }
-            if (content != null) {
-                content.setPadding(
-                        content.getPaddingLeft(),
-                        content.getPaddingTop(),
-                        content.getPaddingRight(),
-                        content.getPaddingBottom());
+                applyBottomMargin(bottomBar, bars.bottom + extraBottomDp);
             }
             bringChromeToFront(topBar, bottomBar, floatingNav);
+            if (bannerStrip != null) {
+                bannerStrip.bringToFront();
+            }
+            if (floatingNav != null) {
+                floatingNav.bringToFront();
+            }
             return insets;
         });
 

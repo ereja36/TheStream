@@ -35,6 +35,7 @@ public class AdsManager {
     SharedPref sharedPref;
     AdsPref adsPref;
     GDPR gdpr;
+    DirectAdMobBannerHelper directBanner;
 
     public AdsManager(Activity activity) {
         this.activity = activity;
@@ -47,6 +48,7 @@ public class AdsManager {
         interstitialAd = new InterstitialAd(activity);
         nativeAd = new NativeAd(activity);
         nativeAdView = new NativeAdView(activity);
+        directBanner = new DirectAdMobBannerHelper(activity);
     }
 
     public void initializeAd() {
@@ -99,8 +101,13 @@ public class AdsManager {
         if (!placement || !adsPref.getAdStatus()) {
             return;
         }
-        // Keep BannerAdView in the hierarchy; Solodroid toggles admob_* containers on load/fail.
-        // Do not force empty containers visible — that reserved a blank dark strip at the bottom.
+        // AdMob: load directly after MobileAds.initialize (OneIPTV-style reliability).
+        // Solodroid banner often races init and fails silently → empty black strip.
+        if ("admob".equals(activeAdNetwork())
+                && AdPlacementHelper.isValidAdUnit(adsPref.getAdMobBannerId())) {
+            directBanner.load();
+            return;
+        }
         View bannerRoot = activity.findViewById(R.id.bannerAdView);
         if (bannerRoot != null) {
             bannerRoot.setVisibility(View.VISIBLE);
@@ -125,6 +132,9 @@ public class AdsManager {
     }
 
     public void destroyBannerAd() {
+        if (directBanner != null) {
+            directBanner.destroy();
+        }
         if (adsPref.getAdStatus()) {
             bannerAd.destroyAndDetachBanner();
         }

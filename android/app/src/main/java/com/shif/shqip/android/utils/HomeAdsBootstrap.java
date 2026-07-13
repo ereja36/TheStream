@@ -24,28 +24,13 @@ public final class HomeAdsBootstrap {
         initFast(activity, adsManager, adsPref, antiblockHelper);
     }
 
-    /** Immediate ad SDK + banner/native/interstitial preload (Design 2 smooth start). */
+    /** Immediate ad SDK + banner/interstitial preload (Design 2 smooth start). */
     public static void initFast(AppCompatActivity activity, AdsManager adsManager, AdsPref adsPref,
                                 AdsAntiblockHelper antiblockHelper) {
         if (activity == null || adsManager == null || adsPref == null) {
             return;
         }
         initNow(activity, adsManager, adsPref, antiblockHelper);
-    }
-
-    private static void initLegacyPost(AppCompatActivity activity, AdsManager adsManager, AdsPref adsPref,
-                                       AdsAntiblockHelper antiblockHelper) {
-        if (activity == null || adsManager == null || adsPref == null) {
-            return;
-        }
-        View anchor = activity.findViewById(R.id.design_root);
-        if (anchor == null) {
-            anchor = activity.findViewById(R.id.parent_view);
-        }
-        if (anchor == null) {
-            anchor = activity.getWindow().getDecorView();
-        }
-        anchor.post(() -> initNow(activity, adsManager, adsPref, antiblockHelper));
     }
 
     private static void initNow(Activity activity, AdsManager adsManager, AdsPref adsPref,
@@ -63,19 +48,25 @@ public final class HomeAdsBootstrap {
             try {
                 adsManager.initializeAd();
                 adsManager.updateConsentStatus();
-                // Banner first and alone on home — natives load in channel lists on bind.
+                // Banner waits for MobileAds.initialize internally (DirectAdMobBannerHelper).
                 adsManager.loadBannerAd(Constant.BANNER_HOME);
                 adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
                         AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
-                // One soft retry if the first banner request misses.
-                View bannerSlot = activity.findViewById(R.id.bannerAdView);
-                if (bannerSlot != null) {
-                    bannerSlot.postDelayed(() -> {
-                        if (!activity.isFinishing()) {
-                            adsManager.loadBannerAd(Constant.BANNER_HOME);
-                        }
-                    }, 2_500L);
+                // Soft retries — DirectAdMobBannerHelper also retries on failure.
+                View root = activity.findViewById(R.id.design_root);
+                if (root == null) {
+                    root = activity.getWindow().getDecorView();
                 }
+                root.postDelayed(() -> {
+                    if (!activity.isFinishing()) {
+                        adsManager.loadBannerAd(Constant.BANNER_HOME);
+                    }
+                }, 2_500L);
+                root.postDelayed(() -> {
+                    if (!activity.isFinishing()) {
+                        adsManager.loadBannerAd(Constant.BANNER_HOME);
+                    }
+                }, 6_000L);
                 if (antiblockHelper != null) {
                     antiblockHelper.onAdLoadFailed(() -> {
                         if (!activity.isFinishing()) {
@@ -87,14 +78,15 @@ public final class HomeAdsBootstrap {
                 Log.e(TAG, "Home ads bootstrap failed", e);
             }
         };
-        View bannerSlot = activity.findViewById(R.id.bannerAdView);
-        if (bannerSlot != null) {
-            bannerSlot.setVisibility(View.VISIBLE);
-            View strip = activity.findViewById(R.id.banner_strip);
-            if (strip != null) {
-                strip.setVisibility(View.VISIBLE);
-            }
-            bannerSlot.post(loadAds);
+        View anchor = activity.findViewById(R.id.banner_strip);
+        if (anchor == null) {
+            anchor = activity.findViewById(R.id.bannerAdView);
+        }
+        if (anchor == null) {
+            anchor = activity.findViewById(R.id.design_root);
+        }
+        if (anchor != null) {
+            anchor.post(loadAds);
         } else {
             loadAds.run();
         }
@@ -106,10 +98,8 @@ public final class HomeAdsBootstrap {
             return;
         }
         try {
-            // Prefer a light banner refresh; avoid full placement reload unless antiblock asks for it.
             adsManager.resumeBannerAd(Constant.BANNER_HOME);
             if (antiblockHelper != null && antiblockHelper.shouldForceAdReloadOnResume()) {
-                // Soft reload: banner + interstitial only (do not spam native preloads on every resume).
                 adsManager.loadBannerAd(Constant.BANNER_HOME);
                 adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
                         AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);

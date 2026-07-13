@@ -44,6 +44,7 @@ import com.shif.shqip.android.utils.EpgHelper;
 import com.shif.shqip.android.utils.HomeAdsBootstrap;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.IptvPlayerHelper;
+import com.shif.shqip.android.utils.NativeAdSlotHelper;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 import com.shif.shqip.android.utils.PlaylistRefreshHelper;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
@@ -93,8 +94,8 @@ public class ActivityMainV2 extends AppCompatActivity {
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
         setContentView(R.layout.activity_main_v2);
-        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_container,
-                R.id.scroll_home, 0);
+        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, 0,
+                R.id.scroll_home, R.id.bottom_nav_pill);
 
         categorySections = findViewById(R.id.category_sections);
         emptyMessage = findViewById(R.id.empty_message);
@@ -221,8 +222,14 @@ public class ActivityMainV2 extends AppCompatActivity {
     private void bringChromeToFront() {
         View topActions = findViewById(R.id.top_actions);
         View bottomNav = findViewById(R.id.bottom_nav_pill);
-        View bottomContainer = findViewById(R.id.bottom_container);
-        DesignInsetsHelper.bringChromeToFront(topActions, bottomContainer, bottomNav);
+        View bannerStrip = findViewById(R.id.banner_strip);
+        DesignInsetsHelper.bringChromeToFront(topActions, bannerStrip, bottomNav);
+        if (bannerStrip != null) {
+            bannerStrip.bringToFront();
+        }
+        if (bottomNav != null) {
+            bottomNav.bringToFront();
+        }
     }
 
     private void loadChannels() {
@@ -503,6 +510,7 @@ public class ActivityMainV2 extends AppCompatActivity {
                 : buildCategoriesFromChannels(allChannels);
 
         LayoutInflater inflater = LayoutInflater.from(this);
+        int sectionIndex = 0;
         for (Category category : categories) {
             List<Channel> categoryChannels = getChannelsForCategory(category.category_name);
             if (categoryChannels.isEmpty()) {
@@ -538,6 +546,19 @@ public class ActivityMainV2 extends AppCompatActivity {
             });
 
             categorySections.addView(section);
+            sectionIndex++;
+            // Native between category rows (every 3), same cadence as channel lists.
+            if (sectionIndex % 3 == 0) {
+                LinearLayout nativeHost = new LinearLayout(this);
+                nativeHost.setOrientation(LinearLayout.VERTICAL);
+                nativeHost.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+                int pad = Math.round(12 * getResources().getDisplayMetrics().density);
+                nativeHost.setPadding(pad, pad / 2, pad, pad / 2);
+                categorySections.addView(nativeHost);
+                NativeAdSlotHelper.mount(this, nativeHost);
+            }
         }
     }
 

@@ -239,71 +239,73 @@
             android:tint="@color/color_white" />
     </LinearLayout>
 
+    <!-- Floating bottom nav (above banner, OneIPTV style) -->
     <LinearLayout
-        android:id="@+id/bottom_container"
+        android:id="@+id/bottom_nav_pill"
+        android:layout_width="wrap_content"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="66dp"
+        android:background="@drawable/bg_v2_glass_nav_pill"
+        android:elevation="28dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp">
+
+        <ImageButton
+            android:id="@+id/nav_home"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="14dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/title_nav_recent"
+            android:src="@drawable/ic_nav_home"
+            android:tint="@color/v2_accent" />
+
+        <ImageButton
+            android:id="@+id/nav_categories"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="14dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/title_nav_category"
+            android:src="@drawable/ic_nav_category"
+            android:tint="@color/color_white" />
+
+        <ImageButton
+            android:id="@+id/nav_favorites"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/title_nav_favorite"
+            android:src="@drawable/ic_nav_favorite"
+            android:tint="@color/color_white" />
+    </LinearLayout>
+
+    <!-- Sticky AdMob banner pinned to absolute bottom (fills the area that was a black strip) -->
+    <FrameLayout
+        android:id="@+id/banner_strip"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         android:background="@color/v2_bg"
-        android:elevation="20dp"
-        android:gravity="center_horizontal"
-        android:orientation="vertical">
+        android:elevation="16dp"
+        android:visibility="gone">
 
-        <LinearLayout
-            android:id="@+id/bottom_nav_pill"
-            android:layout_width="wrap_content"
-            android:layout_height="56dp"
-            android:layout_marginBottom="8dp"
-            android:background="@drawable/bg_v2_glass_nav_pill"
-            android:elevation="24dp"
-            android:gravity="center"
-            android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp">
-
-            <ImageButton
-                android:id="@+id/nav_home"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="14dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/title_nav_recent"
-                android:src="@drawable/ic_nav_home"
-                android:tint="@color/v2_accent" />
-
-            <ImageButton
-                android:id="@+id/nav_categories"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="14dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/title_nav_category"
-                android:src="@drawable/ic_nav_category"
-                android:tint="@color/color_white" />
-
-            <ImageButton
-                android:id="@+id/nav_favorites"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/title_nav_favorite"
-                android:src="@drawable/ic_nav_favorite"
-                android:tint="@color/color_white" />
-        </LinearLayout>
-
-        <!-- Sticky banner: wrap_content only — no reserved empty black strip when ad is loading/missing -->
         <FrameLayout
-            android:id="@+id/banner_strip"
+            android:id="@+id/admob_banner_host"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@color/v2_bg">
+            android:layout_gravity="bottom" />
 
-            <com.solodroidx.ads.ui.BannerAdView
-                android:id="@+id/bannerAdView"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_gravity="bottom" />
-        </FrameLayout>
-    </LinearLayout>
+        <!-- Kept for Solodroid fallback on non-AdMob networks -->
+        <com.solodroidx.ads.ui.BannerAdView
+            android:id="@+id/bannerAdView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:visibility="gone" />
+    </FrameLayout>
 
 </FrameLayout>
