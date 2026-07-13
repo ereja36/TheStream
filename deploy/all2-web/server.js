@@ -13301,6 +13301,7 @@ function startMpegtsPlayback(url,attemptId){
     if(mpegts.LoggingControl){
       try{ mpegts.LoggingControl.enableVerbose=false; }catch{}
     }
+    const isMobile=/Android|iPhone|iPad|Mobile/i.test(String(navigator.userAgent||''));
     const player=mpegts.createPlayer({
       type:'mse',
       isLive:true,
@@ -13310,9 +13311,9 @@ function startMpegtsPlayback(url,attemptId){
       hasAudio:true,
       hasVideo:true
     },{
-      enableWorker:true,
+      enableWorker:!isMobile,
       enableStashBuffer:true,
-      stashInitialSize:512,
+      stashInitialSize:isMobile?256:512,
       lazyLoad:false,
       lazyLoadMaxDuration:0,
       autoCleanupSourceBuffer:true,
