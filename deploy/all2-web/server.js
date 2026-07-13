@@ -8005,7 +8005,7 @@ function buildChannelUpstreamProfile(channel, slug = '') {
   }
   if (!Object.keys(headers).some(key => String(key).toLowerCase() === 'accept-encoding')) headers['Accept-Encoding'] = 'identity';
   if (!Object.keys(headers).some(key => String(key).toLowerCase() === 'connection')) headers.Connection = 'Keep-Alive';
-  if ((sourceKey === 'alb' || sourceKey === 'alb_vod') && !Object.keys(headers).some(key => String(key).toLowerCase() === 'icy-metadata')) headers['Icy-MetaData'] = '1';
+  // AlbKanale PlayerActivity does not send Icy-MetaData — do not invent it.
   if (!Object.keys(headers).length && !userAgent) return { sourceKey, channelSlug };
   return { upstreamHeaders: headers, userAgent, sourceKey, channelSlug };
 }
@@ -17809,7 +17809,6 @@ function buildA3OriginUpstreamHeaders(rhHeaders = {}) {
     Origin: 'https://aliez.tv',
     Cookie: 'passport=IG2GpFng03_23122025',
     'X-Forwarded-For': '127.0.0.1',
-    'Icy-MetaData': '1',
     Accept: '*/*',
     'Accept-Encoding': 'identity'
   };

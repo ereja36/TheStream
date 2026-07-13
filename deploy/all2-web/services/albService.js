@@ -151,9 +151,8 @@ function normalizeChannelHeaders(headers = {}) {
   if (origin) out.Origin = origin;
   if (cookie) out.Cookie = cookie;
   if (xForwardedFor) out['X-Forwarded-For'] = xForwardedFor;
-  // Fastly/aliez gates expect these even when config omits them.
+  // Fastly/aliez gates: XFF only (AlbKanale PlayerActivity does not send Icy-MetaData).
   if (!pickHeaderValue(out, 'x-forwarded-for')) out['X-Forwarded-For'] = '127.0.0.1';
-  if (!pickHeaderValue(out, 'icy-metadata')) out['Icy-MetaData'] = '1';
   return out;
 }
 
@@ -612,7 +611,6 @@ class AlbService {
     const rawHeaders = channel?.headers && typeof channel.headers === 'object' ? channel.headers : {};
     const headers = {
       'User-Agent': String(channel?.userAgent || ALB_STREAM_USER_AGENT).trim() || ALB_STREAM_USER_AGENT,
-      'Icy-MetaData': '1',
       'Accept-Encoding': 'identity',
       'Connection': 'Keep-Alive',
       'Accept': '*/*'
