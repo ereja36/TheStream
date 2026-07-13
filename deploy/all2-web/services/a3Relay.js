@@ -189,7 +189,8 @@ async function handleA3Relay(req, res, options = {}) {
   }
 
   const headers = decodeRh(rhRaw);
-  const stickyKey = `${String(options.clientIp || req.ip || '')}|${target.split('?')[0]}`;
+  // Sticky by client only — gate (.js) and anytools hop must share the same egress IP.
+  const stickyKey = String(options.clientIp || req.ip || req.headers['cf-connecting-ip'] || 'anon');
   const pool = await refreshProxyPool(false);
   if (!pool.length) {
     res.writeHead(503, { ...corsHeaders(origin), 'Content-Type': 'text/plain' });
@@ -214,11 +215,15 @@ async function handleA3Relay(req, res, options = {}) {
           try { up.data.destroy(); } catch {}
           throw new Error(`upstream ${up.status}`);
         }
-        rememberSticky(stickyKey, proxy);
         const ct = String(up.headers['content-type'] || 'video/mp2t');
+        if (/text\/html|application\/json/i.test(ct)) {
+          try { up.data.destroy(); } catch {}
+          throw new Error(`bad ctype ${ct}`);
+        }
+        rememberSticky(stickyKey, proxy);
         res.writeHead(200, {
           ...corsHeaders(origin),
-          'Content-Type': /mp2t|octet-stream/i.test(ct) ? 'video/mp2t' : ct
+          'Content-Type': /mp2t|octet-stream|video\//i.test(ct) ? 'video/mp2t' : ct
         });
         up.data.pipe(res);
         req.on('close', () => {
