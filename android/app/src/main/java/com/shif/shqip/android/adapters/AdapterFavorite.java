@@ -131,7 +131,7 @@ public class AdapterFavorite extends RecyclerView.Adapter<RecyclerView.ViewHolde
                 if (p.channel_type != null && p.channel_type.equals("YOUTUBE")) {
                     if (!p.channel_image.equals("")) {
                         Glide.with(context)
-                                .load(sharedPref.getBaseUrl() + "/upload/" + p.channel_image.replace(" ", "%20"))
+                                .load(resolveAnyChannelImage(p.channel_image))
                                 .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
                                 .placeholder(R.drawable.ic_thumbnail)
                                 .diskCacheStrategy(DiskCacheStrategy.ALL)
@@ -146,7 +146,7 @@ public class AdapterFavorite extends RecyclerView.Adapter<RecyclerView.ViewHolde
                     }
                 } else {
                     Glide.with(context)
-                            .load(sharedPref.getBaseUrl() + "/upload/" + p.channel_image.replace(" ", "%20"))
+                            .load(resolveAnyChannelImage(p.channel_image))
                             .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
                             .placeholder(R.drawable.ic_thumbnail)
                             .diskCacheStrategy(DiskCacheStrategy.ALL)
@@ -253,6 +253,20 @@ public class AdapterFavorite extends RecyclerView.Adapter<RecyclerView.ViewHolde
 
     public interface OnLoadMoreListener {
         void onLoadMore(int current_page);
+    }
+
+    private String resolveAnyChannelImage(String image) {
+        if (image == null || image.trim().isEmpty()) {
+            return "";
+        }
+        String value = image.trim();
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return value;
+        }
+        if (value.startsWith("/")) {
+            return "https://shifshqip.com" + value;
+        }
+        return sharedPref.getBaseUrl() + "/upload/" + value.replace(" ", "%20");
     }
 
 }

@@ -400,6 +400,9 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
         if (image.startsWith("http://") || image.startsWith("https://")) {
             return image;
         }
+        if (image.startsWith("/")) {
+            return "https://shifshqip.com" + image;
+        }
         return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
     }
 

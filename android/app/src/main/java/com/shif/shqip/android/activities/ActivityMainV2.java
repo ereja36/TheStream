@@ -613,11 +613,14 @@ public class ActivityMainV2 extends AppCompatActivity {
         if (TextUtils.isEmpty(image)) {
             return "";
         }
-        String trimmed = image.trim();
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-            return trimmed;
+        String value = image.trim();
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return value;
         }
-        return sharedPref.getBaseUrl() + "/upload/" + trimmed.replace(" ", "%20");
+        if (value.startsWith("/")) {
+            return "https://shifshqip.com" + value;
+        }
+        return sharedPref.getBaseUrl() + "/upload/" + value.replace(" ", "%20");
     }
 
     private void handleInboxNotificationIntent(Intent intent) {

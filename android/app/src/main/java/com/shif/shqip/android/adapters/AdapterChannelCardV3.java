@@ -83,10 +83,14 @@ public class AdapterChannelCardV3 extends RecyclerView.Adapter<AdapterChannelCar
         if (TextUtils.isEmpty(image)) {
             return "";
         }
-        if (image.startsWith("http")) {
-            return image;
+        String value = image.trim();
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return value;
         }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        if (value.startsWith("/")) {
+            return "https://shifshqip.com" + value;
+        }
+        return sharedPref.getBaseUrl() + "/upload/" + value.replace(" ", "%20");
     }
 
     @Override
