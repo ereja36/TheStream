@@ -313,6 +313,55 @@ async function openAnytoolsStream(mediaUri, headers, proxy) {
   return up;
 }
 
+/**
+ * Open collapsed anytools MPEG-TS stream via residential HTTP proxy race.
+ * Shared by /a3relay (pipe to client) and /a3hls (ffmpeg remux).
+ */
+async function openCollapsedTsStream(targetUrl, headers = {}, clientIp = '') {
+  const target = String(targetUrl || '').trim();
+  if (!/^https?:\/\//i.test(target) || !isAllowedUpstream(target)) {
+    throw new Error('bad u');
+  }
+  const stickyKey = String(clientIp || 'anon');
+  const pool = await refreshProxyPool(false);
+  if (!pool.length) throw new Error('no proxy');
+
+  const ordered = orderProxies(pool, stickyKey);
+  let lastErr = '';
+
+  if (isAnytoolsUrl(target)) {
+    for (const proxy of ordered.slice(0, 15)) {
+      try {
+        const up = await openAnytoolsStream(target, headers, proxy);
+        rememberSticky(stickyKey, proxy);
+        return up;
+      } catch (err) {
+        lastErr = String(err && err.message ? err.message : err);
+      }
+    }
+    throw new Error(lastErr || 'anytools');
+  }
+
+  for (let round = 0; round < 3; round += 1) {
+    const slice = ordered.slice(round * RACE_SIZE, (round + 1) * RACE_SIZE);
+    if (!slice.length) break;
+    try {
+      const { buf, proxy, up } = await raceGate(target, headers, slice);
+      rememberSticky(stickyKey, proxy);
+      const finalUrl = String(up.request?.res?.responseUrl || up.config?.url || target);
+      const mediaUri = extractFirstMediaUri(buf.toString('utf8'), finalUrl);
+      if (!mediaUri || !isAnytoolsUrl(mediaUri) || !isAllowedUpstream(mediaUri)) {
+        throw new Error('no anytools uri');
+      }
+      const tsUp = await openAnytoolsStream(mediaUri, headers, proxy);
+      return tsUp;
+    } catch (err) {
+      lastErr = String(err && err.message ? err.message : err);
+    }
+  }
+  throw new Error(lastErr || 'proxies exhausted');
+}
+
 async function handleA3Relay(req, res, options = {}) {
   const origin = req.headers.origin || '*';
   if (req.method === 'OPTIONS') {
@@ -337,58 +386,20 @@ async function handleA3Relay(req, res, options = {}) {
   }
 
   const headers = decodeRh(rhRaw);
-  const stickyKey = String(options.clientIp || req.ip || req.headers['cf-connecting-ip'] || 'anon');
-  const pool = await refreshProxyPool(false);
-  if (!pool.length) {
-    res.writeHead(503, { ...corsHeaders(origin), 'Content-Type': 'text/plain' });
-    return res.end('no proxy');
-  }
-
-  const ordered = orderProxies(pool, stickyKey);
-  let lastErr = '';
-
-  // Direct anytools hop (already resolved).
-  if (isAnytoolsUrl(target)) {
-    for (const proxy of ordered.slice(0, 15)) {
-      try {
-        const up = await openAnytoolsStream(target, headers, proxy);
-        rememberSticky(stickyKey, proxy);
-        pipeMpegTs(req, res, up, origin);
-        return;
-      } catch (err) {
-        lastErr = String(err && err.message ? err.message : err);
-      }
-    }
+  const clientIp = String(options.clientIp || req.ip || req.headers['cf-connecting-ip'] || 'anon');
+  try {
+    const up = await openCollapsedTsStream(target, headers, clientIp);
+    pipeMpegTs(req, res, up, origin);
+  } catch (err) {
+    const msg = String(err && err.message ? err.message : err);
     res.writeHead(502, { ...corsHeaders(origin), 'Content-Type': 'text/plain; charset=utf-8' });
-    return res.end(`A3 relay failed (${lastErr || 'anytools'})`);
+    return res.end(`A3 relay failed (${msg}). Retry.`);
   }
-
-  // Gate (.js): race proxies, then follow anytools on the winner.
-  for (let round = 0; round < 3; round += 1) {
-    const slice = ordered.slice(round * RACE_SIZE, (round + 1) * RACE_SIZE);
-    if (!slice.length) break;
-    try {
-      const { buf, proxy, up } = await raceGate(target, headers, slice);
-      rememberSticky(stickyKey, proxy);
-      const finalUrl = String(up.request?.res?.responseUrl || up.config?.url || target);
-      const mediaUri = extractFirstMediaUri(buf.toString('utf8'), finalUrl);
-      if (!mediaUri || !isAnytoolsUrl(mediaUri) || !isAllowedUpstream(mediaUri)) {
-        throw new Error('no anytools uri');
-      }
-      const tsUp = await openAnytoolsStream(mediaUri, headers, proxy);
-      pipeMpegTs(req, res, tsUp, origin);
-      return;
-    } catch (err) {
-      lastErr = String(err && err.message ? err.message : err);
-    }
-  }
-
-  res.writeHead(502, { ...corsHeaders(origin), 'Content-Type': 'text/plain; charset=utf-8' });
-  return res.end(`A3 relay failed (${lastErr || 'proxies exhausted'}). Retry.`);
 }
 
 module.exports = {
   handleA3Relay,
+  openCollapsedTsStream,
   isAllowedUpstream,
   refreshProxyPool,
   decodeRh

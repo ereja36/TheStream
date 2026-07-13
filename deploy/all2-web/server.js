@@ -33,6 +33,7 @@ const { createFalconService } = require('./services/falconService');
 const { createV2Service } = require('./services/v2Service');
 const { createAlbService } = require('./services/albService');
 const a3Relay = require('./services/a3Relay');
+const a3HlsRemux = require('./services/a3HlsRemux');
 const { buildChannelOpenAlertMessage } = require('./services/channelOpenAlert');
 const { createSessionStore, closeRedisClient, isRedisEnabled } = require('./services/redisSupport');
 const { withClusterLock, broadcastStateReload, initClusterStateSync } = require('./services/clusterStateSync');
@@ -2356,7 +2357,7 @@ function getStreamProxyBaseUrl() {
 }
 function isStreamProxyPath(path = '') {
   const safePath = String(path || '');
-  return /^\/(?:playlist|private-playlist|channel|channel-proxy|proxy|a3proxy|a3relay|a3sw|app-measurement)(\/|$)/.test(safePath)
+  return /^\/(?:playlist|private-playlist|channel|channel-proxy|proxy|a3proxy|a3relay|a3hls|a3sw|app-measurement)(\/|$)/.test(safePath)
     || /\.m3u8($|\?)/i.test(safePath)
     || /\.m3u($|\?)/i.test(safePath);
 }
@@ -8178,8 +8179,10 @@ function getA3OriginProxyBase() {
 }
 function getA3RelayBase() {
   // Same-origin relative path — page is on shifshqip.com, stream host is phinemi.live.
-  // Relative /k1/a3relay avoids cross-origin HLS/mse issues in Chrome.
   return `${BASE_PATH}/a3relay`;
+}
+function getA3HlsBase() {
+  return `${BASE_PATH}/a3hls`;
 }
 function shouldUseOriginA3Proxy(url = '', options = {}) {
   const raw = String(url || '');
@@ -8192,10 +8195,14 @@ function shouldUseOriginA3Proxy(url = '', options = {}) {
 function wrapA3FastlyRelayUrl(streamUrl = '', options = {}) {
   const url = String(streamUrl || '').trim();
   if (!/^https?:\/\//i.test(url)) return url;
+  if (String(url).includes(`${BASE_PATH}/a3hls`)) return url;
   if (String(url).includes(`${BASE_PATH}/a3relay`)) return url;
   const rh = String(options.rh || encodeA3UpstreamRh(options.headers || {}, options.userAgent || '')).trim();
-  // Encrypt upstream so fastly/anytools hosts stay hidden in the player network panel.
-  let out = `${getA3RelayBase()}?id=${encodeURIComponent(encrypt(url))}`;
+  // Web: remux to HLS for HLS.js (mpegts.js often throws NETWORK_EXCEPTION behind CF/Brave).
+  // App still uses preferDirect and never hits this helper for fastly.
+  const useHls = options.preferHlsRemux !== false;
+  const base = useHls ? getA3HlsBase() : getA3RelayBase();
+  let out = `${base}?id=${encodeURIComponent(encrypt(url))}`;
   if (rh) out += `&rh=${encodeURIComponent(rh)}`;
   return out;
 }
@@ -8297,8 +8304,9 @@ function buildA3PlaybackOptionsFromChannel(channel = {}, req = null) {
     userAgent: String(channel?.albUserAgent || ALB_DEFAULT_UPSTREAM_UA || '').trim() || ALB_DEFAULT_UPSTREAM_UA,
     preferDirect: fastly && fromApp,
     preferClientSw: false,
-    // Chrome/web: relay via residential HTTP proxies (AlbKanale plays direct from phone IP).
+    // Chrome/web: remux via /a3hls for HLS.js (stable). Raw mpegts relay kept as fallback.
     preferFastlyRelay: fastly && !fromApp,
+    preferHlsRemux: fastly && !fromApp,
     webBlocked: false
   };
 }
@@ -12513,9 +12521,16 @@ function isA3MpegtsPlayUrl(url, playable){
   const mode=String((playable&&playable.mode)||currentA3Mode||'').toLowerCase();
   const cdn=String((playable&&playable.a3Cdn)||currentA3Cdn||'').toLowerCase();
   const u=String(url||'');
+  // a3hls is remuxed for HLS.js — not mpegts.
+  if(mode==='a3hls' || /\\/a3hls(\\?|\\/|$)/i.test(u)) return false;
   if(mode==='a3relay') return true;
   if(cdn==='fastly' && /\\/a3relay(\\?|$)/i.test(u)) return true;
   return /\\/a3relay(\\?|$)/i.test(u) && !/fmt=hls/i.test(u);
+}
+function isA3HlsPlayUrl(url, playable){
+  const mode=String((playable&&playable.mode)||currentA3Mode||'').toLowerCase();
+  const u=String(url||'');
+  return mode==='a3hls' || /\\/a3hls(\\?|\\/|$)/i.test(u);
 }
 function formatA3PlaybackError(error){
   const code=String(error||'').trim();
@@ -13167,7 +13182,11 @@ function pickEngine(canNative, playable){
   sourceRequested=mapLegacy(sourceRequested);
   globalRequested=mapLegacy(globalRequested);
   const requested=(sourceRequested&&sourceRequested!=='auto')?sourceRequested:globalRequested;
-  // A3 fastly via a3relay returns endless MPEG-TS — HLS.js cannot play it.
+  // A3 fastly via a3hls → HLS.js; raw a3relay → mpegts.js.
+  if(isA3HlsPlayUrl((playable&&playable.url)||currentUrl, playable)){
+    if(hlsSupported) return 'hls';
+    if(canNative) return 'native';
+  }
   if(isA3MpegtsPlayUrl((playable&&playable.url)||currentUrl, playable)){
     if(mpegtsSupported) return 'mpegts';
     if(canNative && playable && playable.directUrl) return 'native';
@@ -13303,7 +13322,7 @@ function startMpegtsPlayback(url,attemptId){
     }
     const isMobile=/Android|iPhone|iPad|Mobile/i.test(String(navigator.userAgent||''));
     const player=mpegts.createPlayer({
-      type:'mse',
+      type:'mpegts',
       isLive:true,
       liveBufferLatencyChasing:true,
       url:playUrl,
@@ -13735,7 +13754,7 @@ function openPlayer(slug,name,categoryKey='',sourceKey=''){
     const preEngine=pickEngine(canNative, Object.assign({}, playable, {url:playUrl}));
     lockedEngine=preEngine||'';
     currentUrl=playUrl;
-    currentMode=(playable.mode==='proxy'||playable.mode==='a3relay')?'proxy':'direct';
+    currentMode=(playable.mode==='proxy'||playable.mode==='a3relay'||playable.mode==='a3hls')?'proxy':'direct';
     fallbackUrl=(playable.mode==='direct'&&playable.proxyUrl&&playable.proxyUrl!==playable.url)?playable.proxyUrl:'';
     usingProxyFallback=false;
     pingServer();
@@ -13856,7 +13875,7 @@ function reloadPlayer(){
     const preEngine=pickEngine(canNative, Object.assign({}, playable, {url:playUrl}));
     lockedEngine=preEngine||'';
     currentUrl=playUrl;
-    currentMode=(playable.mode==='proxy'||playable.mode==='a3relay')?'proxy':'direct';
+    currentMode=(playable.mode==='proxy'||playable.mode==='a3relay'||playable.mode==='a3hls')?'proxy':'direct';
     fallbackUrl=(playable.mode==='direct'&&playable.proxyUrl&&playable.proxyUrl!==playable.url)?playable.proxyUrl:'';
     usingProxyFallback=false;
     loadStream(currentUrl,{preserveEngine:!!preEngine, playable:Object.assign({}, playable, {url:playUrl})});
@@ -17819,8 +17838,31 @@ router.get('/a3relay', async (req, res) => {
   setProxyCorsHeaders(res);
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
   res.setHeader('X-A3-Relay', '1');
+  res.setHeader('X-Accel-Buffering', 'no');
   return a3Relay.handleA3Relay(req, res, {
     relayBase: `${BASE_PATH}/a3relay`,
+    clientIp: getLikelyClientIPv4(req) || getForwardClientIp(req) || '',
+    decrypt
+  });
+});
+
+router.options('/a3hls', (req, res) => { setProxyCorsHeaders(res); res.sendStatus(204); });
+router.options('/a3hls/:sid/:file', (req, res) => { setProxyCorsHeaders(res); res.sendStatus(204); });
+router.get('/a3hls', async (req, res) => {
+  setProxyCorsHeaders(res);
+  res.setHeader('X-A3-Hls', '1');
+  res.setHeader('X-Accel-Buffering', 'no');
+  return a3HlsRemux.handleA3Hls(req, res, {
+    hlsBase: `${BASE_PATH}/a3hls`,
+    clientIp: getLikelyClientIPv4(req) || getForwardClientIp(req) || '',
+    decrypt
+  });
+});
+router.get('/a3hls/:sid/:file', async (req, res) => {
+  setProxyCorsHeaders(res);
+  res.setHeader('X-A3-Hls', '1');
+  return a3HlsRemux.handleA3Hls(req, res, {
+    hlsBase: `${BASE_PATH}/a3hls`,
     clientIp: getLikelyClientIPv4(req) || getForwardClientIp(req) || '',
     decrypt
   });
@@ -18061,7 +18103,7 @@ router.get('/api/channel-url/:slug', async (req, res) => {
       ok: true,
       source_key: sourceKey,
       source_label: SOURCE_LABELS[sourceKey] || sourceKey,
-      mode: playOpts.preferDirect ? 'direct' : (playOpts.preferFastlyRelay ? 'a3relay' : (playOpts.preferClientSw ? 'a3sw' : 'proxy')),
+      mode: playOpts.preferDirect ? 'direct' : (playOpts.preferFastlyRelay ? 'a3hls' : (playOpts.preferClientSw ? 'a3sw' : 'proxy')),
       url: playUrl,
       proxy_url: workerUrl,
       direct_url: streamUrl,
