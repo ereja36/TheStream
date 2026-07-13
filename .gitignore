@@ -30,3 +30,7 @@ android/keystore/
 # Logs
 *.log
 /app/
+---
+
+# FFmpeg extension build artifacts (keep source + prebuilt jniLibs)
+android/extension-ffmpeg/build/

@@ -1,7 +1,6 @@
 package com.shif.shqip.android.utils;
 
 import android.app.Activity;
-import android.graphics.Color;
 import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,6 +14,10 @@ import androidx.core.view.WindowInsetsCompat;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 
+/**
+ * Normal (non-immersive) system bars so notifications/status bar work.
+ * Bottom chrome is padded for the gesture line without drawing under the status bar.
+ */
 public final class DesignInsetsHelper {
 
     private DesignInsetsHelper() {
@@ -30,14 +33,9 @@ public final class DesignInsetsHelper {
         boolean lightBars = !sharedPref.getIsDarkTheme();
 
         Window window = activity.getWindow();
-        WindowCompat.setDecorFitsSystemWindows(window, false);
+        // NOT full-screen / edge-to-edge — status bar stays usable for notifications.
+        WindowCompat.setDecorFitsSystemWindows(window, true);
         Tools.applyDesignSystemBars(activity, lightBars);
-        window.setStatusBarColor(Color.TRANSPARENT);
-        window.setNavigationBarColor(Color.TRANSPARENT);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.setNavigationBarContrastEnforced(false);
-            window.setStatusBarContrastEnforced(false);
-        }
 
         View root = activity.findViewById(rootId);
         if (root == null) {
@@ -52,44 +50,26 @@ public final class DesignInsetsHelper {
         View floatingNav = floatingNavId != 0 ? activity.findViewById(floatingNavId) : null;
         View bannerStrip = activity.findViewById(R.id.banner_strip);
         final int extraTopDp = dp(activity, 8);
-        final int extraBottomDp = dp(activity, 4);
+        final int extraBottomDp = dp(activity, 8);
 
-        // Ensure banner strip starts hidden (no black plate before first fill).
         if (bannerStrip != null) {
             bannerStrip.setVisibility(View.GONE);
-            bannerStrip.setBackgroundColor(Color.TRANSPARENT);
+            bannerStrip.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         }
 
-        final View chrome = bottomChrome;
-        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
-            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            applyTopMargin(topBar, bars.top + extraTopDp);
+        // Small visual padding only — system bars already reserved by decorFits=true.
+        applyTopMargin(topBar, extraTopDp);
+        if (bottomChrome != null) {
+            bottomChrome.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            applyBottomMargin(bottomChrome, extraBottomDp);
+        } else if (floatingNav != null) {
+            applyBottomMargin(floatingNav, extraBottomDp);
+        }
 
-            // Pad chrome bottom for gesture line. Chrome bg is transparent so app bg shows
-            // through — never paint a solid black reserved strip.
-            if (chrome != null) {
-                chrome.setBackgroundColor(Color.TRANSPARENT);
-                chrome.setPadding(
-                        chrome.getPaddingLeft(),
-                        chrome.getPaddingTop(),
-                        chrome.getPaddingRight(),
-                        bars.bottom + extraBottomDp);
-            } else if (floatingNav != null) {
-                applyBottomMargin(floatingNav, bars.bottom + extraBottomDp);
-            }
-
-            bringChromeToFront(topBar, chrome, floatingNav);
-            if (bannerStrip != null) {
-                bannerStrip.bringToFront();
-            }
-            if (floatingNav != null) {
-                floatingNav.bringToFront();
-            }
-            return insets;
-        });
-
-        ViewCompat.requestApplyInsets(root);
-        bringChromeToFront(topBar, chrome, floatingNav);
+        bringChromeToFront(topBar, bottomChrome, floatingNav);
+        if (floatingNav != null) {
+            floatingNav.bringToFront();
+        }
     }
 
     public static void applyLiquidGlass(View view) {
