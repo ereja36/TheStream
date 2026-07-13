@@ -3,8 +3,10 @@
 /**
  * Same-origin A3 relay for fastlycache (.js HLS gate) → anytools MPEG-TS.
  * Web Chrome cannot use CF Worker (DC IP blocked). HTTP proxies can reach the
- * gate; this module fetches via a sticky proxy pool and rewrites playlists so
- * HLS.js stays on same-origin (CORS OK).
+ * gate; this module fetches via a sticky proxy pool.
+ *
+ * For browser playback we collapse gate→anytools into one video/mp2t response
+ * (HLS.js cannot consume an endless MPEG-TS "fragment").
  */
 
 const axios = require('axios');
@@ -117,6 +119,7 @@ function corsHeaders(origin = '*') {
     'Access-Control-Allow-Origin': origin || '*',
     'Access-Control-Allow-Methods': 'GET,HEAD,OPTIONS',
     'Access-Control-Allow-Headers': '*',
+    'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges, Content-Type',
     'Cache-Control': 'no-store'
   };
 }
@@ -151,6 +154,23 @@ function rewriteManifest(text, requestUrl, relayBase, rh) {
     .join('\n');
 }
 
+function extractFirstMediaUri(manifestText = '', baseUrl = '') {
+  for (const raw of String(manifestText || '').split(/\r?\n/)) {
+    const trim = raw.trim();
+    if (!trim || trim.startsWith('#')) continue;
+    try {
+      return new URL(trim, baseUrl || undefined).toString();
+    } catch {
+      return trim;
+    }
+  }
+  return '';
+}
+
+function isAnytoolsUrl(url = '') {
+  return /anytools\.eu\.org|unique-user-id=/i.test(String(url || ''));
+}
+
 async function axiosGet(targetUrl, headers, proxyUrl, opts = {}) {
   const proxy = parseProxy(proxyUrl);
   return axios.get(targetUrl, {
@@ -162,6 +182,23 @@ async function axiosGet(targetUrl, headers, proxyUrl, opts = {}) {
     validateStatus: () => true,
     httpAgent: new http.Agent({ keepAlive: false }),
     httpsAgent: new https.Agent({ keepAlive: false, rejectUnauthorized: false })
+  });
+}
+
+function pipeMpegTs(req, res, upstream, origin) {
+  const ct = String(upstream.headers['content-type'] || 'video/mp2t');
+  if (/text\/html|application\/json/i.test(ct)) {
+    try { upstream.data.destroy(); } catch {}
+    throw new Error(`bad ctype ${ct}`);
+  }
+  res.writeHead(200, {
+    ...corsHeaders(origin),
+    'Content-Type': /mp2t|octet-stream|video\//i.test(ct) ? 'video/mp2t' : ct,
+    'X-A3-Relay-Format': 'mpegts'
+  });
+  upstream.data.pipe(res);
+  req.on('close', () => {
+    try { upstream.data.destroy(); } catch {}
   });
 }
 
@@ -183,6 +220,8 @@ async function handleA3Relay(req, res, options = {}) {
     }
   }
   const rhRaw = String(req.query?.rh || '').trim();
+  // fmt=hls keeps classic rewritten playlist (debug). Default collapses to MPEG-TS for web.
+  const preferHls = String(req.query?.fmt || '').trim().toLowerCase() === 'hls';
   if (!/^https?:\/\//i.test(target) || !isAllowedUpstream(target)) {
     res.writeHead(400, { ...corsHeaders(origin), 'Content-Type': 'text/plain' });
     return res.end('bad u');
@@ -200,7 +239,7 @@ async function handleA3Relay(req, res, options = {}) {
   const prefer = pickSticky(stickyKey, pool);
   const ordered = prefer ? [prefer, ...pool.filter((p) => p !== prefer)] : pool.slice();
   const relayBase = String(options.relayBase || '/k1/a3relay');
-  const wantStream = /anytools\.eu\.org|unique-user-id=/i.test(target);
+  const wantStream = isAnytoolsUrl(target);
 
   let lastErr = '';
   for (const proxy of ordered.slice(0, 25)) {
@@ -215,20 +254,8 @@ async function handleA3Relay(req, res, options = {}) {
           try { up.data.destroy(); } catch {}
           throw new Error(`upstream ${up.status}`);
         }
-        const ct = String(up.headers['content-type'] || 'video/mp2t');
-        if (/text\/html|application\/json/i.test(ct)) {
-          try { up.data.destroy(); } catch {}
-          throw new Error(`bad ctype ${ct}`);
-        }
         rememberSticky(stickyKey, proxy);
-        res.writeHead(200, {
-          ...corsHeaders(origin),
-          'Content-Type': /mp2t|octet-stream|video\//i.test(ct) ? 'video/mp2t' : ct
-        });
-        up.data.pipe(res);
-        req.on('close', () => {
-          try { up.data.destroy(); } catch {}
-        });
+        pipeMpegTs(req, res, up, origin);
         return;
       }
 
@@ -244,15 +271,39 @@ async function handleA3Relay(req, res, options = {}) {
 
       if (peek.startsWith('#EXT') || /mpegurl|javascript|text\/plain/i.test(ct)) {
         const finalUrl = String(up.request?.res?.responseUrl || up.config?.url || target);
-        const body = rewriteManifest(buf.toString('utf8'), finalUrl, relayBase, rhRaw);
+        const manifestText = buf.toString('utf8');
+        const mediaUri = extractFirstMediaUri(manifestText, finalUrl);
+
+        // Default web path: follow anytools on the SAME proxy and stream MPEG-TS.
+        // HLS.js cannot finish downloading an endless TS "fragment".
+        if (!preferHls && mediaUri && isAnytoolsUrl(mediaUri) && isAllowedUpstream(mediaUri)) {
+          const tsUp = await axiosGet(mediaUri, headers, proxy, {
+            timeout: 45000,
+            maxRedirects: 5,
+            responseType: 'stream'
+          });
+          if (tsUp.status !== 200) {
+            try { tsUp.data.destroy(); } catch {}
+            throw new Error(`anytools ${tsUp.status}`);
+          }
+          pipeMpegTs(req, res, tsUp, origin);
+          return;
+        }
+
+        const body = rewriteManifest(manifestText, finalUrl, relayBase, rhRaw);
         res.writeHead(200, {
           ...corsHeaders(origin),
-          'Content-Type': 'application/vnd.apple.mpegurl'
+          'Content-Type': 'application/vnd.apple.mpegurl',
+          'X-A3-Relay-Format': 'hls'
         });
         return res.end(body);
       }
       if (buf[0] === 0x47 || /mp2t|octet-stream/i.test(ct)) {
-        res.writeHead(200, { ...corsHeaders(origin), 'Content-Type': 'video/mp2t' });
+        res.writeHead(200, {
+          ...corsHeaders(origin),
+          'Content-Type': 'video/mp2t',
+          'X-A3-Relay-Format': 'mpegts'
+        });
         return res.end(buf);
       }
       res.writeHead(200, {

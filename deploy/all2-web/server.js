@@ -8177,8 +8177,9 @@ function getA3OriginProxyBase() {
   return `${streamBase}${BASE_PATH}/a3proxy`;
 }
 function getA3RelayBase() {
-  const streamBase = String(getStreamProxyBaseUrl() || 'https://phinemi.live').replace(/\/+$/, '');
-  return `${streamBase}${BASE_PATH}/a3relay`;
+  // Same-origin relative path — page is on shifshqip.com, stream host is phinemi.live.
+  // Relative /k1/a3relay avoids cross-origin HLS/mse issues in Chrome.
+  return `${BASE_PATH}/a3relay`;
 }
 function shouldUseOriginA3Proxy(url = '', options = {}) {
   const raw = String(url || '');
@@ -9899,13 +9900,16 @@ function playerScript(channelUrls, playerDefaults = {}, playerSourceDefaults = {
   const gaMeasurementId = normalizeGoogleAnalyticsMeasurementId(siteOwnership.ga_measurement_id || '');
   return `
 <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.js"></script>
 <script>
 const BASE='${BASE_PATH}';
-let hlsPlayer=null,shakaPlayer=null,clapprPlayer=null,currentSlug='',currentName='',retryCount=0,retryTimer=null,currentUrl='',fallbackUrl='',usingProxyFallback=false;
+let hlsPlayer=null,mpegtsPlayer=null,shakaPlayer=null,clapprPlayer=null,currentSlug='',currentName='',retryCount=0,retryTimer=null,currentUrl='',fallbackUrl='',usingProxyFallback=false;
 let currentEngine='',lockedEngine='',playbackAttempt=0;
 let currentMode='direct',proxySoftRetries=0;
 let currentSourceKey='api_tv';
 let currentCategoryKey='';
+let currentA3Cdn='';
+let currentA3Mode='';
 let preRollTimer=null,preRollInterval=null,preRollRunId=0;
 const MAX_RETRIES=5;
 const STALL_GRACE_MS=18000;
@@ -12505,6 +12509,14 @@ async function getPlayableUrl(slug){
   }catch{}
   return { url:'', proxyUrl:'', mode:'direct', error:'unavailable' };
 }
+function isA3MpegtsPlayUrl(url, playable){
+  const mode=String((playable&&playable.mode)||currentA3Mode||'').toLowerCase();
+  const cdn=String((playable&&playable.a3Cdn)||currentA3Cdn||'').toLowerCase();
+  const u=String(url||'');
+  if(mode==='a3relay') return true;
+  if(cdn==='fastly' && /\\/a3relay(\\?|$)/i.test(u)) return true;
+  return /\\/a3relay(\\?|$)/i.test(u) && !/fmt=hls/i.test(u);
+}
 function formatA3PlaybackError(error){
   const code=String(error||'').trim();
   if(code==='a3_fastly_web'){
@@ -13130,15 +13142,23 @@ function destroyClappr(){
   const clappr=document.getElementById('clapprContainer');
   if(clappr) clappr.innerHTML='';
 }
+function destroyMpegts(){
+  if(mpegtsPlayer){
+    try{mpegtsPlayer.pause();mpegtsPlayer.unload();mpegtsPlayer.detachMediaElement();mpegtsPlayer.destroy();}catch{}
+    mpegtsPlayer=null;
+  }
+}
 function destroyPlayers(){
   clearStallWatch();
   destroyHls();
+  destroyMpegts();
   destroyShaka();
   destroyClappr();
   currentEngine='';
 }
-function pickEngine(canNative){
+function pickEngine(canNative, playable){
   const hlsSupported=!!(window.Hls&&Hls.isSupported&&Hls.isSupported());
+  const mpegtsSupported=!!(window.mpegts&&mpegts.getFeatureList&&mpegts.getFeatureList().mseLivePlayback);
   const sourceRules=sourcePlayerDefaults[currentSourceKey]||{};
   let sourceRequested=(isIPhone?sourceRules.iphone:(isAndroid?sourceRules.android:sourceRules.other)||'auto').toLowerCase();
   let globalRequested=(isIPhone?playerDefaults.iphone:(isAndroid?playerDefaults.android:playerDefaults.other)||'auto').toLowerCase();
@@ -13147,8 +13167,14 @@ function pickEngine(canNative){
   sourceRequested=mapLegacy(sourceRequested);
   globalRequested=mapLegacy(globalRequested);
   const requested=(sourceRequested&&sourceRequested!=='auto')?sourceRequested:globalRequested;
+  // A3 fastly via a3relay returns endless MPEG-TS — HLS.js cannot play it.
+  if(isA3MpegtsPlayUrl((playable&&playable.url)||currentUrl, playable)){
+    if(mpegtsSupported) return 'mpegts';
+    if(canNative && playable && playable.directUrl) return 'native';
+  }
   const supports=(engine)=>{
     if(engine==='browser') return true;
+    if(engine==='mpegts') return mpegtsSupported;
     if(engine==='hls') return hlsSupported || canNative; // iOS Safari falls through to browser <video>
     return false;
   };
@@ -13163,6 +13189,7 @@ function pickEngine(canNative){
 function engineLabel(engine){
   if(engine==='browser') return 'Browser Default';
   if(engine==='hls') return 'HLS.js';
+  if(engine==='mpegts') return 'MPEG-TS';
   return 'Player';
 }
 function switchToProxyFallback(){
@@ -13246,6 +13273,47 @@ function startHlsPlayback(url,attemptId){
   });
   player.attachMedia(video);
 }
+function startMpegtsPlayback(url,attemptId){
+  const video=document.getElementById('videoPlayer');
+  destroyPlayers();
+  currentEngine='mpegts';
+  showEngineSurface('hls');
+  bindCommonVideoEvents(video,attemptId);
+  if(!(window.mpegts&&mpegts.isSupported&&mpegts.isSupported())){
+    setStatus('err','Ky browser nuk luan MPEG-TS (A3). Provo Chrome/Edge.');
+    scheduleRetry({allowFallback:true},attemptId);
+    return;
+  }
+  try{
+    const player=mpegts.createPlayer({
+      type:'mse',
+      isLive:true,
+      url:url,
+      withCredentials:false
+    },{
+      enableWorker:true,
+      enableStashBuffer:true,
+      stashInitialSize:384,
+      liveBufferLatencyChasing:true,
+      liveBufferLatencyMaxLatency:8,
+      liveBufferLatencyMinRemain:1.5
+    });
+    mpegtsPlayer=player;
+    player.on(mpegts.Events.ERROR,()=>{
+      if(attemptId!==playbackAttempt)return;
+      scheduleRetry({allowFallback:false},attemptId);
+    });
+    player.on(mpegts.Events.STATISTICS_INFO,()=>{
+      if(attemptId!==playbackAttempt)return;
+      markHealthyPlayback(attemptId);
+    });
+    player.attachMediaElement(video);
+    player.load();
+    video.play().catch(()=>{});
+  }catch(err){
+    scheduleRetry({allowFallback:true},attemptId);
+  }
+}
 function startNativePlayback(url,attemptId){
   // Native engine removed — use Default Browser <video>
   return startBrowserPlayback(url);
@@ -13272,6 +13340,7 @@ function startLockedEngine(url,attemptId){
   if(!lockedEngine){setStatus('err','Nuk ka player të suportuar');return;}
   setStatus('info','Po ngarkohet ('+engineLabel(lockedEngine)+')...');
   if(lockedEngine==='browser'){startBrowserPlayback(url);return;}
+  if(lockedEngine==='mpegts'){startMpegtsPlayback(url,attemptId);return;}
   if(lockedEngine==='hls'){startHlsPlayback(url,attemptId);return;}
   if(lockedEngine==='shaka'){startShakaPlayback(url,attemptId);return;}
   if(lockedEngine==='clappr'){startClapprPlayback(url,attemptId);return;}
@@ -13555,7 +13624,7 @@ function openPlayer(slug,name,categoryKey='',sourceKey=''){
   document.getElementById('playerViewers').textContent='';
   const pf=document.getElementById('playerFav');
   if(pf){pf.classList.toggle('active',isFavorite(slug));pf.innerHTML=isFavorite(slug)?'<i class="fas fa-heart"></i> Favorit':'<i class="far fa-heart"></i> Favorit';}
-  currentSlug=slug; currentName=name; retryCount=0; fallbackUrl=''; usingProxyFallback=false; lockedEngine=''; currentMode='direct'; proxySoftRetries=0; currentSourceKey=(channelMeta.sk||sourceKey||'api_tv'); currentCategoryKey=String(categoryKey||channelMeta.cat||'').trim();
+  currentSlug=slug; currentName=name; retryCount=0; fallbackUrl=''; usingProxyFallback=false; lockedEngine=''; currentMode='direct'; proxySoftRetries=0; currentSourceKey=(channelMeta.sk||sourceKey||'api_tv'); currentCategoryKey=String(categoryKey||channelMeta.cat||'').trim(); currentA3Cdn=''; currentA3Mode='';
   trackWatchHistoryToAccount(currentSlug,currentName,currentSourceKey).catch(()=>{});
   trackGa('channel_open',{channel_slug:slug,channel_name:name||slug,category_key:currentCategoryKey||'',source_key:currentSourceKey||''});
   if(enablePlayerEpg) loadChannelEpg(slug).catch(()=>{});
@@ -13610,10 +13679,18 @@ function openPlayer(slug,name,categoryKey='',sourceKey=''){
     }
     const video=document.getElementById('videoPlayer');
     const canNative=!!(video&&(video.canPlayType('application/vnd.apple.mpegurl')||video.canPlayType('application/x-mpegURL')));
-    const preEngine=pickEngine(canNative);
+    currentA3Cdn=String(playable.a3Cdn||'');
+    currentA3Mode=String(playable.mode||'');
+    // Safari/iOS: prefer direct fastly URL with native HLS (phone IP).
+    let playUrl=playable.url;
+    if(currentA3Cdn==='fastly'&&canNative&&playable.directUrl){
+      playUrl=playable.directUrl;
+      currentA3Mode='direct';
+    }
+    const preEngine=pickEngine(canNative, Object.assign({}, playable, {url:playUrl}));
     lockedEngine=preEngine||'';
-    currentUrl=playable.url;
-    currentMode=playable.mode==='proxy'?'proxy':'direct';
+    currentUrl=playUrl;
+    currentMode=(playable.mode==='proxy'||playable.mode==='a3relay')?'proxy':'direct';
     fallbackUrl=(playable.mode==='direct'&&playable.proxyUrl&&playable.proxyUrl!==playable.url)?playable.proxyUrl:'';
     usingProxyFallback=false;
     pingServer();
@@ -13621,10 +13698,10 @@ function openPlayer(slug,name,categoryKey='',sourceKey=''){
       setTimeout(()=>showInterstitialLayer('channel_open'), 80);
     }
     if(noAdsUser){
-      loadStream(currentUrl,{preserveEngine:!!preEngine});
+      loadStream(currentUrl,{preserveEngine:!!preEngine, playable:Object.assign({}, playable, {url:playUrl})});
       return;
     }
-    startPreRollBeforePlayback(currentUrl,{preserveEngine:!!preEngine});
+    startPreRollBeforePlayback(currentUrl,{preserveEngine:!!preEngine, playable:Object.assign({}, playable, {url:playUrl})});
   });
   if(noAdsUser){
     startPlayback().catch(()=>setStatus('err','Gabim gjatë ngarkimit të kanalit'));
@@ -13642,6 +13719,7 @@ function openPlayer(slug,name,categoryKey='',sourceKey=''){
 function loadStream(url,options={}){
   const video=document.getElementById('videoPlayer');
   const preserveEngine=!!options.preserveEngine;
+  const playable=options.playable||{url:url, mode:currentA3Mode, a3Cdn:currentA3Cdn};
   hidePreRollLayer();
   if(!url){setStatus('err','Burimi mungon');return;}
   updateLiveOverlayLogo(currentSourceKey);
@@ -13657,7 +13735,7 @@ function loadStream(url,options={}){
   if(!preserveEngine||!lockedEngine){
     // Prefer native for fastly direct URLs so the phone IP hits the CDN (Worker egress is blocked).
     if(canNative&&/fastlycache\.com/i.test(String(url||''))) lockedEngine='native';
-    else lockedEngine=pickEngine(canNative);
+    else lockedEngine=pickEngine(canNative, Object.assign({}, playable, {url:url}));
   }
   if(!lockedEngine){
     const sourceRules=sourcePlayerDefaults[currentSourceKey]||{};
@@ -13723,13 +13801,20 @@ function reloadPlayer(){
     }
     const video=document.getElementById('videoPlayer');
     const canNative=!!(video&&(video.canPlayType('application/vnd.apple.mpegurl')||video.canPlayType('application/x-mpegURL')));
-    const preEngine=pickEngine(canNative);
+    currentA3Cdn=String(playable.a3Cdn||'');
+    currentA3Mode=String(playable.mode||'');
+    let playUrl=playable.url;
+    if(currentA3Cdn==='fastly'&&canNative&&playable.directUrl){
+      playUrl=playable.directUrl;
+      currentA3Mode='direct';
+    }
+    const preEngine=pickEngine(canNative, Object.assign({}, playable, {url:playUrl}));
     lockedEngine=preEngine||'';
-    currentUrl=playable.url;
-    currentMode=playable.mode==='proxy'?'proxy':'direct';
+    currentUrl=playUrl;
+    currentMode=(playable.mode==='proxy'||playable.mode==='a3relay')?'proxy':'direct';
     fallbackUrl=(playable.mode==='direct'&&playable.proxyUrl&&playable.proxyUrl!==playable.url)?playable.proxyUrl:'';
     usingProxyFallback=false;
-    loadStream(currentUrl,{preserveEngine:!!preEngine});
+    loadStream(currentUrl,{preserveEngine:!!preEngine, playable:Object.assign({}, playable, {url:playUrl})});
   }).catch(()=>setStatus('err','Gabim gjatë ringarkimit'));
 }
 function toggleFullscreen(){
