@@ -178,7 +178,10 @@ function looksLikeAlbVideoAlternate(url = '') {
 
 /** Known fastly → playable CDN id aliases (Media-Colony duplicate feeds). */
 const ALB_FASTLY_ALT_IDS = {
-  tch: ['topcha']
+  tch: ['topcha'],
+  // Display-name failover also covers many of these via ALB_ID_DISPLAY_NAMES.
+  topn: ['rtopa'],
+  duka: ['rduka']
 };
 
 /**

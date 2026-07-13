@@ -32,6 +32,7 @@ const {
 const { createFalconService } = require('./services/falconService');
 const { createV2Service } = require('./services/v2Service');
 const { createAlbService } = require('./services/albService');
+const a3Relay = require('./services/a3Relay');
 const { buildChannelOpenAlertMessage } = require('./services/channelOpenAlert');
 const { createSessionStore, closeRedisClient, isRedisEnabled } = require('./services/redisSupport');
 const { withClusterLock, broadcastStateReload, initClusterStateSync } = require('./services/clusterStateSync');
@@ -870,6 +871,10 @@ function isLikelyScraperUserAgent(req) {
   return /(httpcanary|reqable|charles proxy|mitmproxy|proxyman|fiddler|burp suite|python-requests|scrapy|go-http-client|java\/|libwww-perl|okhttp\/|postmanruntime|insomnia\/|node-fetch|axios\/)/i.test(ua);
 }
 function validateChannelUrlApiAccess(req) {
+  // App / portal server-side resolve: allow without browse cookie.
+  if (isShifAppRequest(req) || String(req?.headers?.['x-shif-portal-resolve'] || '') === '1') {
+    return { ok: true };
+  }
   const settings = normalizeSecurityHardening(appConfig.security_hardening);
   if (settings.block_scraper_tools !== false && isLikelyScraperUserAgent(req)) {
     return { ok: false, reason: 'blocked-client' };
@@ -2351,7 +2356,7 @@ function getStreamProxyBaseUrl() {
 }
 function isStreamProxyPath(path = '') {
   const safePath = String(path || '');
-  return /^\/(?:playlist|private-playlist|channel|channel-proxy|proxy|a3proxy|a3sw|app-measurement)(\/|$)/.test(safePath)
+  return /^\/(?:playlist|private-playlist|channel|channel-proxy|proxy|a3proxy|a3relay|a3sw|app-measurement)(\/|$)/.test(safePath)
     || /\.m3u8($|\?)/i.test(safePath)
     || /\.m3u($|\?)/i.test(safePath);
 }
@@ -8171,20 +8176,38 @@ function getA3OriginProxyBase() {
   const streamBase = String(getStreamProxyBaseUrl() || 'https://phinemi.live').replace(/\/+$/, '');
   return `${streamBase}${BASE_PATH}/a3proxy`;
 }
+function getA3RelayBase() {
+  const streamBase = String(getStreamProxyBaseUrl() || 'https://phinemi.live').replace(/\/+$/, '');
+  return `${streamBase}${BASE_PATH}/a3relay`;
+}
 function shouldUseOriginA3Proxy(url = '', options = {}) {
   const raw = String(url || '');
   if (options.forceOriginProxy === true) return true;
-  if (isAlbFastlyUrl(raw)) return false; // fastly: residential IP / special path
+  if (isAlbFastlyUrl(raw)) return false; // fastly: residential IP / a3relay
   // gcore leaf cert expired → CF Worker 526; origin proxy skips TLS verify + hides host.
   if (isA3GcoreUrl(raw)) return true;
   return /gjirafa\.(net|com)|akamaized\.net|cloudfront\.net|bozztv\.com|sednastream\.com/i.test(raw);
+}
+function wrapA3FastlyRelayUrl(streamUrl = '', options = {}) {
+  const url = String(streamUrl || '').trim();
+  if (!/^https?:\/\//i.test(url)) return url;
+  if (String(url).includes(`${BASE_PATH}/a3relay`)) return url;
+  const rh = String(options.rh || encodeA3UpstreamRh(options.headers || {}, options.userAgent || '')).trim();
+  // Encrypt upstream so fastly/anytools hosts stay hidden in the player network panel.
+  let out = `${getA3RelayBase()}?id=${encodeURIComponent(encrypt(url))}`;
+  if (rh) out += `&rh=${encodeURIComponent(rh)}`;
+  return out;
 }
 function wrapA3CorsProxyUrl(streamUrl = '', options = {}) {
   const url = String(streamUrl || '').trim();
   if (!/^https?:\/\//i.test(url)) return url;
   if (/^https?:\/\/a3\.phinemi\.live\/?/i.test(url)) return url;
   if (String(url).includes(`${BASE_PATH}/a3proxy`)) return url;
+  if (String(url).includes(`${BASE_PATH}/a3relay`)) return url;
   const rh = String(options.rh || encodeA3UpstreamRh(options.headers || {}, options.userAgent || '')).trim();
+  if (options.preferFastlyRelay === true && (isAlbFastlyUrl(url) || /anytools\.eu\.org|unique-user-id=/i.test(url))) {
+    return wrapA3FastlyRelayUrl(url, { ...options, rh });
+  }
   if (shouldUseOriginA3Proxy(url, options)) {
     // Encrypt upstream so gcore/CDN host is not visible in player/network URLs.
     let out = `${getA3OriginProxyBase()}?id=${encodeURIComponent(encrypt(url))}`;
@@ -8223,14 +8246,16 @@ function wrapA3ClientSwUrl(streamUrl = '', options = {}) {
 }
 /**
  * Route A3 playback:
- * - App (ExoPlayer): direct CDN for fastly (phone IP); other A3 via Worker (CORS N/A to Exo).
- * - Web: CF Worker for CORS + injected Referer/Origin/Cookie/UA (and gjirafa v1a1 rewrite).
+ * - App (ExoPlayer): direct CDN for fastly (phone IP); other A3 via Worker/origin proxy.
+ * - Web Safari: direct fastly (native HLS, no CORS).
+ * - Web Chrome: same-origin a3relay (HTTP proxy pool) for fastly; origin a3proxy for gcore.
  */
 function buildA3PlaybackUrl(streamUrl = '', options = {}) {
   const url = String(streamUrl || '').trim();
   if (!/^https?:\/\//i.test(url)) return url;
   if (isAlbFastlyUrl(url) && options.preferDirect === true) return url;
   if (options.preferClientSw === true) return wrapA3ClientSwUrl(url, options);
+  if (options.preferFastlyRelay === true) return wrapA3FastlyRelayUrl(url, options);
   return wrapA3CorsProxyUrl(url, options);
 }
 function buildA3PlaybackOptionsFromChannel(channel = {}, req = null) {
@@ -8271,7 +8296,9 @@ function buildA3PlaybackOptionsFromChannel(channel = {}, req = null) {
     userAgent: String(channel?.albUserAgent || ALB_DEFAULT_UPSTREAM_UA || '').trim() || ALB_DEFAULT_UPSTREAM_UA,
     preferDirect: fastly && fromApp,
     preferClientSw: false,
-    webBlocked: fastly && !fromApp
+    // Chrome/web: relay via residential HTTP proxies (AlbKanale plays direct from phone IP).
+    preferFastlyRelay: fastly && !fromApp,
+    webBlocked: false
   };
 }
 
@@ -12443,10 +12470,10 @@ async function getPlayableUrl(slug){
         if(String(data.a3_cdn||'')==='fastly'&&direct&&canNative){
           playUrl=direct;
         }
-        // Chrome/Firefox: Worker egress blocked by fastlycache. Webviews in config.php
-        // are unrelated to stream auth — open in ShifShqip app or Safari instead.
-        const webBlocked=data.a3_web_blocked===true||(String(data.a3_cdn||'')==='fastly'&&!canNative&&String(data.error||'')==='a3_fastly_web');
-        if(webBlocked&&!canNative){
+        // Chrome: prefer same-origin a3relay URL from API (mode a3relay). Only hard-block
+        // when API still marks blocked and no playable url was returned.
+        const webBlocked=data.a3_web_blocked===true||String(data.error||'')==='a3_fastly_web';
+        if(webBlocked&&!canNative&&!playUrl){
           return {
             url:'',
             proxyUrl:'',
@@ -17657,6 +17684,18 @@ function rewriteA3OriginManifest(text, requestUrl, proxyBase, rhRaw = '') {
   }).join('\n');
 }
 
+router.options('/a3relay', (req, res) => { setProxyCorsHeaders(res); res.sendStatus(204); });
+router.get('/a3relay', async (req, res) => {
+  setProxyCorsHeaders(res);
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.setHeader('X-A3-Relay', '1');
+  return a3Relay.handleA3Relay(req, res, {
+    relayBase: `${BASE_PATH}/a3relay`,
+    clientIp: getLikelyClientIPv4(req) || getForwardClientIp(req) || '',
+    decrypt
+  });
+});
+
 router.options('/a3proxy', (req, res) => { setProxyCorsHeaders(res); res.sendStatus(204); });
 router.get('/a3proxy', async (req, res) => {
   const rhRaw = String(req.query.rh || '').trim();
@@ -17879,21 +17918,20 @@ router.get('/api/channel-url/:slug', async (req, res) => {
         error: 'A3 channel unavailable right now'
       });
     }
-    // Fresh URL. fastly → app direct (phone IP); Safari web can use direct_url (native HLS);
-    // Chrome web cannot (CORS needs Worker, Worker IP is DC-blocked by fastlycache).
+    // Fresh URL. fastly → app direct (phone IP); web Chrome → a3relay; Safari uses direct_url.
     const playOpts = buildA3PlaybackOptionsFromChannel(channel, req);
     const playUrl = buildA3PlaybackUrl(streamUrl, playOpts);
-    const workerUrl = wrapA3CorsProxyUrl(streamUrl, playOpts);
+    const workerUrl = wrapA3CorsProxyUrl(streamUrl, { ...playOpts, preferFastlyRelay: false });
     issuePlaybackCookieForSource(req, res, sourceKey, resolvePlayTokenTtlSec(sourceKey));
     const clientIpv4 = getLikelyClientIPv4(req);
     const a3Cdn = isAlbFastlyUrl(streamUrl) ? 'fastly' : 'other';
-    const webBlocked = playOpts.webBlocked === true;
+    const webBlocked = false;
     res.setHeader('Cache-Control', 'no-store');
     return res.json({
       ok: true,
       source_key: sourceKey,
       source_label: SOURCE_LABELS[sourceKey] || sourceKey,
-      mode: playOpts.preferDirect ? 'direct' : (playOpts.preferClientSw ? 'a3sw' : 'direct'),
+      mode: playOpts.preferDirect ? 'direct' : (playOpts.preferFastlyRelay ? 'a3relay' : (playOpts.preferClientSw ? 'a3sw' : 'proxy')),
       url: playUrl,
       proxy_url: workerUrl,
       direct_url: streamUrl,
@@ -17905,7 +17943,7 @@ router.get('/api/channel-url/:slug', async (req, res) => {
       a3_cdn: a3Cdn,
       a3_failover: channel._albFailoverTo || '',
       a3_web_blocked: webBlocked,
-      error: webBlocked ? 'a3_fastly_web' : ''
+      error: ''
     });
   }
   const playback = resolveWebPrimaryPlaybackPath(slug, req, channel, { disableProxyForSource });

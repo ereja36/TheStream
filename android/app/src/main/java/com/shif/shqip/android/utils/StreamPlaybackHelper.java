@@ -56,6 +56,10 @@ public final class StreamPlaybackHelper {
                 return false;
             }
         }
+        // Media-Colony A3 gates (.js / anytools .php) are playable direct CDNs.
+        if (IptvPlayerHelper.isAlbHlsGateUrl(trimmed)) {
+            return true;
+        }
         return true;
     }
 

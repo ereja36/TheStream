@@ -172,7 +172,16 @@ async function handleA3Relay(req, res, options = {}) {
     return res.end();
   }
 
-  const target = String(req.query?.u || req.query?.url || '').trim();
+  let target = String(req.query?.u || req.query?.url || '').trim();
+  const encId = String(req.query?.id || '').trim();
+  if (!target && encId && typeof options.decrypt === 'function') {
+    try {
+      const decoded = options.decrypt(encId);
+      if (decoded && /^https?:\/\//i.test(decoded)) target = decoded;
+    } catch {
+      // ignore
+    }
+  }
   const rhRaw = String(req.query?.rh || '').trim();
   if (!/^https?:\/\//i.test(target) || !isAllowedUpstream(target)) {
     res.writeHead(400, { ...corsHeaders(origin), 'Content-Type': 'text/plain' });
@@ -193,7 +202,7 @@ async function handleA3Relay(req, res, options = {}) {
   const wantStream = /anytools\.eu\.org|unique-user-id=/i.test(target);
 
   let lastErr = '';
-  for (const proxy of ordered.slice(0, 20)) {
+  for (const proxy of ordered.slice(0, 25)) {
     try {
       if (wantStream) {
         const up = await axiosGet(target, headers, proxy, {
@@ -223,6 +232,9 @@ async function handleA3Relay(req, res, options = {}) {
       const buf = Buffer.from(up.data || []);
       const peek = buf.slice(0, 64).toString('utf8').trimStart();
       const ct = String(up.headers['content-type'] || '');
+      if (/<\s*html|404 Not Found|CyberPanel/i.test(peek)) {
+        throw new Error('html block');
+      }
       rememberSticky(stickyKey, proxy);
 
       if (peek.startsWith('#EXT') || /mpegurl|javascript|text\/plain/i.test(ct)) {

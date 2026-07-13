@@ -201,6 +201,11 @@ public final class PortalResolveHelper {
             if (!json.optBoolean("ok", false)) {
                 return "";
             }
+            // Prefer direct CDN (A3 fastly .js / gcore) over Worker proxy URLs.
+            String direct = json.optString("direct_url", "").trim();
+            if (isDirectCdnUrl(direct)) {
+                return direct;
+            }
             String url = json.optString("url", "").trim();
             if (isDirectCdnUrl(url)) {
                 return url;
@@ -249,6 +254,14 @@ public final class PortalResolveHelper {
                 || lower.startsWith("rtsp://")
                 || lower.startsWith("rtmp://")
                 || lower.contains("/live/")
-                || lower.contains("/hls/");
+                || lower.contains("/hls/")
+                // Media-Colony A3 gates: .js master → anytools .php hop (still direct CDN).
+                || lower.contains("fastlycache.com")
+                || lower.contains("anytools.eu.org")
+                || lower.contains("unique-user-id=")
+                || lower.contains("gcore-cdn.org")
+                || lower.contains("gjirafa.net")
+                || lower.contains("gjirafa.com")
+                || lower.contains("a3.phinemi.live");
     }
 }
