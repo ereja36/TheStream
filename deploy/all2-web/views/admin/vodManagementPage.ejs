@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head><%- baseStyle %><title>Admin VOD</title></head>
+<body>
+<%- navAdminHtml %>
+<div class="page">
+  <div class="page-header">
+    <a href="<%= basePath %>/admin" style="color:var(--muted)"><i class="fas fa-arrow-left"></i></a>
+    <i class="fas fa-film" style="color:var(--purple)"></i><h2>VOD Management</h2>
+    <span class="badge purple">Search • Filters • Pagination</span>
+  </div>
+
+  <div class="admin-section">
+    <div style="display:grid;grid-template-columns:2fr repeat(4,minmax(120px,1fr)) auto;gap:8px;align-items:end">
+      <div><label class="form-label">Query</label><input id="q" class="form-input" value="<%= initialQuery %>" placeholder="title..."></div>
+      <div><label class="form-label">Genre</label><input id="genre" class="form-input" value="<%= initialGenre %>"></div>
+      <div><label class="form-label">Year</label><input id="year" class="form-input" value="<%= initialYear %>"></div>
+      <div><label class="form-label">Status</label><input id="status" class="form-input" value="<%= initialStatus %>"></div>
+      <div><label class="form-label">Visibility</label><input id="visibility" class="form-input" value="<%= initialVisibility %>"></div>
+      <button class="a-btn a-btn-primary" onclick="loadVod(1)"><i class="fas fa-search"></i> Kërko</button>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <h3><i class="fas fa-folder-plus"></i> Krijo Series Manual</h3>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+      <input id="series_id" class="form-input" placeholder="series_id (p.sh south-park)">
+      <input id="series_title" class="form-input" placeholder="series_title">
+      <input id="series_poster" class="form-input" placeholder="series poster URL">
+      <input id="series_logo_url" class="form-input" placeholder="series logo URL">
+      <select id="series_visibility" class="form-input"><option value="private">Private</option><option value="public">Public</option></select>
+      <textarea id="series_description" class="form-input" placeholder="series description" style="grid-column:span 4;min-height:70px"></textarea>
+      <select id="series_select" class="form-input" style="grid-column:span 3"><option value="">-- Zgjidh series ekzistuese --</option></select>
+      <button class="a-btn a-btn-purple" onclick="saveSeries()"><i class="fas fa-save"></i> Save Series</button>
+    </div>
+    <div id="seriesEpisodesPreview" style="margin-top:10px;color:var(--muted);font-size:.8rem">Zgjidh një series për të parë episodet.</div>
+  </div>
+
+  <div class="admin-section">
+    <h3><i class="fas fa-plus"></i> Krijo / Update VOD</h3>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+      <input id="vod_id" class="form-input" placeholder="id (opsionale për create)">
+      <input id="vod_title" class="form-input" placeholder="title" required>
+      <input id="vod_slug" class="form-input" placeholder="slug opsional">
+      <input id="vod_poster" class="form-input" placeholder="poster URL">
+      <input id="vod_logo_url" class="form-input" placeholder="logo URL">
+      <input id="vod_backdrop" class="form-input" placeholder="backdrop URL">
+      <input id="vod_year" class="form-input" placeholder="year">
+      <input id="vod_genre" class="form-input" placeholder="genre (Action,Drama)">
+      <input id="vod_language" class="form-input" placeholder="language">
+      <input id="vod_duration" class="form-input" placeholder="duration min">
+      <input id="vod_source_url" class="form-input" placeholder="source_url" style="grid-column:span 2">
+      <input id="vod_trailer_url" class="form-input" placeholder="trailer_url">
+      <input id="vod_user_agent" class="form-input" placeholder="user_agent (opsional)" style="grid-column:span 3">
+      <select id="vod_status" class="form-input">
+        <option value="draft">✅ Draft</option>
+        <option value="published">✅ Published</option>
+      </select>
+      <select id="vod_visibility" class="form-input">
+        <option value="private">✅ Private</option>
+        <option value="public">✅ Public</option>
+      </select>
+      <select id="vod_type" class="form-input">
+        <option value="movie">✅ Movie</option>
+        <option value="series_episode">✅ Series Episode</option>
+      </select>
+      <input id="vod_collection_id" class="form-input" placeholder="collection_id opsional">
+      <input id="vod_series_id" class="form-input" placeholder="series_id (p.sh south-park)">
+      <input id="vod_series_title" class="form-input" placeholder="series_title (p.sh South Park)">
+      <input id="vod_season" class="form-input" placeholder="season #">
+      <input id="vod_episode_number" class="form-input" placeholder="episode #">
+      <input id="vod_episode_title" class="form-input" placeholder="episode title">
+      <textarea id="vod_backup_urls" class="form-input" placeholder="backup_urls (1 per line)" style="grid-column:span 3;min-height:60px"></textarea>
+      <input id="vod_token_refresh_url" class="form-input" placeholder="token_refresh_url (opsional endpoint JSON {url})" style="grid-column:span 3">
+      <textarea id="vod_description" class="form-input" placeholder="description" style="grid-column:span 3;min-height:90px"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <button class="a-btn a-btn-green" onclick="createVod()"><i class="fas fa-plus"></i> Create</button>
+      <button class="a-btn a-btn-primary" onclick="updateVod()"><i class="fas fa-save"></i> Update</button>
+      <button class="a-btn a-btn-red" onclick="deleteVod()"><i class="fas fa-trash"></i> Delete</button>
+      <button class="a-btn a-btn-purple" onclick="togglePublish(true)"><i class="fas fa-eye"></i> Publish</button>
+      <button class="a-btn a-btn-orange" onclick="togglePublish(false)"><i class="fas fa-eye-slash"></i> Unpublish</button>
+      <button class="a-btn a-btn-primary" onclick="qaCheckVod()"><i class="fas fa-stethoscope"></i> QA Check Stream</button>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <h3><i class="fas fa-file-import"></i> Bulk Import JSON / M3U-like</h3>
+    <textarea id="bulk_payload" class="form-input" placeholder='JSON array ose #EXTINF lines + URL'></textarea>
+    <button class="a-btn a-btn-primary" onclick="bulkImportVod()"><i class="fas fa-upload"></i> Import</button>
+  </div>
+
+  <div class="admin-section">
+    <h3><i class="fas fa-table"></i> VOD Items</h3>
+    <div id="vodTable" style="color:var(--muted)">Duke ngarkuar...</div>
+    <div id="pager" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<script>
+const BASE='<%= basePath %>';
+const ATOKEN='<%= adminToken %>';
+const PAGE_SIZE=<%= pageSize %>;
+let currentPage=<%= page %>;
+window.__vodRows=window.__vodRows||{};
+window.__vodSeries=window.__vodSeries||{};
+window.__episodeOrderIds=[];
+window.__episodeOrderSeries='';
+function esc(v){return String(v||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function escAttr(v){return String(v||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function collectPayload(){
+  return {
+    id:document.getElementById('vod_id').value,
+    title:document.getElementById('vod_title').value,
+    slug:document.getElementById('vod_slug').value,
+    poster:document.getElementById('vod_poster').value,
+    logo_url:document.getElementById('vod_logo_url').value,
+    backdrop:document.getElementById('vod_backdrop').value,
+    year:document.getElementById('vod_year').value,
+    genre:document.getElementById('vod_genre').value,
+    language:document.getElementById('vod_language').value,
+    duration:document.getElementById('vod_duration').value,
+    source_url:document.getElementById('vod_source_url').value,
+    trailer_url:document.getElementById('vod_trailer_url').value,
+    user_agent:document.getElementById('vod_user_agent').value,
+    status:document.getElementById('vod_status').value,
+    visibility:document.getElementById('vod_visibility').value,
+    type:document.getElementById('vod_type').value,
+    collection_id:document.getElementById('vod_collection_id').value,
+    series_id:document.getElementById('vod_series_id').value,
+    series_title:document.getElementById('vod_series_title').value,
+    season:document.getElementById('vod_season').value,
+    episode_number:document.getElementById('vod_episode_number').value,
+    episode_title:document.getElementById('vod_episode_title').value,
+    backup_urls:document.getElementById('vod_backup_urls').value,
+    token_refresh_url:document.getElementById('vod_token_refresh_url').value,
+    description:document.getElementById('vod_description').value
+  };
+}
+function api(path,payload){
+  return fetch(BASE+path,{method:'POST',headers:{'Content-Type':'application/json','x-admin-token':ATOKEN},body:JSON.stringify(payload||{})}).then(r=>r.json());
+}
+function loadSeriesList(){
+  fetch(BASE+'/api/admin/vod/series/list',{headers:{'x-admin-token':ATOKEN}}).then(r=>r.json()).then(d=>{
+    const sel=document.getElementById('series_select');
+    if(!sel) return;
+    const rows=Array.isArray(d.items)?d.items:[];
+    window.__vodSeries={};
+    rows.forEach(s=>{ window.__vodSeries[String(s.id||'')]=s; });
+    sel.innerHTML='<option value="">-- Zgjidh series ekzistuese --</option>'+rows.map(s=>'<option value="'+escAttr(s.id)+'">'+esc(s.title)+' ('+esc(s.id)+')</option>').join('');
+  }).catch(()=>{});
+}
+function loadEpisodesBySeries(seriesId){
+  const root=document.getElementById('seriesEpisodesPreview');
+  if(!root) return;
+  if(!seriesId){ root.innerHTML='Zgjidh një series për të parë episodet.'; return; }
+  root.innerHTML='<i class=\"fas fa-spinner fa-spin\"></i> Duke ngarkuar episode...';
+  fetch(BASE+'/api/admin/vod/episodes?series_id='+encodeURIComponent(seriesId),{headers:{'x-admin-token':ATOKEN}})
+    .then(r=>r.json())
+    .then(d=>{
+      const rows=Array.isArray(d.items)?d.items:[];
+      if(!rows.length){ root.innerHTML='<span style=\"color:var(--muted)\">Nuk ka episode për këtë series akoma.</span>'; return; }
+      window.__episodeOrderSeries=seriesId;
+      window.__episodeOrderIds=rows.map(ep=>String(ep.id||''));
+      root.innerHTML='<div style=\"display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px\"><b style=\"font-size:.84rem\">Episode Board (drag & drop)</b><button class=\"a-btn a-btn-green\" onclick=\"saveEpisodeOrder()\"><i class=\"fas fa-save\"></i> Save Order</button></div>'
+        +'<ul id=\"episodeOrderBoard\" style=\"list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px\">'
+        +rows.map(ep=>'<li class=\"episode-row\" draggable=\"true\" data-id=\"'+escAttr(ep.id||'')+'\" style=\"padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--card);display:flex;align-items:center;gap:8px;cursor:grab\"><i class=\"fas fa-grip-lines\" style=\"color:var(--muted)\"></i><button class=\"a-btn a-btn-primary js-edit-vod\" data-id=\"'+escAttr(ep.id||'')+'\" style=\"flex:1;justify-content:flex-start\">S'+String(ep.season||1).padStart(2,'0')+'E'+String(ep.episode_number||1).padStart(2,'0')+' • '+esc(ep.episode_title||ep.title||ep.id)+'</button></li>').join('')
+        +'</ul>';
+      rows.forEach(ep=>{ window.__vodRows[String(ep.id||'')]=ep; });
+      initEpisodeBoardDnD();
+    })
+    .catch(()=>{ root.innerHTML='<span style=\"color:var(--red)\">Gabim gjatë ngarkimit të episodeve.</span>'; });
+}
+function initEpisodeBoardDnD(){
+  const board=document.getElementById('episodeOrderBoard');
+  if(!board) return;
+  let dragEl=null;
+  board.querySelectorAll('.episode-row').forEach(row=>{
+    row.addEventListener('dragstart',()=>{dragEl=row; row.style.opacity='.45';});
+    row.addEventListener('dragend',()=>{row.style.opacity='1'; dragEl=null; window.__episodeOrderIds=[...board.querySelectorAll('.episode-row')].map(n=>String(n.getAttribute('data-id')||''));});
+    row.addEventListener('dragover',(e)=>{e.preventDefault();});
+    row.addEventListener('drop',(e)=>{e.preventDefault(); if(!dragEl||dragEl===row) return; const rect=row.getBoundingClientRect(); const before=(e.clientY-rect.top)<(rect.height/2); board.insertBefore(dragEl, before?row:row.nextSibling);});
+  });
+}
+function saveEpisodeOrder(){
+  if(!window.__episodeOrderSeries||!window.__episodeOrderIds.length) return alert('Nuk ka episode për reorder');
+  api('/api/admin/vod/episodes/reorder',{series_id:window.__episodeOrderSeries,order:window.__episodeOrderIds}).then(d=>{
+    if(!d.ok) return alert('Gabim: '+(d.error||''));
+    alert('Order u ruajt');
+    loadEpisodesBySeries(window.__episodeOrderSeries);
+    loadVod(currentPage);
+  });
+}
+function saveSeries(){
+  const payload={
+    id:document.getElementById('series_id').value,
+    title:document.getElementById('series_title').value,
+    description:document.getElementById('series_description').value,
+    poster:document.getElementById('series_poster').value,
+    logo_url:document.getElementById('series_logo_url').value,
+    visibility:document.getElementById('series_visibility').value
+  };
+  api('/api/admin/vod/series/save',payload).then(d=>{
+    if(!d.ok) return alert('Gabim: '+(d.error||''));
+    document.getElementById('vod_series_id').value=d.item.id||'';
+    document.getElementById('vod_series_title').value=d.item.title||'';
+    alert('Series u ruajt');
+    loadSeriesList();
+    loadEpisodesBySeries(d.item.id||'');
+  });
+}
+function loadIntoForm(item){
+  Object.keys(collectPayload()).forEach(k=>{
+    const el=document.getElementById('vod_'+k);
+    if(!el) return;
+    if(k==='backup_urls'){
+      el.value=Array.isArray(item[k])?item[k].join('\n'):(item[k]||'');
+      return;
+    }
+    el.value=item[k]||'';
+  });
+}
+function openEdit(encodedId){
+  const id=String(encodedId||'').trim();
+  const row=window.__vodRows&&window.__vodRows[id];
+  if(!row) return alert('Item nuk u gjet për edit');
+  loadIntoForm(row);
+}
+function createVod(){api('/api/admin/vod/create',collectPayload()).then(d=>{alert(d.ok?'U krijua':'Gabim: '+(d.error||'')); if(d.ok) loadVod(currentPage);});}
+function updateVod(){api('/api/admin/vod/update',collectPayload()).then(d=>{alert(d.ok?'U përditësua':'Gabim: '+(d.error||'')); if(d.ok) loadVod(currentPage);});}
+function deleteVod(){const id=document.getElementById('vod_id').value.trim(); if(!id) return alert('Vendos ID'); api('/api/admin/vod/delete',{id}).then(d=>{alert(d.ok?'U fshi':'Gabim: '+(d.error||'')); if(d.ok) loadVod(currentPage);});}
+function togglePublish(published){const id=document.getElementById('vod_id').value.trim(); if(!id) return alert('Vendos ID'); api('/api/admin/vod/'+(published?'publish':'unpublish'),{id}).then(d=>{alert(d.ok?'U ruajt':'Gabim: '+(d.error||'')); if(d.ok) loadVod(currentPage);});}
+function bulkImportVod(){const payload=document.getElementById('bulk_payload').value; api('/api/admin/vod/bulk-import',{payload}).then(d=>{alert(d.ok?('Import: '+d.imported):'Gabim: '+(d.error||'')); if(d.ok) loadVod(1);});}
+function qaCheckVod(){const id=document.getElementById('vod_id').value.trim(); if(!id) return alert('Vendos ID'); api('/api/admin/vod/check-stream',{id}).then(d=>{if(!d.ok) return alert('Gabim: '+(d.error||'Check failed')); const lines=(d.checks||[]).map(r=>((r.ok?'✅ ':'❌ ')+r.status+' '+r.url)).join('\\n'); alert('QA Result\\n'+lines);});}
+function getFilters(){
+  return {
+    query:document.getElementById('q').value,
+    genre:document.getElementById('genre').value,
+    year:document.getElementById('year').value,
+    status:document.getElementById('status').value,
+    visibility:document.getElementById('visibility').value
+  };
+}
+function loadVod(page){
+  currentPage=page||1;
+  const f=getFilters();
+  const qs=new URLSearchParams({...f,page:String(currentPage),page_size:String(PAGE_SIZE),sort:'newest'}).toString();
+  fetch(BASE+'/api/vod/list?'+qs,{headers:{'x-admin-token':ATOKEN}}).then(r=>r.json()).then(d=>{
+    const rows=Array.isArray(d.items)?d.items:[];
+    if(!rows.length){ document.getElementById('vodTable').innerHTML='<p style="color:var(--muted)">Nuk ka VOD.</p>'; return; }
+    let html='<table class="users-table"><thead><tr><th>Title</th><th>Meta</th><th>Status</th><th>Visibility</th><th>Stats</th><th>Action</th></tr></thead><tbody>';
+    window.__vodRows={};
+    rows.forEach(item=>{
+      window.__vodRows[item.id]=item;
+      const cRate=Number(item.analytics?.completionRate||0).toFixed(1);
+      html+='<tr>'
+        +'<td><div style="font-weight:600">'+esc(item.title)+'</div><div style="color:var(--muted);font-size:.72rem">'+esc(item.id)+'</div></td>'
+        +'<td>'+esc(item.year)+' • '+esc(item.genre||'')+'<br><span style="color:var(--muted);font-size:.68rem">'+(item.series_id?('Series '+esc(item.series_id)+' • S'+(item.season||1)+'E'+(item.episode_number||1)):'Movie')+'</span></td>'
+        +'<td><span class="ch-badge">'+esc(item.status||'draft')+'</span></td>'
+        +'<td><span class="idle-badge">'+esc(item.visibility||'private')+'</span></td>'
+        +'<td>views '+Number(item.analytics?.views||0).toLocaleString()+'<br><span style="color:var(--muted);font-size:.7rem">watch '+Number(item.analytics?.watchTimeSec||0).toLocaleString()+'s • '+cRate+'%</span><br><span style="color:var(--muted);font-size:.65rem">'+(item.user_agent?'UA custom':'UA default')+'</span></td>'
+        +'<td><button class="a-btn a-btn-primary js-edit-vod" data-id="'+escAttr(item.id||'')+'">Edit</button></td>'
+        +'</tr>';
+    });
+    html+='</tbody></table>';
+    document.getElementById('vodTable').innerHTML=html;
+    const totalPages=Math.max(1,Math.ceil(Number(d.total||0)/PAGE_SIZE));
+    document.getElementById('pager').innerHTML='<div style="display:flex;gap:6px;align-items:center"><button class="a-btn a-btn-primary" '+(currentPage<=1?'disabled':'')+' onclick="loadVod('+(currentPage-1)+')">Prev</button><span style="color:var(--muted)">Page '+currentPage+' / '+totalPages+'</span><button class="a-btn a-btn-primary" '+(currentPage>=totalPages?'disabled':'')+' onclick="loadVod('+(currentPage+1)+')">Next</button></div>';
+  }).catch(()=>{document.getElementById('vodTable').innerHTML='<p style="color:var(--red)">Gabim gjatë load.</p>';});
+}
+document.getElementById('series_select')?.addEventListener('change',function(){
+  if(!this.value) return;
+  try{
+    const s=window.__vodSeries[String(this.value||'')];
+    if(!s) return;
+    document.getElementById('series_id').value=s.id||'';
+    document.getElementById('series_title').value=s.title||'';
+    document.getElementById('series_description').value=s.description||'';
+    document.getElementById('series_poster').value=s.poster||'';
+    document.getElementById('series_logo_url').value=s.logo_url||'';
+    document.getElementById('series_visibility').value=s.visibility||'private';
+    document.getElementById('vod_series_id').value=s.id||'';
+    document.getElementById('vod_series_title').value=s.title||'';
+    document.getElementById('vod_type').value='series_episode';
+    loadEpisodesBySeries(s.id||'');
+  }catch{}
+});
+document.body.addEventListener('click',function(ev){
+  const btn=ev.target.closest('.js-edit-vod');
+  if(!btn) return;
+  const id=String(btn.getAttribute('data-id')||'').trim();
+  if(!id) return;
+  openEdit(id);
+});
+loadSeriesList();
+loadVod(currentPage);
+</script>
+</body>
+</html>

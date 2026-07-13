@@ -1,0 +1,26 @@
+<div class="page">
+<div class="section-shell category-banner-shell">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div style="font-size:.8rem;color:var(--muted)">Shif Shqip • Category View</div>
+    <span class="badge">LIVE</span>
+  </div>
+</div>
+<div class="page-header">
+<a href="<%= basePath %><%= backPath %>" style="color:var(--muted)"><i class="fas fa-arrow-left"></i></a>
+<% if (logoUrl) { %>
+<img src="<%= logoUrl %>" alt="" class="cat-header-logo">
+<% } else { %>
+<i class="fas <%= iconClass %>" style="color:<%= iconColor %>"></i>
+<% } %>
+<h2><%= title %></h2>
+<span class="badge <%= badgeClass %>"><%= badgeText || `${count} kanale` %></span>
+</div>
+<div class="admin-bar">
+<span class="server-dot"></span> AKTIV
+<span style="color:var(--muted)"><i class="fas fa-eye"></i> <%= count %> kanale</span>
+<%- extraStatusHtml || '' %>
+</div>
+<div class="search-bar"><i class="fas fa-search"></i>
+<input type="text" placeholder="Kërko..." oninput="filterChannels(this.value)"></div>
+<div class="channels-grid"><%- cards %></div>
+</div>

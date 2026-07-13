@@ -1,0 +1,58 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.phinemi.wrapper"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "com.phinemi.wrapper"
+        minSdk = 24
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0.0"
+        // NOTE: app ID duhet nga AdMob App settings (format: ca-app-pub-xxx~yyy).
+        // Kjo vlerë është placeholder test derisa ta vendosësh tënden.
+        manifestPlaceholders["ADMOB_APP_ID"] = "ca-app-pub-3940256099942544~3347511713"
+
+        // Replace with your real IDs from AdMob console.
+        buildConfigField("String", "ADMOB_BANNER_ID", "\"ca-app-pub-2519356856965635/7277596737\"")
+        buildConfigField("String", "ADMOB_INTERSTITIAL_ID", "\"ca-app-pub-2519356856965635/6267767399\"")
+        buildConfigField("String", "ADMOB_APP_OPEN_ID", "\"ca-app-pub-3940256099942544/9257395921\"")
+        // Supported: INTERSTITIAL, APP_OPEN
+        buildConfigField("String", "ADMOB_FULLSCREEN_FORMAT", "\"INTERSTITIAL\"")
+        buildConfigField("boolean", "ADMOB_AUTO_SHOW_APP_OPEN_ON_START", "false")
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.16.0")
+    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("androidx.constraintlayout:constraintlayout:2.2.1")
+    implementation("com.google.android.gms:play-services-ads:25.0.0")
+}

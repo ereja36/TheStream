@@ -1,0 +1,5 @@
+#EXTM3U
+#EXTINF:-1,Nimi Prime
+https://backup.example.com/live/nimi-prime-backup.m3u8
+#EXTINF:-1,Nimi UI Added
+https://backup.example.com/live/nimi-ui-added.m3u8
