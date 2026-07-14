@@ -72,7 +72,9 @@ jobs:
           fi
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           chmod +x gradlew
-          ./gradlew assembleRelease bundleRelease --no-daemon
+          ./gradlew assembleRelease bundleRelease assembleDebug --no-daemon
+          chmod +x package-release-apk.sh
+          ./package-release-apk.sh
 
       - name: Deploy panel/API/APK (SSH key)
         if: env.HAS_SSH_KEY == 'true'

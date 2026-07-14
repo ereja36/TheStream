@@ -40,7 +40,9 @@ jobs:
           SHIF_KEY_PASSWORD: ${{ secrets.SHIF_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease assembleDebug --no-daemon
+          chmod +x package-release-apk.sh
+          ./package-release-apk.sh
 
       - uses: actions/upload-artifact@v4
         with:
