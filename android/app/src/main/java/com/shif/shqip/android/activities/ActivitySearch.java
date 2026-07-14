@@ -220,8 +220,9 @@ public class ActivitySearch extends AppCompatActivity {
             public void onResponse(@NonNull Call<CallbackChannel> call, @NonNull Response<CallbackChannel> response) {
                 CallbackChannel resp = response.body();
                 if (resp != null && resp.status.equals("ok")) {
-                    adapterChannel.insertData(resp.posts);
+                    adapterChannel.insertDataWithNativeAd(resp.posts);
                     lytBannerAd.setVisibility(View.VISIBLE);
+                    adsManager.ensureBannerAd();
                     if (resp.posts.isEmpty()) {
                         showNotFoundView(true);
                     }
@@ -267,8 +268,9 @@ public class ActivitySearch extends AppCompatActivity {
     }
 
     private void requestSearchLocal(String query) {
-        adapterChannel.insertData(sharedPref.searchPlaylistChannels(query));
+        adapterChannel.insertDataWithNativeAd(sharedPref.searchPlaylistChannels(query));
         lytBannerAd.setVisibility(View.VISIBLE);
+        adsManager.ensureBannerAd();
         if (adapterChannel.getItemCount() == 0) {
             showNotFoundView(true);
         }

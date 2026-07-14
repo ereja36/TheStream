@@ -584,12 +584,8 @@ public class Tools {
             }
             intent.putExtra("channel_id", channel.channel_id);
             activity.startActivity(intent);
-            View anchor = activity.getWindow() != null ? activity.getWindow().getDecorView() : view;
-            if (anchor != null) {
-                anchor.postDelayed(() -> AdPlacementHelper.showInterstitialBeforeAction(activity), 1_500L);
-            } else {
-                AdPlacementHelper.showInterstitialBeforeAction(activity);
-            }
+            // Do NOT fire interstitial while opening the player (ONE IPTV-style soft UX).
+            // Cadence interstitials stay on browse/navigation clicks via AdPlacementHelper.
         } else {
             Snackbar.make(view, activity.getResources().getString(R.string.network_required), Snackbar.LENGTH_SHORT).show();
         }

@@ -204,7 +204,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
         } else if (holder instanceof NativeAdViewHolder) {
             Object bound = holder.itemView.getTag(NATIVE_AD_BOUND_TAG_KEY);
-            if (bound == null) {
+            if (!Boolean.TRUE.equals(bound)) {
                 try {
                     holder.itemView.setVisibility(View.VISIBLE);
                     adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
@@ -223,10 +223,13 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
                             holder.itemView.setVisibility(View.VISIBLE);
                         } catch (Exception retryError) {
                             Log.e("AdapterChannel", "native rebind failed", retryError);
-                            holder.itemView.setVisibility(View.GONE);
+                            // Keep row height stable — invisible empty GONE gaps break staggered grids.
+                            holder.itemView.setVisibility(View.INVISIBLE);
                         }
                     }, 1500L);
                 }
+            } else {
+                holder.itemView.setVisibility(View.VISIBLE);
             }
         } else {
             ((ProgressViewHolder) holder).progressBar.setIndeterminate(true);
@@ -256,6 +259,9 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             if (image != null) {
                 Glide.with(context).clear(image);
             }
+        } else if (holder instanceof NativeAdViewHolder) {
+            // Allow a fresh bind if this holder is reused for another native slot.
+            holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, null);
         }
         super.onViewRecycled(holder);
     }
@@ -296,8 +302,9 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
         List<Channel> enriched = new ArrayList<>();
         int startIndex = AdPlacementHelper.resolveNativeStartIndex(adsPref);
-        int interval = AdPlacementHelper.resolveNativeInterval(adsPref);
-        int channelCount = 0;
+        int interval = Math.max(1, AdPlacementHelper.resolveNativeInterval(adsPref));
+        // Continue cadence across pages so natives do not cluster at every LOAD_MORE boundary.
+        int channelCount = getRealChannelCount();
         for (Channel post : items) {
             if (post == null || post.is_native_ad) {
                 continue;

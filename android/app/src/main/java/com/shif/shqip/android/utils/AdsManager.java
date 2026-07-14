@@ -114,10 +114,22 @@ public class AdsManager {
                 directBanner.load();
                 return;
             }
-            // Non-AdMob fallback via Solodroid — never force-show empty strip.
+            // Non-AdMob fallback via Solodroid — reveal strip + BannerAdView so sticky space works.
             View strip = activity.findViewById(R.id.banner_strip);
+            View solodroidBanner = activity.findViewById(R.id.bannerAdView);
+            View searchGate = activity.findViewById(R.id.lyt_banner_ad);
             if (strip != null) {
-                strip.setVisibility(View.GONE);
+                strip.setVisibility(View.VISIBLE);
+            }
+            if (solodroidBanner != null) {
+                solodroidBanner.setVisibility(View.VISIBLE);
+            }
+            if (searchGate != null) {
+                searchGate.setVisibility(View.VISIBLE);
+            }
+            View directHost = activity.findViewById(R.id.admob_banner_host);
+            if (directHost != null) {
+                directHost.setVisibility(View.GONE);
             }
             bannerAd.setAdStatus("1")
                     .setAdNetwork(activeAdNetwork())

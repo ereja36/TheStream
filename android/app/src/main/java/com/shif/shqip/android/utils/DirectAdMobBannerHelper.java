@@ -9,6 +9,7 @@ import android.view.Display;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 
 import androidx.annotation.Nullable;
 import androidx.core.graphics.Insets;
@@ -27,9 +28,16 @@ import com.shif.shqip.android.databases.prefs.AdsPref;
 import java.util.WeakHashMap;
 
 /**
- * Sticky banner under floating nav. Stays GONE until fill.
+ * Sticky banner under floating nav / above reserved bottom slot.
+ * Stays GONE until fill so empty black bars never appear.
  * One helper per Activity — multiple AdsManager instances must not fight over the same strip.
  * Never tear down a filled banner unless {@link #forceReload()} is explicitly requested.
+ *
+ * Layout contract (ONE IPTV-style):
+ * - Prefer {@code #banner_strip} containing {@code #admob_banner_host} + optional Solodroid {@code #bannerAdView}.
+ * - List screens that use RelativeLayout should set content {@code layout_above="@id/banner_strip"}
+ *   so the list never scrolls under the sticky banner.
+ * - Overlay chrome screens (V2/V3) keep bottom padding via {@link #applyContentClearance()}.
  */
 public final class DirectAdMobBannerHelper {
 
@@ -38,6 +46,7 @@ public final class DirectAdMobBannerHelper {
     private static final long LONG_RETRY_MS = 60_000L;
     private static final long IN_PLACE_REFRESH_MS = 45_000L;
     private static final int BURST_RETRIES = 5;
+    private static final int OVERLAY_BASE_PAD_DP = 96;
     private static final WeakHashMap<Activity, DirectAdMobBannerHelper> BY_ACTIVITY = new WeakHashMap<>();
 
     private final Activity activity;
@@ -355,10 +364,20 @@ public final class DirectAdMobBannerHelper {
             strip.setVisibility(View.VISIBLE);
             strip.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         }
+        // Search keeps an outer gate container that must open with the strip.
+        View searchGate = activity.findViewById(R.id.lyt_banner_ad);
+        if (searchGate != null) {
+            searchGate.setVisibility(View.VISIBLE);
+        }
         View chrome = activity.findViewById(R.id.bottom_chrome);
         if (chrome != null) {
             chrome.setVisibility(View.VISIBLE);
         }
+        View bottomContainer = activity.findViewById(R.id.bottom_container);
+        if (bottomContainer != null) {
+            bottomContainer.setVisibility(View.VISIBLE);
+        }
+        applyContentClearance(true);
     }
 
     private void hideStrip() {
@@ -375,6 +394,60 @@ public final class DirectAdMobBannerHelper {
                 strip.setLayoutParams(lp);
             }
         }
+        applyContentClearance(false);
+    }
+
+    /**
+     * For overlay chrome (V2/V3 NestedScrollView), keep content clear of nav + banner.
+     * RelativeLayout screens with layout_above=@id/banner_strip do not need this.
+     */
+    private void applyContentClearance(boolean bannerVisible) {
+        View scroll = activity.findViewById(R.id.scroll_home);
+        if (scroll == null) {
+            return;
+        }
+        float density = activity.getResources().getDisplayMetrics().density;
+        int basePad = Math.round(OVERLAY_BASE_PAD_DP * density);
+        int bannerPad = 0;
+        if (bannerVisible) {
+            View strip = activity.findViewById(R.id.banner_strip);
+            int measured = strip != null ? strip.getHeight() : 0;
+            if (measured <= 0) {
+                // Adaptive banner is typically ~50–90dp before first measure.
+                measured = Math.round(56 * density);
+            }
+            bannerPad = measured + Math.round(8 * density);
+        }
+        int bottomInset = systemBottomInset(activity);
+        int target = basePad + bannerPad + bottomInset;
+        if (scroll.getPaddingBottom() != target) {
+            scroll.setPadding(
+                    scroll.getPaddingLeft(),
+                    scroll.getPaddingTop(),
+                    scroll.getPaddingRight(),
+                    target);
+        }
+        if (bannerVisible) {
+            View strip = activity.findViewById(R.id.banner_strip);
+            if (strip != null) {
+                strip.post(() -> {
+                    if (destroyed || activity.isFinishing() || !shown) {
+                        return;
+                    }
+                    int h = strip.getHeight();
+                    if (h > 0) {
+                        int refined = basePad + h + Math.round(8 * density) + systemBottomInset(activity);
+                        if (scroll.getPaddingBottom() != refined) {
+                            scroll.setPadding(
+                                    scroll.getPaddingLeft(),
+                                    scroll.getPaddingTop(),
+                                    scroll.getPaddingRight(),
+                                    refined);
+                        }
+                    }
+                });
+            }
+        }
     }
 
     @Nullable
@@ -383,36 +456,50 @@ public final class DirectAdMobBannerHelper {
         if (host != null) {
             return host;
         }
+
+        // Preferred: create host inside banner_strip without breaking layout_above rules.
         View strip = activity.findViewById(R.id.banner_strip);
-        ViewGroup parent = null;
         if (strip instanceof ViewGroup) {
-            parent = (ViewGroup) strip;
-        } else {
-            View legacy = activity.findViewById(R.id.bannerAdView);
-            if (legacy != null) {
-                legacy.setVisibility(View.GONE);
-                if (legacy.getParent() instanceof ViewGroup) {
-                    parent = (ViewGroup) legacy.getParent();
-                }
-            }
-        }
-        if (parent == null) {
-            return null;
-        }
-        FrameLayout created = new FrameLayout(activity);
-        created.setId(R.id.admob_banner_host);
-        if (parent instanceof android.widget.RelativeLayout) {
-            android.widget.RelativeLayout.LayoutParams lp = new android.widget.RelativeLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
-            parent.addView(created, lp);
-        } else {
-            parent.addView(created, new ViewGroup.LayoutParams(
+            FrameLayout created = new FrameLayout(activity);
+            created.setId(R.id.admob_banner_host);
+            ((ViewGroup) strip).addView(created, 0, new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));
+            return created;
         }
-        return created;
+
+        // Search outer gate.
+        View searchGate = activity.findViewById(R.id.lyt_banner_ad);
+        if (searchGate instanceof ViewGroup) {
+            FrameLayout created = new FrameLayout(activity);
+            created.setId(R.id.admob_banner_host);
+            ((ViewGroup) searchGate).addView(created, 0, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            return created;
+        }
+
+        // Legacy fallback: wrap/replace bannerAdView IN PLACE so RelativeLayout
+        // layout_above=@id/bannerAdView still reserves space (ONE IPTV behavior).
+        View legacy = activity.findViewById(R.id.bannerAdView);
+        if (legacy != null && legacy.getParent() instanceof ViewGroup) {
+            ViewGroup parent = (ViewGroup) legacy.getParent();
+            int index = parent.indexOfChild(legacy);
+            ViewGroup.LayoutParams lp = legacy.getLayoutParams();
+            parent.removeView(legacy);
+
+            FrameLayout created = new FrameLayout(activity);
+            created.setId(R.id.admob_banner_host);
+            // Keep Solodroid view available but hidden for non-AdMob fallbacks.
+            legacy.setVisibility(View.GONE);
+            created.addView(legacy, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            parent.addView(created, index, lp);
+            return created;
+        }
+
+        return null;
     }
 
     @Nullable
