@@ -111,10 +111,24 @@
                 android:layout_alignParentBottom="true"
                 android:orientation="vertical">
 
-                <com.solodroidx.ads.ui.BannerAdView
-                    android:id="@+id/bannerAdView"
+                <FrameLayout
+                    android:id="@+id/banner_strip"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content" />
+                    android:layout_height="wrap_content"
+                    android:background="@android:color/transparent"
+                    android:visibility="gone">
+
+                    <FrameLayout
+                        android:id="@+id/admob_banner_host"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+
+                    <com.solodroidx.ads.ui.BannerAdView
+                        android:id="@+id/bannerAdView"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone" />
+                </FrameLayout>
 
                 <com.google.android.material.bottomnavigation.BottomNavigationView
                     android:id="@+id/navigation"

@@ -3,7 +3,6 @@ package com.shif.shqip.android.activities;
 import static com.shif.shqip.android.Config.ENABLE_RTL_MODE;
 import static com.shif.shqip.android.Config.ENABLE_VPN_ACCESS;
 import static com.shif.shqip.android.Config.REST_API_KEY;
-import static com.shif.shqip.android.utils.Constant.BANNER_CHANNEL_DETAIL;
 import static com.shif.shqip.android.utils.Constant.BANNER_SEARCH;
 import static com.shif.shqip.android.utils.Constant.CHANNEL_GRID_2_COLUMN;
 import static com.shif.shqip.android.utils.Constant.CHANNEL_GRID_3_COLUMN;
@@ -22,7 +21,6 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
@@ -68,7 +66,7 @@ public class ActivitySearch extends AppCompatActivity {
     AdsPref adsPref;
     AdsManager adsManager;
     Tools tools;
-    LinearLayout lytBannerAd;
+    View bannerStrip;
     OnBackPressedDispatcher onBackPressedDispatcher;
 
     @Override
@@ -94,7 +92,7 @@ public class ActivitySearch extends AppCompatActivity {
         bt_clear = findViewById(R.id.bt_clear);
         bt_clear.setVisibility(View.GONE);
         lyt_shimmer = findViewById(R.id.shimmer_view_container);
-        lytBannerAd = findViewById(R.id.lyt_banner_ad);
+        bannerStrip = findViewById(R.id.banner_strip);
         initShimmerLayout();
         swipeProgress(false);
         recyclerView = findViewById(R.id.recyclerView);
@@ -220,8 +218,10 @@ public class ActivitySearch extends AppCompatActivity {
             public void onResponse(@NonNull Call<CallbackChannel> call, @NonNull Response<CallbackChannel> response) {
                 CallbackChannel resp = response.body();
                 if (resp != null && resp.status.equals("ok")) {
-                    adapterChannel.insertData(resp.posts);
-                    lytBannerAd.setVisibility(View.VISIBLE);
+                    adapterChannel.insertDataWithNativeAd(resp.posts);
+                    if (bannerStrip != null && adsManager != null) {
+                        adsManager.ensureBannerAd();
+                    }
                     if (resp.posts.isEmpty()) {
                         showNotFoundView(true);
                     }
@@ -267,8 +267,10 @@ public class ActivitySearch extends AppCompatActivity {
     }
 
     private void requestSearchLocal(String query) {
-        adapterChannel.insertData(sharedPref.searchPlaylistChannels(query));
-        lytBannerAd.setVisibility(View.VISIBLE);
+        adapterChannel.insertDataWithNativeAd(sharedPref.searchPlaylistChannels(query));
+        if (adsManager != null) {
+            adsManager.ensureBannerAd();
+        }
         if (adapterChannel.getItemCount() == 0) {
             showNotFoundView(true);
         }
@@ -356,7 +358,7 @@ public class ActivitySearch extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        adsManager.resumeBannerAd(BANNER_CHANNEL_DETAIL);
+        adsManager.resumeBannerAd(BANNER_SEARCH);
     }
 
     public void onDestroy() {

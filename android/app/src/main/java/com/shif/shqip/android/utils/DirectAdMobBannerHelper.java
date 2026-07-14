@@ -8,12 +8,14 @@ import android.util.Log;
 import android.view.Display;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.core.widget.NestedScrollView;
 
 import com.google.android.gms.ads.AdListener;
 import com.google.android.gms.ads.AdRequest;
@@ -27,8 +29,8 @@ import com.shif.shqip.android.databases.prefs.AdsPref;
 import java.util.WeakHashMap;
 
 /**
- * Sticky banner under floating nav. Stays GONE until fill.
- * One helper per Activity — multiple AdsManager instances must not fight over the same strip.
+ * Sticky banner under floating nav / reserved bottom strip (OneIPTV pattern).
+ * Stays GONE until fill. One helper per Activity.
  * Never tear down a filled banner unless {@link #forceReload()} is explicitly requested.
  */
 public final class DirectAdMobBannerHelper {
@@ -38,6 +40,7 @@ public final class DirectAdMobBannerHelper {
     private static final long LONG_RETRY_MS = 60_000L;
     private static final long IN_PLACE_REFRESH_MS = 45_000L;
     private static final int BURST_RETRIES = 5;
+    private static final int MIN_SCROLL_PAD_DP = 120;
     private static final WeakHashMap<Activity, DirectAdMobBannerHelper> BY_ACTIVITY = new WeakHashMap<>();
 
     private final Activity activity;
@@ -248,6 +251,12 @@ public final class DirectAdMobBannerHelper {
             }
             host.removeAllViews();
 
+            // Hide Solodroid BannerAdView so it never reserves empty space.
+            View solodroid = activity.findViewById(R.id.bannerAdView);
+            if (solodroid != null) {
+                solodroid.setVisibility(View.GONE);
+            }
+
             final AdView view = new AdView(activity);
             adView = view;
             view.setAdUnitId(unitId);
@@ -346,19 +355,26 @@ public final class DirectAdMobBannerHelper {
     }
 
     private void showStrip() {
-        View strip = activity.findViewById(R.id.banner_strip);
         FrameLayout host = host();
         if (host != null) {
             host.setVisibility(View.VISIBLE);
+            revealAncestors(host);
         }
+        View strip = activity.findViewById(R.id.banner_strip);
         if (strip != null) {
             strip.setVisibility(View.VISIBLE);
             strip.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            revealAncestors(strip);
         }
         View chrome = activity.findViewById(R.id.bottom_chrome);
         if (chrome != null) {
             chrome.setVisibility(View.VISIBLE);
         }
+        View solodroid = activity.findViewById(R.id.bannerAdView);
+        if (solodroid != null) {
+            solodroid.setVisibility(View.GONE);
+        }
+        handler.post(this::syncScrollPadding);
     }
 
     private void hideStrip() {
@@ -374,6 +390,60 @@ public final class DirectAdMobBannerHelper {
                 lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
                 strip.setLayoutParams(lp);
             }
+        }
+        handler.post(this::syncScrollPadding);
+    }
+
+    /** Reveal GONE parents so a filled AdView is not trapped inside an invisible container. */
+    private void revealAncestors(View start) {
+        ViewParent parent = start.getParent();
+        int depth = 0;
+        while (parent instanceof View && depth < 6) {
+            View v = (View) parent;
+            if (v.getId() == android.R.id.content || v.getId() == R.id.design_root
+                    || v.getId() == R.id.root_view || v.getId() == R.id.background_view) {
+                break;
+            }
+            if (v.getVisibility() != View.VISIBLE) {
+                v.setVisibility(View.VISIBLE);
+            }
+            parent = v.getParent();
+            depth++;
+        }
+    }
+
+    /**
+     * OneIPTV: content never scrolls under the sticky chrome.
+     * For overlay designs (V2/V3 NestedScrollView), pad bottom to chrome height.
+     */
+    private void syncScrollPadding() {
+        if (destroyed || activity.isFinishing()) {
+            return;
+        }
+        View scroll = activity.findViewById(R.id.scroll_home);
+        if (!(scroll instanceof NestedScrollView)) {
+            return;
+        }
+        View chrome = activity.findViewById(R.id.bottom_chrome);
+        if (chrome == null) {
+            chrome = activity.findViewById(R.id.bottom_container);
+        }
+        int density = Math.max(1, (int) activity.getResources().getDisplayMetrics().density);
+        int minPad = MIN_SCROLL_PAD_DP * density;
+        int chromeH = 0;
+        if (chrome != null && chrome.getVisibility() == View.VISIBLE) {
+            chrome.measure(
+                    View.MeasureSpec.makeMeasureSpec(chrome.getWidth() > 0
+                            ? chrome.getWidth()
+                            : activity.getResources().getDisplayMetrics().widthPixels,
+                            View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            chromeH = Math.max(chrome.getHeight(), chrome.getMeasuredHeight());
+        }
+        int pad = Math.max(minPad, chromeH + (16 * density));
+        if (scroll.getPaddingBottom() != pad) {
+            scroll.setPadding(scroll.getPaddingLeft(), scroll.getPaddingTop(),
+                    scroll.getPaddingRight(), pad);
         }
     }
 
@@ -406,9 +476,9 @@ public final class DirectAdMobBannerHelper {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT);
             lp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM);
-            parent.addView(created, lp);
+            parent.addView(created, 0, lp);
         } else {
-            parent.addView(created, new ViewGroup.LayoutParams(
+            parent.addView(created, 0, new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));
         }

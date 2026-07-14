@@ -16,7 +16,7 @@
             android:id="@+id/parent_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_above="@+id/bannerAdView">
+            android:layout_above="@+id/banner_strip">
 
             <com.google.android.material.appbar.AppBarLayout
                 android:id="@+id/appbar"
@@ -93,12 +93,26 @@
 
         </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
-        <com.solodroidx.ads.ui.BannerAdView
-            android:id="@+id/bannerAdView"
+        <!-- OneIPTV-style reserved sticky banner: content layout_above this strip -->
+        <FrameLayout
+            android:id="@+id/banner_strip"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
-            android:layout_centerInParent="true" />
+            android:background="@android:color/transparent"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:id="@+id/admob_banner_host"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <com.solodroidx.ads.ui.BannerAdView
+                android:id="@+id/bannerAdView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone" />
+        </FrameLayout>
 
     </RelativeLayout>
 

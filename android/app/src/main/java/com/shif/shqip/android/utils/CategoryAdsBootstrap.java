@@ -49,9 +49,12 @@ public final class CategoryAdsBootstrap {
                 adsManager.updateConsentStatus();
                 adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
                 adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
-                View bannerSlot = activity.findViewById(R.id.bannerAdView);
+                View bannerSlot = activity.findViewById(R.id.banner_strip);
                 if (bannerSlot == null) {
-                    bannerSlot = activity.findViewById(R.id.banner_strip);
+                    bannerSlot = activity.findViewById(R.id.admob_banner_host);
+                }
+                if (bannerSlot == null) {
+                    bannerSlot = activity.findViewById(R.id.bannerAdView);
                 }
                 if (bannerSlot != null) {
                     bannerSlot.postDelayed(() -> {
@@ -64,7 +67,10 @@ public final class CategoryAdsBootstrap {
                 Log.e(TAG, "Category ads init failed", e);
             }
         };
-        View bannerSlot = activity.findViewById(R.id.admob_banner_host);
+        View bannerSlot = activity.findViewById(R.id.banner_strip);
+        if (bannerSlot == null) {
+            bannerSlot = activity.findViewById(R.id.admob_banner_host);
+        }
         if (bannerSlot == null) {
             bannerSlot = activity.findViewById(R.id.bannerAdView);
         }

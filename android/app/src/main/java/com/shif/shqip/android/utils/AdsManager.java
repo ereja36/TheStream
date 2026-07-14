@@ -114,10 +114,14 @@ public class AdsManager {
                 directBanner.load();
                 return;
             }
-            // Non-AdMob fallback via Solodroid — never force-show empty strip.
+            // Non-AdMob fallback via Solodroid — show strip + BannerAdView host.
             View strip = activity.findViewById(R.id.banner_strip);
+            View solodroid = activity.findViewById(R.id.bannerAdView);
             if (strip != null) {
-                strip.setVisibility(View.GONE);
+                strip.setVisibility(View.VISIBLE);
+            }
+            if (solodroid != null) {
+                solodroid.setVisibility(View.VISIBLE);
             }
             bannerAd.setAdStatus("1")
                     .setAdNetwork(activeAdNetwork())
