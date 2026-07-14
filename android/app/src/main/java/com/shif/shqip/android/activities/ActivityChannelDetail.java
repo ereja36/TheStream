@@ -291,17 +291,14 @@ public class ActivityChannelDetail extends AppCompatActivity {
                 } else {
                     if (sharedPref.getPlayerPosition() == 0) {
                         Tools.startPlayer(this, parent_view, channel);
-                        showInterstitialAd();
                     } else if (sharedPref.getPlayerPosition() == 1) {
                         Tools.startIntentChooserActivity(this, channel);
                     } else {
                         Tools.startPlayer(this, parent_view, channel);
-                        showInterstitialAd();
                     }
                 }
             } else {
                 Tools.startPlayer(this, parent_view, channel);
-                showInterstitialAd();
             }
         });
 
@@ -345,7 +342,6 @@ public class ActivityChannelDetail extends AppCompatActivity {
         btnActionPlay.setOnClickListener(v -> {
             Tools.startPlayer(this, parent_view, channel);
             sharedPref.setPlayerPosition(0);
-            showInterstitialAd();
             alertDialog.dismiss();
         });
 
@@ -401,7 +397,6 @@ public class ActivityChannelDetail extends AppCompatActivity {
 
         channel_image.setOnClickListener(view -> {
             Tools.startPlayer(this, parent_view, channel);
-            showInterstitialAd();
         });
 
         btn_overflow.setOnClickListener(view -> {
