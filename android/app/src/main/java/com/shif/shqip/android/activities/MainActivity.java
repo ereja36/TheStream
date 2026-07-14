@@ -52,6 +52,7 @@ import com.shif.shqip.android.utils.AppBarLayoutBehavior;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.DesignUiHelper;
 import com.shif.shqip.android.utils.HomeAdsBootstrap;
+import com.shif.shqip.android.utils.NativeAdSlotHelper;
 import com.shif.shqip.android.utils.PlaylistGuardSession;
 import com.shif.shqip.android.utils.PlaylistRefreshHelper;
 import com.shif.shqip.android.utils.RtlViewPager;
@@ -321,6 +322,14 @@ public class MainActivity extends AppCompatActivity {
         DesignUiHelper.refreshRemoteConfig(this, sharedPref, null);
     }
 
+    @Override
+    protected void onPause() {
+        if (adsManager != null) {
+            adsManager.pauseBannerAd();
+        }
+        super.onPause();
+    }
+
     private void onPlaylistDataUpdated() {
         // Fragments observe playlist version in onResume and reload when needed.
     }
@@ -334,6 +343,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        NativeAdSlotHelper.destroyAll();
         super.onDestroy();
         destroyBannerAd();
     }

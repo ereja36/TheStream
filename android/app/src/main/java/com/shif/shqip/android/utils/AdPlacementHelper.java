@@ -146,11 +146,15 @@ public final class AdPlacementHelper {
     }
 
     public static boolean shouldInsertNativeAds(AdsPref adsPref) {
-        return Constant.NATIVE_AD_CHANNEL_LIST
-                && adsPref != null
-                && adsPref.getAdStatus()
-                && hasValidAdNetwork(adsPref)
-                && isValidAdUnit(adsPref.getAdMobNativeId());
+        if (!Constant.NATIVE_AD_CHANNEL_LIST || adsPref == null || !adsPref.getAdStatus()
+                || !hasValidAdNetwork(adsPref)) {
+            return false;
+        }
+        return isValidAdUnit(adsPref.getAdMobNativeId())
+                || isValidAdUnit(adsPref.getAdManagerNativeId())
+                || isValidAdUnit(adsPref.getFanNativeId())
+                || isValidAdUnit(adsPref.getAppLovinNativeAdManualUnitId())
+                || isValidAdUnit(adsPref.getWortiseNativeId());
     }
 
     /** @deprecated Use {@link #shouldInsertNativeAds(AdsPref)} */
@@ -160,13 +164,19 @@ public final class AdPlacementHelper {
     }
 
     public static int resolveNativeInterval(AdsPref adsPref) {
-        // Native every 3 channels (normal Solodroid list pattern).
-        return 3;
+        if (adsPref == null) {
+            return 3;
+        }
+        int interval = adsPref.getNativeAdInterval();
+        return interval > 0 ? interval : 3;
     }
 
     public static int resolveNativeStartIndex(AdsPref adsPref) {
-        // First native after the 3rd channel, then every 3 thereafter.
-        return 3;
+        if (adsPref == null) {
+            return 3;
+        }
+        int index = adsPref.getNativeAdIndex();
+        return index > 0 ? index : 3;
     }
 
     public static boolean hasValidAdNetwork(AdsPref adsPref) {
