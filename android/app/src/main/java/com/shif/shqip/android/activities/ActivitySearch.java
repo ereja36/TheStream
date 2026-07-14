@@ -3,7 +3,6 @@ package com.shif.shqip.android.activities;
 import static com.shif.shqip.android.Config.ENABLE_RTL_MODE;
 import static com.shif.shqip.android.Config.ENABLE_VPN_ACCESS;
 import static com.shif.shqip.android.Config.REST_API_KEY;
-import static com.shif.shqip.android.utils.Constant.BANNER_CHANNEL_DETAIL;
 import static com.shif.shqip.android.utils.Constant.BANNER_SEARCH;
 import static com.shif.shqip.android.utils.Constant.CHANNEL_GRID_2_COLUMN;
 import static com.shif.shqip.android.utils.Constant.CHANNEL_GRID_3_COLUMN;
@@ -356,7 +355,7 @@ public class ActivitySearch extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        adsManager.resumeBannerAd(BANNER_CHANNEL_DETAIL);
+        adsManager.resumeBannerAd(BANNER_SEARCH);
     }
 
     public void onDestroy() {

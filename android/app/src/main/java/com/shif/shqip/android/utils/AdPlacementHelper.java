@@ -102,13 +102,17 @@ public final class AdPlacementHelper {
         return adsPref.getInterstitialAdInterval();
     }
 
+    /**
+     * Pause the sticky home banner while a channel opens — do not destroy it.
+     * Destroying forced a blank strip + full reload on every channel click.
+     */
     public static void pauseHomeBanner(Activity activity) {
         if (activity instanceof MainActivity) {
-            ((MainActivity) activity).destroyBannerAd();
+            ((MainActivity) activity).pauseBannerAd();
         } else if (activity instanceof ActivityMainV2) {
-            ((ActivityMainV2) activity).destroyBannerAd();
+            ((ActivityMainV2) activity).pauseBannerAd();
         } else if (activity instanceof ActivityMainV3) {
-            ((ActivityMainV3) activity).destroyBannerAd();
+            ((ActivityMainV3) activity).pauseBannerAd();
         }
     }
 

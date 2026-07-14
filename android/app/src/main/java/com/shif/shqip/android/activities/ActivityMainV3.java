@@ -114,6 +114,12 @@ public class ActivityMainV3 extends AppCompatActivity {
         }
     }
 
+    public void pauseBannerAd() {
+        if (adsManager != null) {
+            adsManager.pauseBannerAd();
+        }
+    }
+
     @Override
     protected void onResume() {
         super.onResume();

@@ -256,6 +256,13 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             if (image != null) {
                 Glide.with(context).clear(image);
             }
+        } else if (holder instanceof NativeAdViewHolder) {
+            // Allow a fresh bind when the view returns; avoid leaking filled native views.
+            holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, null);
+            try {
+                holder.itemView.setVisibility(View.VISIBLE);
+            } catch (Exception ignored) {
+            }
         }
         super.onViewRecycled(holder);
     }

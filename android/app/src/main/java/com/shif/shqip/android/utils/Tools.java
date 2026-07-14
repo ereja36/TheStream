@@ -583,13 +583,9 @@ public class Tools {
                 intent.putExtra("channel_name", channel.channel_name);
             }
             intent.putExtra("channel_id", channel.channel_id);
+            // OneIPTV-style: open the player immediately. Do NOT fire an interstitial
+            // after startActivity — that lands on top of (or races with) fullscreen video.
             activity.startActivity(intent);
-            View anchor = activity.getWindow() != null ? activity.getWindow().getDecorView() : view;
-            if (anchor != null) {
-                anchor.postDelayed(() -> AdPlacementHelper.showInterstitialBeforeAction(activity), 1_500L);
-            } else {
-                AdPlacementHelper.showInterstitialBeforeAction(activity);
-            }
         } else {
             Snackbar.make(view, activity.getResources().getString(R.string.network_required), Snackbar.LENGTH_SHORT).show();
         }

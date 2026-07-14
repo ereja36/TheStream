@@ -132,6 +132,12 @@ public class ActivityMainV2 extends AppCompatActivity {
         }
     }
 
+    public void pauseBannerAd() {
+        if (adsManager != null) {
+            adsManager.pauseBannerAd();
+        }
+    }
+
     @Override
     protected void onDestroy() {
         NativeAdSlotHelper.destroyAll();

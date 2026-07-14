@@ -357,6 +357,12 @@ public class MainActivity extends AppCompatActivity {
         adsManager.destroyBannerAd();
     }
 
+    public void pauseBannerAd() {
+        if (adsManager != null) {
+            adsManager.pauseBannerAd();
+        }
+    }
+
     @Override
     public AssetManager getAssets() {
         return getResources().getAssets();

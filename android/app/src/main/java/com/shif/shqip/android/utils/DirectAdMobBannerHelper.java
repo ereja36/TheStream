@@ -359,6 +359,12 @@ public final class DirectAdMobBannerHelper {
         if (chrome != null) {
             chrome.setVisibility(View.VISIBLE);
         }
+        // Search / list screens wrap the strip in a GONE parent until fill.
+        View searchBanner = activity.findViewById(R.id.lyt_banner_ad);
+        if (searchBanner != null) {
+            searchBanner.setVisibility(View.VISIBLE);
+        }
+        adjustContentPaddingForBanner();
     }
 
     private void hideStrip() {
@@ -375,6 +381,44 @@ public final class DirectAdMobBannerHelper {
                 strip.setLayoutParams(lp);
             }
         }
+        View searchBanner = activity.findViewById(R.id.lyt_banner_ad);
+        if (searchBanner != null && !shown) {
+            searchBanner.setVisibility(View.GONE);
+        }
+        adjustContentPaddingForBanner();
+    }
+
+    /**
+     * Keep scroll content clear of sticky bottom chrome (nav + banner).
+     * RelativeLayout screens use layout_above and do not need this.
+     */
+    private void adjustContentPaddingForBanner() {
+        View content = activity.findViewById(R.id.scroll_home);
+        if (content == null) {
+            return;
+        }
+        View chrome = activity.findViewById(R.id.bottom_chrome);
+        if (chrome == null) {
+            chrome = activity.findViewById(R.id.bottom_container);
+        }
+        if (chrome == null) {
+            return;
+        }
+        final View chromeFinal = chrome;
+        chromeFinal.post(() -> {
+            if (destroyed || activity.isFinishing()) {
+                return;
+            }
+            int chromeH = chromeFinal.getHeight();
+            float density = activity.getResources().getDisplayMetrics().density;
+            int minPad = Math.round(72f * density); // nav-only fallback
+            int pad = Math.max(chromeH + Math.round(12f * density), minPad);
+            content.setPadding(
+                    content.getPaddingLeft(),
+                    content.getPaddingTop(),
+                    content.getPaddingRight(),
+                    pad);
+        });
     }
 
     @Nullable
