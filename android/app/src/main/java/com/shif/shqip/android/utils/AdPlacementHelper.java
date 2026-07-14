@@ -4,8 +4,10 @@ import android.app.Activity;
 import android.text.TextUtils;
 
 import com.shif.shqip.android.activities.ActivityCategoryDetail;
+import com.shif.shqip.android.activities.ActivityChannelDetail;
 import com.shif.shqip.android.activities.ActivityMainV2;
 import com.shif.shqip.android.activities.ActivityMainV3;
+import com.shif.shqip.android.activities.ActivityNotificationDetail;
 import com.shif.shqip.android.activities.ActivitySearch;
 import com.shif.shqip.android.activities.MainActivity;
 import com.shif.shqip.android.activities.MyApplication;
@@ -153,6 +155,10 @@ public final class AdPlacementHelper {
             ((ActivityCategoryDetail) activity).showInterstitialAd();
         } else if (activity instanceof ActivitySearch) {
             ((ActivitySearch) activity).showInterstitialAd();
+        } else if (activity instanceof ActivityChannelDetail) {
+            ((ActivityChannelDetail) activity).showInterstitialAd();
+        } else if (activity instanceof ActivityNotificationDetail) {
+            ((ActivityNotificationDetail) activity).showInterstitialAd();
         } else {
             AdsManager adsManager = new AdsManager(activity);
             adsManager.initializeAd();

@@ -212,7 +212,6 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         } else if (itemId == R.id.search) {
             Intent intent = new Intent(getApplicationContext(), ActivitySearch.class);
             startActivity(intent);
-            adsManager.destroyBannerAd();
             return true;
         }
         return super.onOptionsItemSelected(menuItem);

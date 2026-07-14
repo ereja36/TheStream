@@ -249,7 +249,6 @@ public class MainActivity extends AppCompatActivity {
         } else if (menuItem.getItemId() == R.id.menu_search) {
             Intent intent = new Intent(getApplicationContext(), ActivitySearch.class);
             startActivity(intent);
-            destroyBannerAd();
             return true;
         } else if (menuItem.getItemId() == R.id.menu_settings) {
             Intent intent = new Intent(getApplicationContext(), ActivitySettings.class);

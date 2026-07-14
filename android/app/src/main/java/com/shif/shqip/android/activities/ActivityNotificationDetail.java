@@ -45,6 +45,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.CategoryAdsBootstrap;
 import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.AppBarLayoutBehavior;
 import com.shif.shqip.android.utils.Constant;
@@ -100,8 +101,7 @@ public class ActivityNotificationDetail extends AppCompatActivity {
         adsPref = new AdsPref(this);
 
         adsManager = new AdsManager(this);
-        adsManager.loadBannerAd(BANNER_CHANNEL_DETAIL);
-        adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_DETAIL, 1);
+        CategoryAdsBootstrap.init(this, adsManager, adsPref);
 
         LinearLayout nativeAdView = findViewById(R.id.native_ad_view);
         Tools.setNativeAdStyle(this, nativeAdView, Constant.NATIVE_AD_STYLE_CHANNEL_DETAILS);
@@ -276,17 +276,14 @@ public class ActivityNotificationDetail extends AppCompatActivity {
                 } else {
                     if (sharedPref.getPlayerPosition() == 0) {
                         Tools.startPlayer(this, parent_view, channel);
-                        showInterstitialAd();
                     } else if (sharedPref.getPlayerPosition() == 1) {
                         Tools.startIntentChooserActivity(this, channel);
                     } else {
                         Tools.startPlayer(this, parent_view, channel);
-                        showInterstitialAd();
                     }
                 }
             } else {
                 Tools.startPlayer(this, parent_view, channel);
-                showInterstitialAd();
             }
         });
 
@@ -332,7 +329,6 @@ public class ActivityNotificationDetail extends AppCompatActivity {
         btnActionPlay.setOnClickListener(v -> {
             Tools.startPlayer(this, parent_view, channel);
             sharedPref.setPlayerPosition(0);
-            showInterstitialAd();
             alertDialog.dismiss();
         });
 
@@ -353,12 +349,12 @@ public class ActivityNotificationDetail extends AppCompatActivity {
         alertDialog.show();
     }
 
-    private void showInterstitialAd() {
-        if (adsPref.getInterstitialAdCounter() < adsPref.getInterstitialAdInterval()) {
-            adsPref.updateInterstitialAdCounter(adsPref.getInterstitialAdCounter() + 1);
-        } else {
-            adsPref.updateInterstitialAdCounter(1);
+    public void showInterstitialAd() {
+        if (adsManager != null) {
             adsManager.showInterstitialAd();
+            adsManager.loadInterstitialAd(
+                    INTERSTITIAL_AD_CHANNEL_DETAIL,
+                    com.shif.shqip.android.utils.AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
         }
     }
 
@@ -371,10 +367,11 @@ public class ActivityNotificationDetail extends AppCompatActivity {
         recyclerView.setNestedScrollingEnabled(false);
         adapterSuggested.setOnItemClickListener((view, obj, position) -> {
             Intent intent = new Intent(getApplicationContext(), ActivityNotificationDetail.class);
-            intent.putExtra(Constant.EXTRA_OBJC, obj);
+            intent.putExtra("id", obj.channel_id);
             startActivity(intent);
-            showInterstitialAd();
-            adsManager.destroyBannerAd();
+            com.shif.shqip.android.utils.AdPlacementHelper.showInterstitialBeforeAction(
+                    ActivityNotificationDetail.this);
+            adsManager.pauseBannerAd();
         });
 
         adapterSuggested.setOnItemOverflowClickListener((v, obj, position) -> {
@@ -453,7 +450,16 @@ public class ActivityNotificationDetail extends AppCompatActivity {
         adsManager.resumeBannerAd(BANNER_CHANNEL_DETAIL);
     }
 
-    public void onDestroy() {
+    @Override
+    protected void onPause() {
+        if (adsManager != null) {
+            adsManager.pauseBannerAd();
+        }
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
         super.onDestroy();
         lyt_shimmer.stopShimmer();
         if (!(callbackCall == null || callbackCall.isCanceled())) {
