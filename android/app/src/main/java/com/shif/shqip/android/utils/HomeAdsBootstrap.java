@@ -10,7 +10,7 @@ import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 
 /**
- * Home-screen ad bootstrap. Keeps reloading forever so fills recover without clear-data.
+ * Home-screen ad bootstrap. Soft-ensure banners; never wipe a filled ad on resume/config.
  */
 public final class HomeAdsBootstrap {
 
@@ -55,21 +55,24 @@ public final class HomeAdsBootstrap {
             try {
                 adsManager.initializeAd();
                 adsManager.updateConsentStatus();
-                adsManager.loadBannerAd(Constant.BANNER_HOME);
+                adsManager.ensureBannerAd();
                 adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
                         AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
                 AppOpenAdCache.invalidateIfStale();
-                // Delayed retries for init race / temporary no-fill.
+                NativeAdSlotHelper.remountHomeSlots(activity);
+                // Soft retries only if still empty — ensureBannerAd no-ops once filled.
                 anchor.postDelayed(() -> {
                     if (!activity.isFinishing() && adsPref.getAdStatus()) {
-                        adsManager.loadBannerAd(Constant.BANNER_HOME);
+                        adsManager.ensureBannerAd();
+                        NativeAdSlotHelper.remountHomeSlots(activity);
                     }
                 }, 5_000L);
                 anchor.postDelayed(() -> {
                     if (!activity.isFinishing() && adsPref.getAdStatus()) {
-                        adsManager.loadBannerAd(Constant.BANNER_HOME);
+                        adsManager.ensureBannerAd();
                         adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
                                 AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
+                        NativeAdSlotHelper.remountHomeSlots(activity);
                     }
                 }, 30_000L);
             } catch (Exception e) {
@@ -80,7 +83,7 @@ public final class HomeAdsBootstrap {
                 if (antiblockHelper != null) {
                     antiblockHelper.onAdLoadFailed(() -> {
                         if (!activity.isFinishing()) {
-                            adsManager.loadBannerAd(Constant.BANNER_HOME);
+                            adsManager.ensureBannerAd();
                         }
                     });
                 }
@@ -97,16 +100,14 @@ public final class HomeAdsBootstrap {
             return;
         }
         try {
-            if (antiblockHelper != null) {
-                antiblockHelper.resetRetryCount();
-            }
             adsManager.resumeBannerAd(Constant.BANNER_HOME);
-            // Always refresh interstitial inventory on resume (cheap if already loaded).
             adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
                     AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
             AppOpenAdCache.invalidateIfStale();
+            NativeAdSlotHelper.remountHomeSlots(activity);
+            // Optional hard reload only when server script explicitly enables it.
             if (antiblockHelper != null && antiblockHelper.shouldForceAdReloadOnResume()) {
-                adsManager.loadBannerAd(Constant.BANNER_HOME);
+                adsManager.forceReloadBannerAd();
             }
         } catch (Exception e) {
             Log.e(TAG, "Home ads resume failed", e);

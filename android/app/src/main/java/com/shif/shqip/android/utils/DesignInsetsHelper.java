@@ -61,7 +61,14 @@ public final class DesignInsetsHelper {
         final int extraBottomDp = dp(activity, 8);
 
         if (bannerStrip != null) {
-            bannerStrip.setVisibility(View.GONE);
+            // Do not collapse a filled AdMob banner — insets apply can re-run after ads load.
+            View host = activity.findViewById(R.id.admob_banner_host);
+            boolean bannerFilled = host instanceof ViewGroup
+                    && ((ViewGroup) host).getChildCount() > 0
+                    && host.getVisibility() == View.VISIBLE;
+            if (!bannerFilled) {
+                bannerStrip.setVisibility(View.GONE);
+            }
             bannerStrip.setBackgroundColor(Color.TRANSPARENT);
         }
 

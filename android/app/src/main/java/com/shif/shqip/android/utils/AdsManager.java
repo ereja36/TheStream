@@ -48,7 +48,8 @@ public class AdsManager {
         interstitialAd = new InterstitialAd(activity);
         nativeAd = new NativeAd(activity);
         nativeAdView = new NativeAdView(activity);
-        directBanner = new DirectAdMobBannerHelper(activity);
+        // One banner helper per Activity — avoids remote-config AdsManager wiping a filled banner.
+        directBanner = DirectAdMobBannerHelper.forActivity(activity);
     }
 
     public void initializeAd() {
@@ -172,6 +173,23 @@ public class AdsManager {
             loadBannerAd(placement);
         } catch (Exception e) {
             android.util.Log.e(TAG, "resumeBannerAd failed", e);
+        }
+    }
+
+    /** Keep a filled banner; request only when empty. */
+    public void ensureBannerAd() {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if ("admob".equals(activeAdNetwork())
+                    && AdPlacementHelper.isValidAdUnit(adsPref.getAdMobBannerId())) {
+                directBanner.ensureLoaded();
+                return;
+            }
+            loadBannerAd(true);
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "ensureBannerAd failed", e);
         }
     }
 

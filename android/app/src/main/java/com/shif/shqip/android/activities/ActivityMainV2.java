@@ -555,10 +555,11 @@ public class ActivityMainV2 extends AppCompatActivity {
 
             categorySections.addView(section);
             sectionIndex++;
-            // Native between category rows (every 3), same cadence as channel lists.
-            if (sectionIndex % 3 == 0) {
+            // Cap home native slots — too many parallel mounts starve fills.
+            if (sectionIndex % 3 == 0 && sectionIndex / 3 <= 2) {
                 LinearLayout nativeHost = new LinearLayout(this);
                 nativeHost.setOrientation(LinearLayout.VERTICAL);
+                nativeHost.setTag("native_ad_slot");
                 nativeHost.setLayoutParams(new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT));

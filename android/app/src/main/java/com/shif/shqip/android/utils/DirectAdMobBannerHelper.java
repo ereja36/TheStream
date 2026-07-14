@@ -24,9 +24,12 @@ import com.google.android.gms.ads.MobileAds;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 
+import java.util.WeakHashMap;
+
 /**
  * Sticky banner under floating nav. Stays GONE until fill.
- * Retries forever with backoff so users never need clear-data for banners.
+ * One helper per Activity — multiple AdsManager instances must not fight over the same strip.
+ * Never tear down a filled banner unless {@link #forceReload()} is explicitly requested.
  */
 public final class DirectAdMobBannerHelper {
 
@@ -34,6 +37,7 @@ public final class DirectAdMobBannerHelper {
     private static final long RETRY_DELAY_MS = 4_000L;
     private static final long LONG_RETRY_MS = 60_000L;
     private static final int BURST_RETRIES = 5;
+    private static final WeakHashMap<Activity, DirectAdMobBannerHelper> BY_ACTIVITY = new WeakHashMap<>();
 
     private final Activity activity;
     private final AdsPref adsPref;
@@ -46,7 +50,22 @@ public final class DirectAdMobBannerHelper {
     private boolean destroyed;
     private final Runnable longRetryRunnable;
 
-    public DirectAdMobBannerHelper(Activity activity) {
+    public static DirectAdMobBannerHelper forActivity(Activity activity) {
+        if (activity == null) {
+            throw new IllegalArgumentException("activity");
+        }
+        synchronized (BY_ACTIVITY) {
+            DirectAdMobBannerHelper existing = BY_ACTIVITY.get(activity);
+            if (existing != null && !existing.destroyed) {
+                return existing;
+            }
+            DirectAdMobBannerHelper created = new DirectAdMobBannerHelper(activity);
+            BY_ACTIVITY.put(activity, created);
+            return created;
+        }
+    }
+
+    private DirectAdMobBannerHelper(Activity activity) {
         this.activity = activity;
         this.adsPref = new AdsPref(activity);
         this.longRetryRunnable = () -> {
@@ -57,9 +76,21 @@ public final class DirectAdMobBannerHelper {
         };
     }
 
+    /** Soft ensure: keep a filled banner; only request if empty. */
+    public void ensureLoaded() {
+        destroyed = false;
+        if (shown && adView != null) {
+            showStrip();
+            return;
+        }
+        load();
+    }
+
     public void load() {
         if (destroyed || activity.isFinishing() || !adsPref.getAdStatus()) {
-            hideStrip();
+            if (!shown) {
+                hideStrip();
+            }
             return;
         }
         String unitId = adsPref.getAdMobBannerId();
@@ -69,13 +100,17 @@ public final class DirectAdMobBannerHelper {
             return;
         }
         if (shown && adView != null) {
+            showStrip();
             return;
         }
         if (loading) {
             return;
         }
         loading = true;
-        hideStrip();
+        // Only collapse the strip while waiting for the first fill — never blink a live ad.
+        if (!shown) {
+            hideStrip();
+        }
         try {
             MobileAds.initialize(activity, status -> {
                 if (destroyed || activity.isFinishing()) {
@@ -104,15 +139,17 @@ public final class DirectAdMobBannerHelper {
         } catch (Exception ignored) {
         }
         hideStrip();
+        synchronized (BY_ACTIVITY) {
+            DirectAdMobBannerHelper mapped = BY_ACTIVITY.get(activity);
+            if (mapped == this) {
+                BY_ACTIVITY.remove(activity);
+            }
+        }
     }
 
     public void onResume() {
         destroyed = false;
-        if (!shown) {
-            // Reset burst so long sessions keep trying after temporary no-fill.
-            retries = 0;
-            load();
-        }
+        ensureLoaded();
     }
 
     /** Force a fresh request even if something was previously showing. */
@@ -132,9 +169,18 @@ public final class DirectAdMobBannerHelper {
         load();
     }
 
+    public boolean isShowing() {
+        return shown && adView != null && !destroyed;
+    }
+
     private void attachAndLoad() {
         if (destroyed || activity.isFinishing()) {
             loading = false;
+            return;
+        }
+        if (shown && adView != null) {
+            loading = false;
+            showStrip();
             return;
         }
         FrameLayout host = ensureHost();
@@ -161,7 +207,9 @@ public final class DirectAdMobBannerHelper {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));
 
-            hideStrip();
+            if (!shown) {
+                hideStrip();
+            }
 
             view.setAdListener(new AdListener() {
                 @Override
@@ -180,10 +228,15 @@ public final class DirectAdMobBannerHelper {
                 @Override
                 public void onAdFailedToLoad(LoadAdError error) {
                     loading = false;
+                    // Keep a previously shown banner if this was a background refresh race.
+                    if (shown && adView != null && adView != view) {
+                        showStrip();
+                        return;
+                    }
                     shown = false;
                     Log.w(TAG, "banner failed code=" + error.getCode() + " msg=" + error.getMessage());
                     try {
-                        if (adView != null) {
+                        if (adView == view) {
                             adView.destroy();
                             adView = null;
                         }
@@ -206,7 +259,7 @@ public final class DirectAdMobBannerHelper {
     }
 
     private void scheduleRetry() {
-        if (destroyed || activity.isFinishing()) {
+        if (destroyed || activity.isFinishing() || shown) {
             return;
         }
         if (retries < BURST_RETRIES) {
@@ -219,7 +272,6 @@ public final class DirectAdMobBannerHelper {
             }, delay);
             return;
         }
-        // After burst failures keep trying every minute — no clear-data needed.
         handler.removeCallbacks(longRetryRunnable);
         handler.postDelayed(longRetryRunnable, LONG_RETRY_MS);
     }

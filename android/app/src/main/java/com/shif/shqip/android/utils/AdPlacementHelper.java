@@ -40,7 +40,9 @@ public final class AdPlacementHelper {
             AdsManager adsManager = new AdsManager(activity);
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
+            // Soft ensure — do NOT forceReload on every get_config (that blinks/kills banners).
             loadHomePlacementAds(activity, adsManager, adsPref);
+            NativeAdSlotHelper.remountHomeSlots(activity);
             // Keep a fresh App Open preload available for resume.
             if (adsPref.getAppOpenOnResume()) {
                 try {
@@ -61,8 +63,21 @@ public final class AdPlacementHelper {
         if (!hasValidAdNetwork(adsPref)) {
             return;
         }
+        adsManager.ensureBannerAd();
+        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, SOLODROID_SHOW_EVERY_CALL);
+    }
+
+    /** Hard refresh — only when ads were remotely re-enabled after being off. */
+    public static void forceReloadHomePlacementAds(Activity activity, AdsManager adsManager, AdsPref adsPref) {
+        if (activity == null || adsManager == null || adsPref == null || !adsPref.getAdStatus()) {
+            return;
+        }
+        if (!hasValidAdNetwork(adsPref)) {
+            return;
+        }
         adsManager.forceReloadBannerAd();
         adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, SOLODROID_SHOW_EVERY_CALL);
+        NativeAdSlotHelper.remountHomeSlots(activity);
     }
 
     public static void preloadNativeAds(Activity activity, AdsManager primary, int count) {
