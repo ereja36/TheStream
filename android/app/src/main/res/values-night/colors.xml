@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="color_settings_tile">#1F2C34</color>
+    <color name="color_settings_icon">#E8E230</color>
+    <color name="color_settings_title">#FFFFFF</color>
+    <color name="color_settings_subtitle">#94A3B8</color>
+</resources>

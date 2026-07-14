@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--application name-->
+    <string name="app_name">Shif Shqip</string>
+    <string name="app_copyright">Copyright &#169; 2026 Shif Shqip\nAll rights reserved</string>
+    <string name="email_feedback_report">shifshqip@gmail.com</string>
+
+    <!--share-->
+    <string name="share_title">I am live streaming</string>
+    <string name="share_content">I Would like to share this with you. Here You Can Download This Application from PlayStore</string>
+
+    <!--bottom navigation menu name-->
+    <string name="title_nav_recent">Recent</string>
+    <string name="title_nav_category">Category</string>
+    <string name="title_all_channels">All Channels</string>
+    <string name="title_nav_favorite">Favorite</string>
+    <string name="title_nav_settings">Settings</string>
+
+    <!--search-->
+    <string name="search">Search</string>
+    <string name="search_hint">Search&#8230;</string>
+
+    <!--network-->
+    <string name="whops">Whoops!</string>
+    <string name="no_internet_text">No internet connection, please connect your phone to internet to continue using this application.</string>
+    <string name="network_required">Required Internet to Streaming the Channel!</string>
+    <string name="no_category_found">Oops, No category found!</string>
+    <string name="no_post_found">it looks like there are no channel available at this time</string>
+    <string name="no_search_found">No channel found! if you want to continue search, please try enter another keyword!</string>
+    <string name="msg_search_input">Please Insert Keyword</string>
+    <string name="msg_oops">Whoops!</string>
+    <string name="failed_text">there is something problem with your network or the server is currently down, please try it again later.</string>
+    <string name="msg_failed">Failed to load stream, probably the stream server currently down!</string>
+    <string name="error_player">There was an error initializing the YouTubePlayer (%1$s)</string>
+    <string name="error_cast">Web Video Caster App is not installed, click OK to install on Google Play first so that video casting can work.</string>
+    <string name="ready_cast">Video is ready to be cast to Web Video Caster App, click OK to continue</string>
+    <string name="msg_cancel_update">Update canceled</string>
+    <string name="msg_success_update">Update success!</string>
+    <string name="msg_failed_update">Update Failed!</string>
+    <string name="track_selection_title">Video Quality</string>
+    <string name="please_wait">Wait for the Content to load</string>
+    <string name="option_retry">Retry</string>
+    <string name="option_ok">OK</string>
+    <string name="option_no">No</string>
+    <string name="dialog_title_cast">Cast Video</string>
+
+    <!--favorite-->
+    <string name="msg_favorite_add">Add to favorite</string>
+    <string name="msg_favorite_remove">Remove from favorite</string>
+    <string name="favorite_added">Added to Favorite</string>
+    <string name="favorite_removed">Removed from Favorite</string>
+    <string name="no_favorite_found">Your favorite list is empty because you don\'t add any channel in the favorite menu</string>
+
+    <!--bottom sheet menu-->
+    <string name="menu_sheet_play">Play stream now</string>
+    <string name="menu_sheet_play_external">Play with external app</string>
+    <string name="menu_sheet_channel_details">Stream details</string>
+    <string name="menu_sheet_share">Share</string>
+    <string name="menu_sheet_report">Report this</string>
+    <string name="menu_sheet_feedback">Send feedback</string>
+
+    <!--close dialog-->
+    <string name="press_again_to_exit">Press again to exit</string>
+    <string name="exit_message">Do you want to exit the app?</string>
+    <string name="dialog_exit">Exit</string>
+    <string name="press_again_to_close_player">Press again to close player</string>
+
+    <!--dialog choose option-->
+    <string name="dialog_ok">OK</string>
+    <string name="dialog_cancel">Cancel</string>
+
+    <!--settings-->
+    <string name="title_setting_theme">Dark Theme</string>
+    <string name="sub_title_setting_theme">Better for eyesight and battery life</string>
+    <string name="title_setting_dialog_player">Dialog Player Options</string>
+    <string name="sub_title_setting_dialog_player">Displays streaming player options</string>
+    <string name="title_setting_list">Display Channel</string>
+    <string name="single_choice_default">List</string>
+    <string name="single_choice_grid2">Grid (2 column)</string>
+    <string name="single_choice_grid3">Grid (3 column)</string>
+    <string name="title_setting_category">Display Category</string>
+    <string name="single_choice_list">List</string>
+    <string name="single_choice_grid_2">Grid (2 column)</string>
+    <string name="single_choice_grid_3">Grid (3 column)</string>
+    <string name="title_setting_player">Player Orientation</string>
+    <string name="player_portrait">Portrait</string>
+    <string name="player_landscape">Landscape</string>
+    <string name="title_setting_privacy">Privacy Policy</string>
+    <string name="sub_title_setting_privacy">Privacy, terms and policies</string>
+    <string name="privacy_load_error">Could not load privacy policy. Tap to try again.</string>
+    <string name="title_setting_share">Share the App</string>
+    <string name="sub_title_setting_share">Tell a friend about this app</string>
+    <string name="title_setting_rate">Rate This App</string>
+    <string name="sub_title_setting_rate">Leave a review on Google Play</string>
+    <string name="title_setting_more">More Apps</string>
+    <string name="sub_title_setting_more">More apps from developer</string>
+    <string name="title_setting_about">About</string>
+    <string name="sub_title_setting_about">Version and app info</string>
+    <string name="sub_about_app_version">Version</string>
+
+    <!--redirect if app suspended-->
+    <string name="redirect_title">New App Updates</string>
+    <string name="redirect_message">This application has expired and is no longer used, press the button below to download and install the latest update of this application.</string>
+    <string name="redirect_button">Download Update Now</string>
+    <string name="redirect_error">Whoops! there is problem with the url, try again later</string>
+
+    <!--vpn info-->
+    <string name="vpn_detected">VPN Detected!!</string>
+    <string name="close_vpn">Close VPN and re-open the app to continue.</string>
+
+    <!--channel view type-->
+    <string name="title_settings_channel_view_type">Channel view type</string>
+    <string name="channel_view_type_list">List</string>
+    <string name="channel_view_type_grid2">Grid (2 columns)</string>
+    <string name="channel_view_type_grid3">Grid (3 columns)</string>
+
+    <!--category view type-->
+    <string name="title_settings_category_view_type">Category view type</string>
+    <string name="category_view_type_list">List</string>
+    <string name="category_view_type_grid2">Grid (2 columns)</string>
+    <string name="category_view_type_grid3">Grid (3 columns)</string>
+
+    <!--other-->
+    <string name="txt_suggested">Suggested :</string>
+    <string name="img_content_description">TODO</string>
+    <string name="title_menu_browser">Open in Browser</string>
+    <string name="send_report">Report channel</string>
+    <string name="send_feedback">Send feedback</string>
+    <string name="complete_action">Complete action using</string>
+    <string name="msg_error_handler">Whoops! app cannot handle this url</string>
+    <string name="views_count">views</string>
+    <string name="txt_player_options">Player options</string>
+    <string name="msg_do_not_show">Don\'t show it again</string>
+
+    <!--playlist setup-->
+    <string name="playlist_setup_title">Add Playlist</string>
+    <string name="playlist_setup_subtitle">Set your IPTV source to start watching. You can use an M3U URL, local file, or direct stream URL.</string>
+    <string name="playlist_setup_note">Tip: The app imports all channels from M3U. Portal links are resolved automatically.</string>
+    <string name="playlist_device_id_label">Device ID</string>
+    <string name="playlist_copy_device_id">Copy ID</string>
+    <string name="playlist_add">Add Playlist</string>
+    <string name="playlist_open_file">Open File</string>
+    <string name="playlist_add_xtream">Xtream Codes</string>
+    <string name="playlist_play_url">Play URL</string>
+    <string name="playlist_setup_note_short">Import channels from M3U, Xtream, or a local file.</string>
+    <string name="playlist_managed_by_admin">Your playlist is managed by the administrator. The playlist source is hidden in the app.</string>
+    <string name="player_mute">Mute preview</string>
+    <string name="player_unmute">Unmute preview</string>
+    <string name="player_epg_button">EPG</string>
+    <string name="player_rotate_sensor">Auto rotate</string>
+    <string name="playlist_manage_title">Manage Playlists</string>
+    <string name="playlist_manage_subtitle">Add and manage M3U and Xtream playlists</string>
+
+    <string name="support_device_id_label">Your Device ID</string>
+    <string name="support_device_id_hint">Include this ID in your donation message so we know it is from you. Every donation, no matter how small, is greatly appreciated!</string>
+    <string name="support_copy">Copy</string>
+    <string name="support_donate">Donate</string>
+    <string name="support_maybe_later">Maybe Later</string>
+    <string name="support_copied">Device ID copied</string>
+    <string name="support_default_title">Support Shif Shqip</string>
+    <string name="support_default_message">Make a donation to help us keep the app operational.\nEvery penny counts.</string>
+    <string name="playlist_url_hint">https://example.com/playlist.m3u</string>
+    <string name="playlist_name_hint">My Playlist</string>
+    <string name="playlist_stream_url_hint">https://example.com/live/stream.m3u8</string>
+    <string name="playlist_xtream_server_hint">https://provider.com:8080</string>
+    <string name="playlist_xtream_username_hint">Username</string>
+    <string name="playlist_xtream_password_hint">Password</string>
+    <string name="playlist_website_hint">https://playlist.oneiptvplayer.app/</string>
+    <string name="playlist_add_dialog_message">Paste your M3U playlist URL.</string>
+    <string name="playlist_play_url_dialog_message">Paste a direct stream URL (m3u8, mpd, mp4, etc).</string>
+    <string name="playlist_xtream_dialog_message">Enter Xtream server URL, username and password.</string>
+    <string name="playlist_website_dialog_message">Paste website/portal URL for device-based playlist lookup.</string>
+    <string name="playlist_loading">Loading playlist...</string>
+    <string name="playlist_saved">Playlist saved successfully</string>
+    <string name="playlist_device_id_copied">Device ID copied</string>
+    <string name="playlist_error_empty_url">Please enter a valid URL</string>
+    <string name="playlist_error_invalid_file">Invalid playlist format or file</string>
+    <string name="playlist_error_download">Failed to download playlist</string>
+    <string name="playlist_error_xtream_fields">Enter server, username and password</string>
+    <string name="playlist_error_no_new_channels">No new channels found from this source</string>
+    <string name="playlist_error_portal_empty">No playlist for this device yet. ID: %1$s</string>
+    <string name="playlist_error_device_banned">This device is blocked. %1$s</string>
+    <string name="playlist_sync_required">Playlist was not linked to the server panel.</string>
+    <string name="device_blocked_title">Device Blocked</string>
+    <string name="integrity_blocked_title">App cannot open</string>
+    <string name="integrity_blocked_message">This app version is not authorized. Download the official release from shifshqip.com.</string>
+    <string name="device_blocked_message">This device has been blocked by the admin panel.\n\nReason: %1$s</string>
+    <string name="popup_open_link">Open Link</string>
+    <string name="popup_close">Close</string>
+    <string name="epg_now_format">Now: %1$s</string>
+    <string name="epg_next_format">Next: %1$s</string>
+    <string name="epg_now_unavailable">Now: Not available</string>
+    <string name="epg_next_unavailable">Next: Not available</string>
+    <string name="epg_unknown_title">Unknown program</string>
+
+</resources>
