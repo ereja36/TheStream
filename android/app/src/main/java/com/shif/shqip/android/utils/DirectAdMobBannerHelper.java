@@ -25,16 +25,15 @@ import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 
 /**
- * OneIPTV-style sticky banner:
- * - sits under the 3-button floating nav
- * - stays GONE (no black strip) until an ad actually loads
- * - waits for MobileAds.initialize before requesting
+ * Sticky banner under floating nav. Stays GONE until fill.
+ * Retries forever with backoff so users never need clear-data for banners.
  */
 public final class DirectAdMobBannerHelper {
 
     private static final String TAG = "DirectAdMobBanner";
     private static final long RETRY_DELAY_MS = 4_000L;
-    private static final int MAX_RETRIES = 5;
+    private static final long LONG_RETRY_MS = 60_000L;
+    private static final int BURST_RETRIES = 5;
 
     private final Activity activity;
     private final AdsPref adsPref;
@@ -45,10 +44,17 @@ public final class DirectAdMobBannerHelper {
     private boolean loading;
     private boolean shown;
     private boolean destroyed;
+    private final Runnable longRetryRunnable;
 
     public DirectAdMobBannerHelper(Activity activity) {
         this.activity = activity;
         this.adsPref = new AdsPref(activity);
+        this.longRetryRunnable = () -> {
+            if (!destroyed && !this.activity.isFinishing() && !shown && this.adsPref.getAdStatus()) {
+                retries = 0;
+                load();
+            }
+        };
     }
 
     public void load() {
@@ -63,14 +69,12 @@ public final class DirectAdMobBannerHelper {
             return;
         }
         if (shown && adView != null) {
-            // Already displaying — avoid destructive reload flicker on resume.
             return;
         }
         if (loading) {
             return;
         }
         loading = true;
-        // Never show empty strip while waiting.
         hideStrip();
         try {
             MobileAds.initialize(activity, status -> {
@@ -105,8 +109,27 @@ public final class DirectAdMobBannerHelper {
     public void onResume() {
         destroyed = false;
         if (!shown) {
+            // Reset burst so long sessions keep trying after temporary no-fill.
+            retries = 0;
             load();
         }
+    }
+
+    /** Force a fresh request even if something was previously showing. */
+    public void forceReload() {
+        destroyed = false;
+        shown = false;
+        retries = 0;
+        loading = false;
+        handler.removeCallbacks(longRetryRunnable);
+        try {
+            if (adView != null) {
+                adView.destroy();
+                adView = null;
+            }
+        } catch (Exception ignored) {
+        }
+        load();
     }
 
     private void attachAndLoad() {
@@ -138,7 +161,6 @@ public final class DirectAdMobBannerHelper {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));
 
-            // Keep strip GONE until onAdLoaded — prevents black empty bar.
             hideStrip();
 
             view.setAdListener(new AdListener() {
@@ -150,6 +172,7 @@ public final class DirectAdMobBannerHelper {
                     loading = false;
                     retries = 0;
                     shown = true;
+                    handler.removeCallbacks(longRetryRunnable);
                     showStrip();
                     Log.d(TAG, "banner loaded");
                 }
@@ -183,16 +206,22 @@ public final class DirectAdMobBannerHelper {
     }
 
     private void scheduleRetry() {
-        if (destroyed || activity.isFinishing() || retries >= MAX_RETRIES) {
+        if (destroyed || activity.isFinishing()) {
             return;
         }
-        retries++;
-        long delay = RETRY_DELAY_MS * retries;
-        handler.postDelayed(() -> {
-            if (!destroyed && !activity.isFinishing() && !shown) {
-                load();
-            }
-        }, delay);
+        if (retries < BURST_RETRIES) {
+            retries++;
+            long delay = RETRY_DELAY_MS * retries;
+            handler.postDelayed(() -> {
+                if (!destroyed && !activity.isFinishing() && !shown) {
+                    load();
+                }
+            }, delay);
+            return;
+        }
+        // After burst failures keep trying every minute — no clear-data needed.
+        handler.removeCallbacks(longRetryRunnable);
+        handler.postDelayed(longRetryRunnable, LONG_RETRY_MS);
     }
 
     private void showStrip() {
@@ -203,7 +232,6 @@ public final class DirectAdMobBannerHelper {
         }
         if (strip != null) {
             strip.setVisibility(View.VISIBLE);
-            // Transparent until content exists; avoid dark empty plate.
             strip.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         }
         View chrome = activity.findViewById(R.id.bottom_chrome);
@@ -284,7 +312,6 @@ public final class DirectAdMobBannerHelper {
         }
     }
 
-    /** System bottom inset for padding the chrome when banner is hidden. */
     public static int systemBottomInset(Activity activity) {
         View root = activity.findViewById(R.id.design_root);
         if (root == null) {

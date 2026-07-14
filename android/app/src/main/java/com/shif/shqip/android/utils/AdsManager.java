@@ -75,6 +75,8 @@ public class AdsManager {
     public void loadAppOpenAd(boolean placement, boolean withListener, OnShowAdCompleteListener onShowAdCompleteListener) {
         if (placement) {
             if (adsPref.getAdStatus()) {
+                // Never reuse an expired App Open fill (AdMob ~4h TTL).
+                AppOpenAdCache.invalidateIfStale();
                 appOpenAd.setAdStatus("1")
                         .setAdNetwork(activeAdNetwork())
                         .setBackupAdNetwork(adsPref.getBackupAds())
@@ -82,18 +84,22 @@ public class AdsManager {
                         .setAdManagerAppOpenId(adsPref.getAdManagerAppOpenAdId())
                         .setApplovinAppOpenId(adsPref.getAppLovinAppOpenAdUnitId())
                         .setWithListener(withListener)
-                        .build(onShowAdCompleteListener);
+                        .build(() -> {
+                            AppOpenAdCache.markLoaded();
+                            if (onShowAdCompleteListener != null) {
+                                onShowAdCompleteListener.onShowAdComplete();
+                            }
+                        });
             } else {
-                onShowAdCompleteListener.onShowAdComplete();
+                if (onShowAdCompleteListener != null) {
+                    onShowAdCompleteListener.onShowAdComplete();
+                }
             }
         }
     }
 
-    public void showAppOpenAd(OnShowAdCompleteListener onShowAdCompleteListener) {
-        appOpenAd.show(onShowAdCompleteListener);
-    }
-
     public void destroyAppOpenAd() {
+        AppOpenAdCache.invalidate();
         appOpenAd.destroyOpenAd();
     }
 
@@ -166,6 +172,22 @@ public class AdsManager {
             loadBannerAd(placement);
         } catch (Exception e) {
             android.util.Log.e(TAG, "resumeBannerAd failed", e);
+        }
+    }
+
+    public void forceReloadBannerAd() {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if ("admob".equals(activeAdNetwork())
+                    && AdPlacementHelper.isValidAdUnit(adsPref.getAdMobBannerId())) {
+                directBanner.forceReload();
+                return;
+            }
+            loadBannerAd(true);
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "forceReloadBannerAd failed", e);
         }
     }
 

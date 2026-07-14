@@ -785,7 +785,8 @@ require_once("Rest.inc.php");
 					'status' => 'ok',
 					'device_id' => $device_id,
 					'blocked' => $blocked ? 1 : 0,
-					'reason' => $blockReason
+					'reason' => $blockReason,
+					'no_ads' => $this->isDeviceNoAds($device_id) ? 1 : 0
 				);
 				$this->response($this->json($respon), 200);
 			} else {

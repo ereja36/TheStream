@@ -18,8 +18,10 @@ import com.shif.shqip.android.activities.ActivityPlayerVideo;
 import com.shif.shqip.android.activities.ActivitySplash;
 import com.shif.shqip.android.activities.MyApplication;
 import com.shif.shqip.android.databases.prefs.AdsPref;
+
 /**
- * Shows app-open ads when returning from background, similar to OneIPTV.
+ * Shows app-open ads when returning from background.
+ * Always refreshes fills older than ~3h so users never need clear-data.
  */
 public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Application.ActivityLifecycleCallbacks {
 
@@ -55,6 +57,8 @@ public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Appli
             pendingResumeAd = true;
         }
         wasInBackground = false;
+        // Foreground: drop expired fills so resume can request a fresh one.
+        AppOpenAdCache.invalidateIfStale();
     }
 
     @Override
@@ -92,10 +96,10 @@ public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Appli
             if (now - lastShownAt < minGap) {
                 return;
             }
+            AppOpenAdCache.invalidateIfStale();
             AdsManager adsManager = new AdsManager(activity);
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
-            // Load + show (withListener=true). Do not clear isAppOpenAdLoaded until after dismiss.
             adsManager.loadAppOpenAd(true, true, () -> {
                 lastShownAt = SystemClock.elapsedRealtime();
                 preloadNextAppOpenAd(activity);
@@ -118,6 +122,7 @@ public final class AppOpenAdLifecycle implements DefaultLifecycleObserver, Appli
                 return;
             }
             try {
+                AppOpenAdCache.invalidateIfStale();
                 AdsManager adsManager = new AdsManager(activity);
                 adsManager.initializeAd();
                 adsManager.loadAppOpenAd(true, false, () -> {

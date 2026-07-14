@@ -153,8 +153,20 @@ public final class DesignUiHelper {
                         if (resp.ads != null) {
                             try {
                                 AdsPref adsPref = new AdsPref(activity);
+                                boolean wasOn = adsPref.getAdStatus();
                                 Tools.saveAds(adsPref, resp.ads);
+                                // Keep device no-ads in sync with effective status after saveAds.
+                                adsPref.refreshEffectiveAdStatus();
                                 AdPlacementHelper.onRemoteAdsConfigLoaded(activity);
+                                if (resp.settings != null && resp.settings.ads_antiblock_script != null) {
+                                    sharedPref.saveAdsAntiblockScript(resp.settings.ads_antiblock_script);
+                                }
+                                boolean nowOn = adsPref.getAdStatus();
+                                if (!wasOn && nowOn) {
+                                    // Ads re-enabled remotely — force home bootstrap again.
+                                    AdPlacementHelper.loadHomePlacementAds(
+                                            activity, new AdsManager(activity), adsPref);
+                                }
                             } catch (Exception ignored) {
                                 // Keep previous ads config on parse/save errors.
                             }

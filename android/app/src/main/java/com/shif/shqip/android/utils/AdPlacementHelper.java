@@ -36,10 +36,21 @@ public final class AdPlacementHelper {
         application.markResumeAppOpenReady();
         AdsPref adsPref = new AdsPref(activity);
         if (adsPref.getAdStatus() && hasValidAdNetwork(adsPref)) {
+            AppOpenAdCache.invalidateIfStale();
             AdsManager adsManager = new AdsManager(activity);
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
             loadHomePlacementAds(activity, adsManager, adsPref);
+            // Keep a fresh App Open preload available for resume.
+            if (adsPref.getAppOpenOnResume()) {
+                try {
+                    adsManager.loadAppOpenAd(true, false, () -> {
+                    });
+                } catch (Exception ignored) {
+                }
+            }
+        } else {
+            AppOpenAdCache.invalidate();
         }
     }
 
@@ -50,8 +61,7 @@ public final class AdPlacementHelper {
         if (!hasValidAdNetwork(adsPref)) {
             return;
         }
-        // Home: banner + interstitial only. Native loads naturally in channel lists (every N items).
-        adsManager.loadBannerAd(Constant.BANNER_HOME);
+        adsManager.forceReloadBannerAd();
         adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, SOLODROID_SHOW_EVERY_CALL);
     }
 

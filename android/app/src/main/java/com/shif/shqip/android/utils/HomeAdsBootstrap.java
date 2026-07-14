@@ -10,7 +10,7 @@ import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 
 /**
- * Home-screen ad bootstrap. Banner stays hidden until AdMob fills (no black strip).
+ * Home-screen ad bootstrap. Keeps reloading forever so fills recover without clear-data.
  */
 public final class HomeAdsBootstrap {
 
@@ -29,13 +29,15 @@ public final class HomeAdsBootstrap {
         if (activity == null || adsManager == null || adsPref == null) {
             return;
         }
-        // Always collapse banner plate until a real ad arrives.
         View strip = activity.findViewById(R.id.banner_strip);
         if (strip != null) {
             strip.setVisibility(View.GONE);
         }
         if (!adsPref.getAdStatus() || !AdPlacementHelper.hasValidAdNetwork(adsPref)) {
             return;
+        }
+        if (antiblockHelper != null) {
+            antiblockHelper.resetRetryCount();
         }
         View foundAnchor = activity.findViewById(R.id.bottom_chrome);
         if (foundAnchor == null) {
@@ -56,12 +58,25 @@ public final class HomeAdsBootstrap {
                 adsManager.loadBannerAd(Constant.BANNER_HOME);
                 adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
                         AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
-                // One delayed retry if first request missed fill / init race.
+                AppOpenAdCache.invalidateIfStale();
+                // Delayed retries for init race / temporary no-fill.
                 anchor.postDelayed(() -> {
-                    if (!activity.isFinishing()) {
+                    if (!activity.isFinishing() && adsPref.getAdStatus()) {
                         adsManager.loadBannerAd(Constant.BANNER_HOME);
                     }
                 }, 5_000L);
+                anchor.postDelayed(() -> {
+                    if (!activity.isFinishing() && adsPref.getAdStatus()) {
+                        adsManager.loadBannerAd(Constant.BANNER_HOME);
+                        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
+                                AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
+                    }
+                }, 30_000L);
+            } catch (Exception e) {
+                Log.e(TAG, "Home ads bootstrap failed", e);
+                if (bannerStrip != null) {
+                    bannerStrip.setVisibility(View.GONE);
+                }
                 if (antiblockHelper != null) {
                     antiblockHelper.onAdLoadFailed(() -> {
                         if (!activity.isFinishing()) {
@@ -69,26 +84,29 @@ public final class HomeAdsBootstrap {
                         }
                     });
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Home ads bootstrap failed", e);
-                if (bannerStrip != null) {
-                    bannerStrip.setVisibility(View.GONE);
-                }
             }
         });
     }
 
     public static void resume(Activity activity, AdsManager adsManager, AdsPref adsPref,
                               AdsAntiblockHelper antiblockHelper) {
-        if (activity == null || adsManager == null || adsPref == null || !adsPref.getAdStatus()) {
+        if (activity == null || adsManager == null || adsPref == null) {
+            return;
+        }
+        if (!adsPref.getAdStatus() || !AdPlacementHelper.hasValidAdNetwork(adsPref)) {
             return;
         }
         try {
+            if (antiblockHelper != null) {
+                antiblockHelper.resetRetryCount();
+            }
             adsManager.resumeBannerAd(Constant.BANNER_HOME);
+            // Always refresh interstitial inventory on resume (cheap if already loaded).
+            adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
+                    AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
+            AppOpenAdCache.invalidateIfStale();
             if (antiblockHelper != null && antiblockHelper.shouldForceAdReloadOnResume()) {
                 adsManager.loadBannerAd(Constant.BANNER_HOME);
-                adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
-                        AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
             }
         } catch (Exception e) {
             Log.e(TAG, "Home ads resume failed", e);
