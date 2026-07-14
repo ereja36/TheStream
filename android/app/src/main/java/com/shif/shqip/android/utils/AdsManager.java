@@ -48,7 +48,8 @@ public class AdsManager {
         interstitialAd = new InterstitialAd(activity);
         nativeAd = new NativeAd(activity);
         nativeAdView = new NativeAdView(activity);
-        directBanner = new DirectAdMobBannerHelper(activity);
+        // One banner helper per Activity — avoids remote-config AdsManager wiping a filled banner.
+        directBanner = DirectAdMobBannerHelper.forActivity(activity);
     }
 
     public void initializeAd() {
@@ -175,6 +176,32 @@ public class AdsManager {
         }
     }
 
+    public void pauseBannerAd() {
+        try {
+            if (directBanner != null) {
+                directBanner.onPause();
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** Keep a filled banner; request only when empty. */
+    public void ensureBannerAd() {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if ("admob".equals(activeAdNetwork())
+                    && AdPlacementHelper.isValidAdUnit(adsPref.getAdMobBannerId())) {
+                directBanner.ensureLoaded();
+                return;
+            }
+            loadBannerAd(true);
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "ensureBannerAd failed", e);
+        }
+    }
+
     public void forceReloadBannerAd() {
         if (!adsPref.getAdStatus()) {
             return;
@@ -219,6 +246,7 @@ public class AdsManager {
     public void loadNativeAd(boolean placement, String style) {
         if (placement) {
             if (adsPref.getAdStatus()) {
+                String nativeStyle = Tools.nativeAdStyleFormatter(style);
                 nativeAd.setAdStatus("1")
                         .setAdNetwork(activeAdNetwork())
                         .setBackupAdNetwork(adsPref.getBackupAds())
@@ -227,7 +255,7 @@ public class AdsManager {
                         .setFanNativeId(adsPref.getFanNativeId())
                         .setAppLovinNativeId(adsPref.getAppLovinNativeAdManualUnitId())
                         .setAppLovinDiscoveryMrecZoneId(adsPref.getAppLovinBannerMrecZoneId())
-                        .setNativeAdStyle(style)
+                        .setNativeAdStyle(nativeStyle)
                         .setRadius(R.dimen.corner_radius)
                         .setStrokeWidth(R.dimen.native_ad_stroke_width)
                         .setStrokeColor(R.color.color_stroke_native_ad)
@@ -242,6 +270,7 @@ public class AdsManager {
     public void loadNativeAdView(View view, boolean placement, String nativeAdStyle) {
         if (placement) {
             if (adsPref.getAdStatus()) {
+                String style = Tools.nativeAdStyleFormatter(nativeAdStyle);
                 nativeAdView.setView(view)
                         .setAdStatus("1")
                         .setAdNetwork(activeAdNetwork())
@@ -251,7 +280,7 @@ public class AdsManager {
                         .setFanNativeId(adsPref.getFanNativeId())
                         .setAppLovinNativeId(adsPref.getAppLovinNativeAdManualUnitId())
                         .setAppLovinDiscoveryMrecZoneId(adsPref.getAppLovinBannerMrecZoneId())
-                        .setNativeAdStyle(nativeAdStyle)
+                        .setNativeAdStyle(style)
                         .setRadius(R.dimen.corner_radius)
                         .setStrokeWidth(R.dimen.native_ad_stroke_width)
                         .setStrokeColor(R.color.color_stroke_native_ad)

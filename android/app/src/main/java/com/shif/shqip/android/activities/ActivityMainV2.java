@@ -134,6 +134,7 @@ public class ActivityMainV2 extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        NativeAdSlotHelper.destroyAll();
         destroyBannerAd();
         releaseHeroPreview();
         super.onDestroy();
@@ -143,6 +144,9 @@ public class ActivityMainV2 extends AppCompatActivity {
 
     @Override
     protected void onPause() {
+        if (adsManager != null) {
+            adsManager.pauseBannerAd();
+        }
         releaseHeroPreview();
         super.onPause();
     }
@@ -512,13 +516,29 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void buildCategorySections() {
+        NativeAdSlotHelper.destroyHostsIn(categorySections);
         categorySections.removeAllViews();
         List<Category> categories = sharedPref.hasPlaylistChannels()
                 ? sharedPref.getPlaylistCategories()
                 : buildCategoriesFromChannels(allChannels);
 
+        // Always mount one home native early so Google can fill even with few categories.
+        if (AdPlacementHelper.shouldInsertNativeAds(adsPref)) {
+            LinearLayout topNative = new LinearLayout(this);
+            topNative.setOrientation(LinearLayout.VERTICAL);
+            topNative.setTag("native_ad_slot");
+            topNative.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            int pad = Math.round(12 * getResources().getDisplayMetrics().density);
+            topNative.setPadding(pad, pad / 2, pad, pad / 2);
+            categorySections.addView(topNative);
+            NativeAdSlotHelper.mount(this, topNative);
+        }
+
         LayoutInflater inflater = LayoutInflater.from(this);
         int sectionIndex = 0;
+        int nativeSlots = 0;
         for (Category category : categories) {
             List<Channel> categoryChannels = getChannelsForCategory(category.category_name);
             if (categoryChannels.isEmpty()) {
@@ -555,10 +575,11 @@ public class ActivityMainV2 extends AppCompatActivity {
 
             categorySections.addView(section);
             sectionIndex++;
-            // Native between category rows (every 3), same cadence as channel lists.
-            if (sectionIndex % 3 == 0) {
+            // Extra native between sections (max 2) — direct AdMob path handles fills.
+            if (sectionIndex % 3 == 0 && nativeSlots < 2) {
                 LinearLayout nativeHost = new LinearLayout(this);
                 nativeHost.setOrientation(LinearLayout.VERTICAL);
+                nativeHost.setTag("native_ad_slot");
                 nativeHost.setLayoutParams(new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -566,6 +587,7 @@ public class ActivityMainV2 extends AppCompatActivity {
                 nativeHost.setPadding(pad, pad / 2, pad, pad / 2);
                 categorySections.addView(nativeHost);
                 NativeAdSlotHelper.mount(this, nativeHost);
+                nativeSlots++;
             }
         }
     }

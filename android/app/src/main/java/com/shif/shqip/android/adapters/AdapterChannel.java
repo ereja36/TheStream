@@ -77,6 +77,14 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
         this.sharedPref = new SharedPref(context);
         this.adsPref = new AdsPref(context);
         this.adsManager = new AdsManager((Activity) context);
+        try {
+            if (adsPref.getAdStatus() && AdPlacementHelper.hasValidAdNetwork(adsPref)) {
+                adsManager.initializeAd();
+                adsManager.updateConsentStatus();
+            }
+        } catch (Exception e) {
+            Log.e("AdapterChannel", "ads init failed", e);
+        }
         lastItemViewDetector(view);
         view.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override

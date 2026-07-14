@@ -126,7 +126,16 @@ public class ActivityMainV3 extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        if (adsManager != null) {
+            adsManager.pauseBannerAd();
+        }
+        super.onPause();
+    }
+
+    @Override
     protected void onDestroy() {
+        NativeAdSlotHelper.destroyAll();
         destroyBannerAd();
         super.onDestroy();
     }

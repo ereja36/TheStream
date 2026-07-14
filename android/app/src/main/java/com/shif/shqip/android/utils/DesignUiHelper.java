@@ -163,8 +163,8 @@ public final class DesignUiHelper {
                                 }
                                 boolean nowOn = adsPref.getAdStatus();
                                 if (!wasOn && nowOn) {
-                                    // Ads re-enabled remotely — force home bootstrap again.
-                                    AdPlacementHelper.loadHomePlacementAds(
+                                    // Ads re-enabled remotely — hard refresh once.
+                                    AdPlacementHelper.forceReloadHomePlacementAds(
                                             activity, new AdsManager(activity), adsPref);
                                 }
                             } catch (Exception ignored) {

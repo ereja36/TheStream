@@ -987,6 +987,10 @@ public class Tools {
     }
 
     public static void setNativeAdStyle(Activity activity, LinearLayout nativeAdView, String style) {
+        if (nativeAdView == null) {
+            return;
+        }
+        nativeAdView.removeAllViews();
         switch (style) {
             case "small":
             case "radio":
