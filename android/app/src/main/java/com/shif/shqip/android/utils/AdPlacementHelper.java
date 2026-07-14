@@ -112,6 +112,22 @@ public final class AdPlacementHelper {
         }
     }
 
+    /** Pause sticky banner on any list/detail screen without tearing down the AdView host. */
+    public static void pauseListBanner(Activity activity) {
+        if (activity == null || activity.isFinishing()) {
+            return;
+        }
+        if (activity instanceof MainActivity || activity instanceof ActivityMainV2
+                || activity instanceof ActivityMainV3) {
+            pauseHomeBanner(activity);
+            return;
+        }
+        try {
+            new AdsManager(activity).pauseBannerAd();
+        } catch (Exception ignored) {
+        }
+    }
+
     public static void showInterstitialBeforeAction(Activity activity) {
         if (activity == null || activity.isFinishing()) {
             return;

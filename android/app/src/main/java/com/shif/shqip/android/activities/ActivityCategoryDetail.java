@@ -394,6 +394,14 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        if (adsManager != null) {
+            adsManager.pauseBannerAd();
+        }
+        super.onPause();
+    }
+
+    @Override
     public void onDestroy() {
         super.onDestroy();
         swipeProgress(false);

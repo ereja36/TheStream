@@ -546,7 +546,16 @@ public class ActivityChannelDetail extends AppCompatActivity {
         adsManager.resumeBannerAd(BANNER_CHANNEL_DETAIL);
     }
 
-    public void onDestroy() {
+    @Override
+    protected void onPause() {
+        if (adsManager != null) {
+            adsManager.pauseBannerAd();
+        }
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
         super.onDestroy();
         lyt_shimmer.stopShimmer();
         if (!(callbackCall == null || callbackCall.isCanceled())) {

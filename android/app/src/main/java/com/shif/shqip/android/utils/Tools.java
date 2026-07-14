@@ -896,7 +896,7 @@ public class Tools {
         btnPlay.setOnClickListener(v -> {
             Tools.startPlayer(activity, parentView, channel);
             if (isFragment) {
-                ((MainActivity) activity).destroyBannerAd();
+                AdPlacementHelper.pauseListBanner(activity);
             }
             mBottomSheetDialog.dismiss();
         });
@@ -942,8 +942,7 @@ public class Tools {
                 intent.putExtra(Constant.EXTRA_OBJC, channel);
                 activity.startActivity(intent);
                 if (isFragment) {
-                    ((MainActivity) activity).showInterstitialAd();
-                    ((MainActivity) activity).destroyBannerAd();
+                    AdPlacementHelper.showInterstitialBeforeAction(activity);
                 }
             }
             mBottomSheetDialog.dismiss();
