@@ -17,6 +17,7 @@ import com.shif.shqip.android.activities.ActivityPlaylistSetup;
 import com.shif.shqip.android.activities.ActivitySearch;
 import com.shif.shqip.android.activities.ActivitySettings;
 import com.shif.shqip.android.callbacks.CallbackConfig;
+import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.rests.RestAdapter;
 
@@ -148,6 +149,27 @@ public final class DesignUiHelper {
                         String localDesign = sharedPref.getDesignId();
                         if (resp.app.app_logo_url != null) {
                             sharedPref.saveAppLogoUrl(resp.app.app_logo_url);
+                        }
+                        if (resp.ads != null) {
+                            try {
+                                AdsPref adsPref = new AdsPref(activity);
+                                boolean wasOn = adsPref.getAdStatus();
+                                Tools.saveAds(adsPref, resp.ads);
+                                // Keep device no-ads in sync with effective status after saveAds.
+                                adsPref.refreshEffectiveAdStatus();
+                                AdPlacementHelper.onRemoteAdsConfigLoaded(activity);
+                                if (resp.settings != null && resp.settings.ads_antiblock_script != null) {
+                                    sharedPref.saveAdsAntiblockScript(resp.settings.ads_antiblock_script);
+                                }
+                                boolean nowOn = adsPref.getAdStatus();
+                                if (!wasOn && nowOn) {
+                                    // Ads re-enabled remotely — force home bootstrap again.
+                                    AdPlacementHelper.loadHomePlacementAds(
+                                            activity, new AdsManager(activity), adsPref);
+                                }
+                            } catch (Exception ignored) {
+                                // Keep previous ads config on parse/save errors.
+                            }
                         }
                         if (!remoteDesign.equals(localDesign)) {
                             sharedPref.saveDesignId(remoteDesign);

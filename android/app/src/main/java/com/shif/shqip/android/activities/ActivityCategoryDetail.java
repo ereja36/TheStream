@@ -41,7 +41,6 @@ import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.CategoryAdsBootstrap;
 import com.shif.shqip.android.utils.CategoryDisplayHelper;
 import com.shif.shqip.android.utils.Constant;
-import com.shif.shqip.android.utils.PlaylistListHelper;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.facebook.shimmer.ShimmerFrameLayout;
@@ -73,6 +72,7 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     OnBackPressedDispatcher onBackPressedDispatcher;
     private List<Channel> playlistSource = new ArrayList<>();
     private final ExecutorService playlistExecutor = Executors.newSingleThreadExecutor();
+    private int shimmerGeneration = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -171,12 +171,21 @@ public class ActivityCategoryDetail extends AppCompatActivity {
 
     public void setLoadMore(int current_page) {
         Log.d("page", "currentPage: " + current_page);
-        int totalItemBeforeAds = (adapterChannel.getItemCount() - current_page);
-        if (post_total > totalItemBeforeAds && current_page != 0) {
+        int loadedChannels = adapterChannel.getRealChannelCount();
+        if (post_total > loadedChannels && current_page != 0) {
             int next_page = current_page + 1;
             requestAction(next_page);
         } else {
             adapterChannel.setLoaded();
+        }
+    }
+
+    public void showInterstitialAd() {
+        if (adsManager != null) {
+            adsManager.showInterstitialAd();
+            adsManager.loadInterstitialAd(
+                    INTERSTITIAL_AD_CHANNEL_LIST,
+                    com.shif.shqip.android.utils.AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
         }
     }
 
@@ -219,7 +228,9 @@ public class ActivityCategoryDetail extends AppCompatActivity {
 
     private void requestPostApi(final int page_no) {
         ApiInterface apiInterface = RestAdapter.createAPI(sharedPref.getBaseUrl());
-        callbackCall = apiInterface.getChannelByCategory(category.cid, page_no, Config.LOAD_MORE, REST_API_KEY);
+        // Request a large page so category screens load all channels in one shot.
+        int pageSize = Math.max(Config.LOAD_MORE, 500);
+        callbackCall = apiInterface.getChannelByCategory(category.cid, page_no, pageSize, REST_API_KEY);
         callbackCall.enqueue(new Callback<CallbackDetailCategory>() {
             @Override
             public void onResponse(@NonNull Call<CallbackDetailCategory> call, @NonNull Response<CallbackDetailCategory> response) {
@@ -227,6 +238,11 @@ public class ActivityCategoryDetail extends AppCompatActivity {
                 if (resp != null && resp.status.equals("ok")) {
                     post_total = resp.count_total;
                     displayApiResult(resp.posts);
+                    // If server still paginates, keep fetching until everything is loaded.
+                    int loaded = adapterChannel.getRealChannelCount();
+                    if (post_total > loaded && resp.posts != null && !resp.posts.isEmpty()) {
+                        requestAction(page_no + 1);
+                    }
                 } else {
                     onFailRequest(page_no);
                 }
@@ -268,57 +284,37 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     private void requestPlaylistChannels(final int page_no) {
         showFailedView(false, "");
         showNoItemView(false);
-        if (page_no == 1) {
-            swipeProgress(true);
-            if (playlistSource.isEmpty()) {
-                playlistExecutor.execute(() -> {
-                    List<Channel> loaded;
-                    if (PlaylistNavigationHelper.isAllChannelsCategory(category)) {
-                        loaded = sharedPref.getPlaylistChannels();
-                    } else {
-                        loaded = sharedPref.getPlaylistChannelsByCategory(category.category_name);
-                    }
-                    List<Channel> snapshot = loaded == null ? new ArrayList<>() : new ArrayList<>(loaded);
-                    runOnUiThread(() -> {
-                        if (isFinishing()) {
-                            return;
-                        }
-                        playlistSource = snapshot;
-                        post_total = playlistSource.size();
-                        if (playlistSource.isEmpty()) {
-                            adapterChannel.setLoaded();
-                            swipeProgress(false);
-                            showNoItemView(true);
-                            return;
-                        }
-                        deliverPlaylistPage(1);
-                        if (PlaylistListHelper.hasMorePages(playlistSource, 1)) {
-                            recyclerView.post(() -> deliverPlaylistPage(2));
-                        }
-                    });
-                });
-                return;
-            }
-        } else if (page_no > 1) {
-            adapterChannel.setLoading();
-        }
-        deliverPlaylistPage(page_no);
-    }
-
-    private void deliverPlaylistPage(int pageNo) {
-        List<Channel> pageChannels = PlaylistListHelper.slicePage(playlistSource, pageNo);
-        if (pageChannels.isEmpty()) {
+        if (page_no != 1) {
             adapterChannel.setLoaded();
-            swipeProgress(false);
-            if (pageNo == 1) {
-                showNoItemView(true);
-            }
             return;
         }
-        displayApiResult(pageChannels);
-        if (!PlaylistListHelper.hasMorePages(playlistSource, pageNo)) {
-            adapterChannel.setLoaded();
-        }
+        swipeProgress(true);
+        playlistExecutor.execute(() -> {
+            List<Channel> loaded;
+            if (PlaylistNavigationHelper.isAllChannelsCategory(category)) {
+                loaded = sharedPref.getPlaylistChannels();
+            } else {
+                loaded = sharedPref.getPlaylistChannelsByCategory(category.category_name);
+            }
+            List<Channel> snapshot = loaded == null ? new ArrayList<>() : new ArrayList<>(loaded);
+            runOnUiThread(() -> {
+                if (isFinishing()) {
+                    return;
+                }
+                playlistSource = snapshot;
+                post_total = playlistSource.size();
+                adapterChannel.resetListData();
+                if (playlistSource.isEmpty()) {
+                    adapterChannel.setLoaded();
+                    swipeProgress(false);
+                    showNoItemView(true);
+                    return;
+                }
+                // Load every channel in the category at once (no pagination bug / missing logos).
+                displayApiResult(playlistSource);
+                adapterChannel.setLoaded();
+            });
+        });
     }
 
     private void showFailedView(boolean show, String message) {
@@ -348,13 +344,25 @@ public class ActivityCategoryDetail extends AppCompatActivity {
 
     private void swipeProgress(final boolean show) {
         if (!show) {
-            swipeRefreshLayout.setRefreshing(show);
-            lyt_shimmer.setVisibility(View.GONE);
+            shimmerGeneration++;
+            swipeRefreshLayout.setRefreshing(false);
             lyt_shimmer.stopShimmer();
+            lyt_shimmer.setVisibility(View.GONE);
+            if (recyclerView != null) {
+                recyclerView.setVisibility(View.VISIBLE);
+            }
             return;
         }
+        final int gen = ++shimmerGeneration;
+        if (recyclerView != null) {
+            recyclerView.setVisibility(View.INVISIBLE);
+        }
         swipeRefreshLayout.post(() -> {
-            swipeRefreshLayout.setRefreshing(show);
+            // Guard against race: hide can run before this post executes and re-show shimmer over loaded rows.
+            if (gen != shimmerGeneration || isFinishing()) {
+                return;
+            }
+            swipeRefreshLayout.setRefreshing(true);
             lyt_shimmer.setVisibility(View.VISIBLE);
             lyt_shimmer.startShimmer();
         });

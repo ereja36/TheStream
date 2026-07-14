@@ -46,6 +46,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.AppBarLayoutBehavior;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.Tools;
@@ -468,14 +469,10 @@ public class ActivityChannelDetail extends AppCompatActivity {
     }
 
     private String resolveChannelImage(Channel item) {
-        if (item == null || TextUtils.isEmpty(item.channel_image)) {
+        if (item == null) {
             return "";
         }
-        String image = item.channel_image.trim();
-        if (image.startsWith("http://") || image.startsWith("https://")) {
-            return image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(item.channel_image, sharedPref.getBaseUrl());
     }
 
     private void initToolbar() {

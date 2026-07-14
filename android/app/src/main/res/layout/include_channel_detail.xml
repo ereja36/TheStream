@@ -24,7 +24,8 @@
                 android:background="?android:attr/selectableItemBackground"
                 android:contentDescription="@string/img_content_description"
                 android:foreground="?selectableItemBackground"
-                android:scaleType="centerCrop" />
+                android:scaleType="fitCenter"
+                android:padding="12dp" />
 
             <View
                 android:layout_width="64dp"

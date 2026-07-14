@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 85
-        versionName = "6.9.65"
+        versionCode = 94
+        versionName = "6.9.74"
         multiDexEnabled = true
     }
     compileOptions {
@@ -79,6 +79,8 @@ dependencies {
     implementation 'com.google.android.exoplayer:exoplayer-hls:2.19.1'
     implementation 'com.google.android.exoplayer:exoplayer-ui:2.19.1'
     implementation 'com.google.android.exoplayer:exoplayer-rtsp:2.19.1'
+    // FFmpeg audio extension (MP2/AC3 software decoders for api_/sport_ IPTV audio)
+    implementation project(':extension-ffmpeg')
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'com.google.android.play:review:2.0.2'
 	implementation 'com.google.android.play:app-update:2.1.0'
@@ -90,6 +92,8 @@ dependencies {
 
     //Ad Network Sdk options
     implementation 'com.github.solodroid-dev.ads:admob-ads-sdk:1.+'
+    // Direct AdMob API (Solodroid only exposes this as runtime; needed for reliable banner load)
+    implementation 'com.google.android.gms:play-services-ads:24.9.0'
 
     //Push notification
     implementation 'com.github.solodroid-dev.push:notification-sdk:1.+'
