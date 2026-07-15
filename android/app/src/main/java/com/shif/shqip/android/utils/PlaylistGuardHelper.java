@@ -216,21 +216,28 @@ public final class PlaylistGuardHelper {
         if (TextUtils.isEmpty(urlString)) {
             return urlString;
         }
+        // Sealed portal URLs: resolve or fail empty (caller shows error).
+        if (PlaylistPortalHelper.isPortalResolveUrl(urlString)) {
+            String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, urlString);
+            return TextUtils.isEmpty(direct) ? "" : direct;
+        }
+        // Normal IPTV / raw streams always pass through.
+        if (StreamPlaybackHelper.isRawPlaylistStreamUrl(urlString)) {
+            return urlString;
+        }
         if (sharedPref != null && sharedPref.isPortalSessionActive()) {
-            if (PlaylistPortalHelper.isPortalResolveUrl(urlString)) {
-                return PortalResolveHelper.resolveToDirectUrl(sharedPref, urlString);
-            }
             if (PlaylistPortalHelper.isUpstreamStreamUrl(urlString)
                     || K1PlaybackHelper.isK1ProxyUrl(urlString)) {
                 String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, urlString);
                 return TextUtils.isEmpty(direct) ? urlString : direct;
             }
-            if (PortalResolveHelper.isDirectCdnUrl(urlString)) {
+            if (PortalResolveHelper.isPlayableStreamUrl(urlString)) {
                 return urlString;
             }
         }
         try {
-            return resolvePlaybackUrl(sharedPref, urlString);
+            String resolved = resolvePlaybackUrl(sharedPref, urlString);
+            return TextUtils.isEmpty(resolved) ? urlString : resolved;
         } catch (Exception ignored) {
             return urlString;
         }
@@ -525,7 +532,7 @@ public final class PlaylistGuardHelper {
     }
 
     private static boolean isFinalChannelUrl(String url) {
-        return PortalResolveHelper.isDirectCdnUrl(url);
+        return PortalResolveHelper.isPlayableStreamUrl(url);
     }
 
     private static boolean isDirectStreamUrl(String url) {
