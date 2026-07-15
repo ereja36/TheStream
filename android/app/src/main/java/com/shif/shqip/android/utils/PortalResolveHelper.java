@@ -16,7 +16,8 @@ import java.net.URL;
 import java.util.Locale;
 
 /**
- * One-shot portal resolve: sealed playlist URLs → playable stream URL (CDN or all2).
+ * Portal sealed /r/ URLs → playable stream URL (CDN or all2 delivery).
+ * Must never treat sealed playlist.shifshqip.com /r/ links as already-playable.
  */
 public final class PortalResolveHelper {
 
@@ -45,11 +46,12 @@ public final class PortalResolveHelper {
             return "";
         }
         String trimmed = sourceUrl.trim();
-        if (isPlayableStreamUrl(trimmed)) {
-            return trimmed;
-        }
+        // Sealed portal URLs must always be resolved — never returned as-is.
         if (PlaylistPortalHelper.isPortalResolveUrl(trimmed)) {
             return resolvePortalEntry(sharedPref, trimmed);
+        }
+        if (isPlayableStreamUrl(trimmed)) {
+            return trimmed;
         }
         if (PlaylistPortalHelper.isUpstreamStreamUrl(trimmed)
                 || K1PlaybackHelper.isK1ProxyUrl(trimmed)) {
@@ -121,7 +123,7 @@ public final class PortalResolveHelper {
                     }
                 }
             }
-            // all2 playlist entries are themselves playable (manifest + /proxy/seg).
+            // all2 playlist entry itself is playable (manifest + segments).
             if (code >= 200 && code < 300 && isPlayableAll2Url(startUrl)) {
                 URL_CACHE.put(cacheKey, new CacheEntry(startUrl, System.currentTimeMillis() + CACHE_TTL_MS));
                 return startUrl;
@@ -210,7 +212,8 @@ public final class PortalResolveHelper {
             if (isPlayableStreamUrl(url)) {
                 return url;
             }
-            if (!TextUtils.isEmpty(url)) {
+            // Never recurse into another sealed portal URL.
+            if (!TextUtils.isEmpty(url) && !PlaylistPortalHelper.isPortalResolveUrl(url)) {
                 return resolveToDirectUrl(sharedPref, url);
             }
             return "";
@@ -226,18 +229,35 @@ public final class PortalResolveHelper {
 
     /** CDN direct OR same-origin all2 delivery URL the player can open. */
     public static boolean isPlayableStreamUrl(String url) {
+        if (TextUtils.isEmpty(url)) {
+            return false;
+        }
+        // Sealed portal entries are NOT playable until resolved.
+        if (PlaylistPortalHelper.isPortalResolveUrl(url) || PlaylistPortalHelper.isPortalUrl(url)) {
+            String lower = url.toLowerCase(Locale.US);
+            if (lower.contains("/r/") || lower.contains("/u/") || lower.contains("/s/") || lower.contains("/x/")) {
+                return false;
+            }
+            if (lower.contains("playlist.shifshqip.com")) {
+                return false;
+            }
+        }
         return isDirectCdnUrl(url) || isPlayableAll2Url(url);
     }
 
     /**
-     * all2 private delivery: /k1/playlist, /channel, a3hls, proxy — playable by ExoPlayer with Ooew UA.
+     * all2 private delivery on shifshqip.com — NOT playlist.shifshqip.com sealed tokens.
      */
     public static boolean isPlayableAll2Url(String url) {
         if (TextUtils.isEmpty(url)) {
             return false;
         }
         String lower = url.toLowerCase(Locale.US);
-        if (!lower.contains("shifshqip.com")) {
+        if (lower.contains("playlist.shifshqip.com")) {
+            return false;
+        }
+        // Require host shifshqip.com (not a substring false-positive on other hosts).
+        if (!hostIsShifShqip(lower)) {
             return false;
         }
         return lower.contains("/k1/playlist/")
@@ -246,8 +266,19 @@ public final class PortalResolveHelper {
                 || lower.contains("/k1/proxy/")
                 || lower.contains("/k1/a3proxy")
                 || lower.contains("/k1/a3relay")
-                || lower.contains("/k1/a3hls")
-                || lower.contains("/app-measurement/");
+                || lower.contains("/k1/a3hls");
+    }
+
+    private static boolean hostIsShifShqip(String lowerUrl) {
+        try {
+            String host = new URL(lowerUrl).getHost();
+            return "shifshqip.com".equals(host) || (host != null && host.endsWith(".shifshqip.com")
+                    && !host.startsWith("playlist."));
+        } catch (Exception e) {
+            return lowerUrl.contains("://shifshqip.com/")
+                    || lowerUrl.contains("://www.shifshqip.com/")
+                    || lowerUrl.contains("://api.shifshqip.com/");
+        }
     }
 
     public static boolean isDirectCdnUrl(String url) {
@@ -262,7 +293,7 @@ public final class PortalResolveHelper {
         if (lower.contains("playlist.shifshqip.com")) {
             return false;
         }
-        if (lower.contains("shifshqip.com")) {
+        if (hostIsShifShqip(lower)) {
             if (lower.contains("/k1/channel-proxy/")
                     || lower.contains("/k1/proxy/")
                     || lower.contains("/k1/channel/")
