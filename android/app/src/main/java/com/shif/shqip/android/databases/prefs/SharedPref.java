@@ -47,6 +47,8 @@ public class SharedPref {
     private static final String KEY_PORTAL_STREAM_REFERER = "portal_stream_referer";
     private static final String KEY_PORTAL_STREAM_ORIGIN = "portal_stream_origin";
     private static final String KEY_PORTAL_STREAM_COOKIE = "portal_stream_cookie";
+    private static final String KEY_PORTAL_CONTENT_VERSION = "portal_content_version";
+    private static final String KEY_QUICK_GESTURES_TIP_SHOWN = "quick_gestures_tip_shown";
 
     Context context;
     SharedPreferences sharedPreferences;
@@ -449,6 +451,24 @@ public class SharedPref {
 
     public String getPortalSessionToken() {
         return sharedPreferences.getString(KEY_PORTAL_SESSION_TOKEN, "");
+    }
+
+    public void savePortalContentVersion(String version) {
+        editor.putString(KEY_PORTAL_CONTENT_VERSION, version == null ? "" : version.trim());
+        editor.apply();
+    }
+
+    public String getPortalContentVersion() {
+        return sharedPreferences.getString(KEY_PORTAL_CONTENT_VERSION, "");
+    }
+
+    public boolean isQuickGesturesTipShown() {
+        return sharedPreferences.getBoolean(KEY_QUICK_GESTURES_TIP_SHOWN, false);
+    }
+
+    public void setQuickGesturesTipShown(boolean shown) {
+        editor.putBoolean(KEY_QUICK_GESTURES_TIP_SHOWN, shown);
+        editor.apply();
     }
 
     public boolean isPortalSessionActive() {

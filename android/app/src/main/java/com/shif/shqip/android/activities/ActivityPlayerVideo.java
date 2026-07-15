@@ -4,15 +4,21 @@ import static com.shif.shqip.android.Config.PRESS_BACK_TWICE_TO_CLOSE_PLAYER;
 import static com.shif.shqip.android.utils.Constant.PLAYER_MODE_LANDSCAPE;
 
 import android.annotation.SuppressLint;
+import android.app.UiModeManager;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.view.GestureDetector;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -20,9 +26,13 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.shif.shqip.android.models.Channel;
+
+import java.util.ArrayList;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.OnBackPressedDispatcher;
 import androidx.annotation.NonNull;
@@ -104,6 +114,11 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private Runnable bufferingSpinnerRunnable;
     private static final long BUFFERING_SPINNER_DELAY_MS = 1_500L;
     private static final long EPG_LOAD_DELAY_MS = 8_000L;
+    private GestureDetector gestureDetector;
+    private View quickGesturesOverlay;
+    private AudioManager audioManager;
+    private float currentBrightness = -1f;
+    private Toast channelToast;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -193,6 +208,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         startExoPlayback();
         attachPlayerListener();
         setupControls();
+        setupPlayerGestures();
         handleOnBackPressed();
     }
 
@@ -476,6 +492,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         onBackPressedDispatcher.addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
+                if (dismissQuickGesturesTip()) {
+                    return;
+                }
                 closePlayer();
             }
         });
@@ -770,6 +789,290 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
     private String safeText(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private boolean isTelevisionDevice() {
+        UiModeManager uiModeManager = (UiModeManager) getSystemService(UI_MODE_SERVICE);
+        return uiModeManager != null
+                && uiModeManager.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
+    }
+
+    private boolean dismissQuickGesturesTip() {
+        if (quickGesturesOverlay == null || quickGesturesOverlay.getVisibility() != View.VISIBLE) {
+            return false;
+        }
+        sharedPref.setQuickGesturesTipShown(true);
+        quickGesturesOverlay.setVisibility(View.GONE);
+        return true;
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private void setupPlayerGestures() {
+        audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+        quickGesturesOverlay = findViewById(R.id.quick_gestures_overlay);
+        View gotIt = findViewById(R.id.btn_quick_gestures_got_it);
+        View tvHint = findViewById(R.id.txt_quick_gestures_tv_hint);
+        if (tvHint != null && isTelevisionDevice()) {
+            tvHint.setVisibility(View.VISIBLE);
+        }
+        if (gotIt != null) {
+            gotIt.setOnClickListener(v -> dismissQuickGesturesTip());
+        }
+        if (!sharedPref.isQuickGesturesTipShown() && quickGesturesOverlay != null) {
+            quickGesturesOverlay.setVisibility(View.VISIBLE);
+            if (gotIt != null) {
+                gotIt.requestFocus();
+            }
+        }
+
+        gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            private static final int SWIPE_MIN = 100;
+            private static final int SWIPE_VEL = 180;
+
+            @Override
+            public boolean onDown(MotionEvent e) {
+                return true;
+            }
+
+            @Override
+            public boolean onSingleTapConfirmed(MotionEvent e) {
+                showChannelListDialog();
+                return true;
+            }
+
+            @Override
+            public boolean onDoubleTap(MotionEvent e) {
+                if (styledPlayerView != null) {
+                    styledPlayerView.showController();
+                }
+                return true;
+            }
+
+            @Override
+            public void onLongPress(MotionEvent e) {
+                showBrightnessVolumeDialog();
+            }
+
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+                if (e1 == null || e2 == null) {
+                    return false;
+                }
+                float dy = e2.getY() - e1.getY();
+                float dx = e2.getX() - e1.getX();
+                if (Math.abs(dy) < SWIPE_MIN || Math.abs(dy) < Math.abs(dx) || Math.abs(velocityY) < SWIPE_VEL) {
+                    return false;
+                }
+                if (dy < 0) {
+                    switchChannelByOffset(1);
+                } else {
+                    switchChannelByOffset(-1);
+                }
+                return true;
+            }
+        });
+
+        View.OnTouchListener gestureTouchListener = (v, event) -> {
+            if (quickGesturesOverlay != null && quickGesturesOverlay.getVisibility() == View.VISIBLE) {
+                return true;
+            }
+            gestureDetector.onTouchEvent(event);
+            // Consume touches so Quick gestures own swipe/tap/hold on the video surface.
+            return true;
+        };
+        if (styledPlayerView != null) {
+            styledPlayerView.setOnTouchListener(gestureTouchListener);
+        }
+        View background = findViewById(R.id.background_view);
+        if (background != null) {
+            background.setOnTouchListener(gestureTouchListener);
+        }
+    }
+
+    private List<Channel> playableChannels() {
+        List<Channel> all = sharedPref.getPlaylistChannels();
+        List<Channel> result = new ArrayList<>();
+        if (all == null) {
+            return result;
+        }
+        for (Channel channel : all) {
+            if (channel == null || TextUtils.isEmpty(channel.channel_url)) {
+                continue;
+            }
+            if ("YOUTUBE".equals(channel.channel_type) || "EMBED".equals(channel.channel_type)) {
+                continue;
+            }
+            result.add(channel);
+        }
+        return result;
+    }
+
+    private int currentChannelIndex(List<Channel> channels) {
+        for (int i = 0; i < channels.size(); i++) {
+            Channel channel = channels.get(i);
+            if (!TextUtils.isEmpty(channel_id) && channel_id.equals(channel.channel_id)) {
+                return i;
+            }
+            if (!TextUtils.isEmpty(sourceStreamUrl)
+                    && sourceStreamUrl.equalsIgnoreCase(safeText(channel.channel_url))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void switchChannelByOffset(int offset) {
+        List<Channel> channels = playableChannels();
+        if (channels.size() < 2) {
+            return;
+        }
+        int index = currentChannelIndex(channels);
+        if (index < 0) {
+            index = 0;
+        }
+        int next = (index + offset) % channels.size();
+        if (next < 0) {
+            next += channels.size();
+        }
+        switchToChannel(channels.get(next));
+    }
+
+    private void switchToChannel(Channel channel) {
+        if (channel == null || TextUtils.isEmpty(channel.channel_url)) {
+            return;
+        }
+        channel_id = channel.channel_id == null ? "" : channel.channel_id;
+        sourceStreamUrl = channel.channel_url.trim();
+        user_agent = TextUtils.isEmpty(channel.user_agent) ? "default" : channel.user_agent;
+        epgChannelId = channel.epg_id == null ? "" : channel.epg_id;
+        epgUrl = channel.epg_url == null ? "" : channel.epg_url;
+        channelName = channel.channel_name == null ? "" : channel.channel_name;
+        epgLoadScheduled = false;
+        autoRetryCount = 0;
+        if (channelToast != null) {
+            channelToast.cancel();
+        }
+        channelToast = Toast.makeText(this, channelName, Toast.LENGTH_SHORT);
+        channelToast.show();
+        reloadLiveStream(true);
+    }
+
+    private void showChannelListDialog() {
+        List<Channel> channels = playableChannels();
+        if (channels.isEmpty()) {
+            return;
+        }
+        String[] names = new String[channels.size()];
+        int selected = Math.max(0, currentChannelIndex(channels));
+        for (int i = 0; i < channels.size(); i++) {
+            names[i] = TextUtils.isEmpty(channels.get(i).channel_name)
+                    ? ("Channel " + (i + 1))
+                    : channels.get(i).channel_name;
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.quick_gestures_channel_list)
+                .setSingleChoiceItems(names, selected, (dialog, which) -> {
+                    dialog.dismiss();
+                    if (which >= 0 && which < channels.size()) {
+                        switchToChannel(channels.get(which));
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void showBrightnessVolumeDialog() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (20 * getResources().getDisplayMetrics().density);
+        panel.setPadding(pad, pad, pad, pad);
+
+        TextView brightLabel = new TextView(this);
+        brightLabel.setText(R.string.quick_gestures_brightness);
+        brightLabel.setTextColor(0xFFFFFFFF);
+        panel.addView(brightLabel);
+
+        SeekBar brightSeek = new SeekBar(this);
+        float brightness = currentBrightness;
+        if (brightness < 0f) {
+            brightness = getWindow().getAttributes().screenBrightness;
+            if (brightness < 0f) {
+                brightness = 0.5f;
+            }
+        }
+        brightSeek.setMax(100);
+        brightSeek.setProgress(Math.round(brightness * 100f));
+        brightSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                float value = Math.max(0.05f, progress / 100f);
+                currentBrightness = value;
+                WindowManager.LayoutParams lp = getWindow().getAttributes();
+                lp.screenBrightness = value;
+                getWindow().setAttributes(lp);
+            }
+
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        panel.addView(brightSeek);
+
+        TextView volumeLabel = new TextView(this);
+        volumeLabel.setText(R.string.quick_gestures_volume);
+        volumeLabel.setTextColor(0xFFFFFFFF);
+        volumeLabel.setPadding(0, pad, 0, 0);
+        panel.addView(volumeLabel);
+
+        SeekBar volumeSeek = new SeekBar(this);
+        int max = audioManager != null ? audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) : 15;
+        int cur = audioManager != null ? audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) : 7;
+        volumeSeek.setMax(Math.max(1, max));
+        volumeSeek.setProgress(cur);
+        volumeSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (audioManager != null) {
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, progress, 0);
+                }
+            }
+
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        panel.addView(volumeSeek);
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.quick_gestures_hold_title)
+                .setView(panel)
+                .setPositiveButton(android.R.string.ok, null)
+                .setNeutralButton(R.string.quick_gestures_channel_list, (d, w) -> showChannelListDialog())
+                .show();
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (quickGesturesOverlay != null && quickGesturesOverlay.getVisibility() == View.VISIBLE) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                    || keyCode == KeyEvent.KEYCODE_ENTER
+                    || keyCode == KeyEvent.KEYCODE_BACK) {
+                dismissQuickGesturesTip();
+                return true;
+            }
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_CHANNEL_UP) {
+            switchChannelByOffset(1);
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN || keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN) {
+            switchChannelByOffset(-1);
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            showChannelListDialog();
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
     }
 
     private static class EpgProgram {

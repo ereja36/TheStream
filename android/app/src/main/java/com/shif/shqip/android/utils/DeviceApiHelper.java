@@ -217,11 +217,21 @@ public final class DeviceApiHelper {
             if (portal.optInt("enabled", 0) == 1) {
                 String sessionToken = portal.optString("session_token", "");
                 String previousToken = sharedPref.getPortalSessionToken();
+                String contentVersion = portal.optString("content_version", "").trim();
+                String previousVersion = sharedPref.getPortalContentVersion();
                 sharedPref.savePortalSessionToken(sessionToken);
                 sharedPref.clearPortalStreamConfig();
-                if (!TextUtils.isEmpty(sessionToken)
+                boolean portalContentChanged = !TextUtils.isEmpty(contentVersion)
+                        && !contentVersion.equals(previousVersion);
+                if (!TextUtils.isEmpty(contentVersion)) {
+                    sharedPref.savePortalContentVersion(contentVersion);
+                }
+                // Clear cache when admin changes playlist-portal source (content_version),
+                // or when the portal session token is rotated.
+                if (portalContentChanged
+                        || (!TextUtils.isEmpty(sessionToken)
                         && !TextUtils.isEmpty(previousToken)
-                        && !sessionToken.equals(previousToken)) {
+                        && !sessionToken.equals(previousToken))) {
                     sharedPref.clearPlaylistChannels();
                 }
             } else {
@@ -875,6 +885,17 @@ public final class DeviceApiHelper {
             }
             String payloadHeader = connection.getHeaderField("X-Shif-Payload");
             String body = readResponseBody(connection);
+            if ("enc-api".equalsIgnoreCase(payloadHeader)) {
+                if (TextUtils.isEmpty(deviceId) && sharedPref != null) {
+                    deviceId = getLocalDeviceId(sharedPref.getContext());
+                }
+                String apiKeyMaterial = PlaylistPortalHelper.derivePlaylistKey(deviceId, Config.REST_API_KEY);
+                String decrypted = PlaylistPortalHelper.decryptPayload(body, apiKeyMaterial);
+                if (!TextUtils.isEmpty(decrypted)) {
+                    return decrypted;
+                }
+                throw new IOException("enc-api decrypt failed");
+            }
             if ("enc".equalsIgnoreCase(payloadHeader) && sharedPref != null) {
                 String sessionToken = sharedPref.getPortalSessionToken();
                 if (TextUtils.isEmpty(sessionToken)) {
@@ -904,7 +925,7 @@ public final class DeviceApiHelper {
             return "";
         }
         String payloadHeader = connection.getHeaderField("X-Shif-Payload");
-        if ("enc".equalsIgnoreCase(payloadHeader)) {
+        if ("enc".equalsIgnoreCase(payloadHeader) || "enc-api".equalsIgnoreCase(payloadHeader)) {
             return new String(readAllBytes(inputStream), StandardCharsets.UTF_8).trim();
         }
         return readAll(inputStream);

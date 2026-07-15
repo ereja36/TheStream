@@ -47,4 +47,6 @@
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true" />
 
+    <include layout="@layout/overlay_quick_gestures" />
+
 </RelativeLayout>

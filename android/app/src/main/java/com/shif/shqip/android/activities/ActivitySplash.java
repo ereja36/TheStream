@@ -202,27 +202,44 @@ public class ActivitySplash extends AppCompatActivity {
     }
 
     private void handleStartupState() {
-        if (sharedPref.hasPlaylistChannels()) {
-            startMainActivity();
-            startupExecutor.execute(this::syncPlaylistAndStartupPopupInBackground);
-            return;
-        }
         startupExecutor.execute(() -> {
+            String versionBefore = sharedPref.getPortalContentVersion();
             try {
-                DeviceApiHelper.PlaylistSyncResult syncResult =
-                        DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
-                if (syncResult.blocked) {
-                    sharedPref.clearPlaylistChannels();
-                }
+                DeviceApiHelper.refreshPlaylistPortalConfig(sharedPref);
             } catch (Exception ignored) {
-                // Continue with cached or empty playlist.
             }
+            String versionAfter = sharedPref.getPortalContentVersion();
+            boolean portalChanged = !android.text.TextUtils.isEmpty(versionAfter)
+                    && !versionAfter.equals(versionBefore);
+            boolean needSyncFirst = portalChanged || !sharedPref.hasPlaylistChannels();
+
+            if (needSyncFirst) {
+                try {
+                    if (portalChanged) {
+                        sharedPref.clearPlaylistChannels();
+                    }
+                    DeviceApiHelper.PlaylistSyncResult syncResult =
+                            DeviceApiHelper.refreshPlaylistChannelsFromApi(sharedPref, deviceId);
+                    if (syncResult.blocked) {
+                        sharedPref.clearPlaylistChannels();
+                    }
+                } catch (Exception ignored) {
+                }
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !mainStarted) {
+                        startMainActivity();
+                    }
+                });
+                syncStartupPopupInBackground();
+                return;
+            }
+
             runOnUiThread(() -> {
                 if (!isFinishing() && !mainStarted) {
                     startMainActivity();
                 }
             });
-            syncStartupPopupInBackground();
+            syncPlaylistAndStartupPopupInBackground();
         });
     }
 

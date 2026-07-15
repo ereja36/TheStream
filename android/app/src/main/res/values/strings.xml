@@ -194,4 +194,20 @@
     <string name="epg_next_unavailable">Next: Not available</string>
     <string name="epg_unknown_title">Unknown program</string>
 
+    <string name="quick_gestures_title">Quick gestures</string>
+    <string name="quick_gestures_subtitle">Anywhere on the video</string>
+    <string name="quick_gestures_swipe_up_title">Swipe up</string>
+    <string name="quick_gestures_swipe_up_desc">Next channel</string>
+    <string name="quick_gestures_swipe_down_title">Swipe down</string>
+    <string name="quick_gestures_swipe_down_desc">Previous channel</string>
+    <string name="quick_gestures_tap_title">Tap</string>
+    <string name="quick_gestures_tap_desc">Open channel list</string>
+    <string name="quick_gestures_hold_title">Tap &amp; hold</string>
+    <string name="quick_gestures_hold_desc">Brightness · Volume · Channel</string>
+    <string name="quick_gestures_got_it">Got it</string>
+    <string name="quick_gestures_channel_list">Channels</string>
+    <string name="quick_gestures_brightness">Brightness</string>
+    <string name="quick_gestures_volume">Volume</string>
+    <string name="quick_gestures_tv_hint">TV: ↑/↓ change channel · OK opens channel list</string>
+
 </resources>
