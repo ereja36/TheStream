@@ -12,9 +12,20 @@ Lokke (`kool_lokke`) traffic must hit the resolved CDN m3u8 (e.g. `*.ngolpdkyoct
 ```bash
 python3 deploy/all2-web/scripts/patch-lokke-direct-redirect.py
 python3 deploy/all2-web/scripts/patch-lokke-hls-player.py
+python3 deploy/all2-web/scripts/patch-all-sources-direct-redirect.py
+python3 deploy/all2-web/scripts/patch-direct-source-hard-redirect.py
 node --check /root/all/all2/server.js
 pm2 reload all2 --update-env
 ```
+
+## Admin Direct / Proxy by Source
+
+`patch-direct-source-hard-redirect.py` makes **Direct / Redirect** honor `proxy_rules` for every source (including Custom TV/Sport/Nimi):
+
+- **Direct:** signed `/k1/channel/...` → **302 to the real CDN/source URL** (no `/channel-proxy`, no `/proxy/seg`).
+- **Proxy:** keeps `/k1/channel-proxy/...` + segment relay as before.
+
+Root cause fixed: `shouldHidePlaybackSource(custom_*)` used to force proxy even when admin set Direct.
 
 ## What it changes
 
