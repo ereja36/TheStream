@@ -836,11 +836,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
             @Override
             public boolean onSingleTapConfirmed(MotionEvent e) {
-                if (styledPlayerView != null && styledPlayerView.isControllerVisible()) {
-                    styledPlayerView.hideController();
-                } else {
-                    showChannelListDialog();
-                }
+                showChannelListDialog();
                 return true;
             }
 
