@@ -204,11 +204,12 @@ final class PortalService
     }
 
     /**
-     * Keep upstream URLs unchanged — video must not be forced through channel-proxy.
+     * Normalize XUI play URLs for sealing; do not force channel-proxy.
+     * Client will open /play/…/m3u8 then /auth + /hls on CDN directly.
      */
     public static function optimizeK1PlaybackUrl($url)
     {
-        return trim((string) $url);
+        return self::normalizeDirectPlaybackUrl(trim((string) $url));
     }
 
     public static function isOurInfrastructureUrl($url)
@@ -251,7 +252,26 @@ final class PortalService
     }
 
     /**
-     * Strip :443 and add ?.m3u8 so older app builds that only match ".m3u8" still play.
+     * Prefer HLS channel URLs for XUI playlists (…/m3u8 not …/ts MPEG-TS).
+     */
+    public static function preferHlsSourceUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        if (!preg_match('#k1\.shifshqip\.com(?::\d+)?/.*/?playlist/#i', $url)) {
+            return $url;
+        }
+        if (preg_match('#(?:\?|&)output=#i', $url)) {
+            return $url;
+        }
+        return $url . (strpos($url, '?') === false ? '?' : '&') . 'output=hls';
+    }
+
+    /**
+     * Client-facing XUI play URL: strip :443, /ts→/m3u8, keep /play/ (phone does /auth + /hls).
+     * Adds ?.m3u8 so older APKs that only match ".m3u8" still accept the URL.
      */
     public static function normalizeDirectPlaybackUrl($url)
     {
@@ -260,6 +280,11 @@ final class PortalService
             return '';
         }
         $url = preg_replace('#^(https?://[^/]+):443(/)#i', '$1$2', $url);
+        if (!is_string($url) || $url === '') {
+            return '';
+        }
+        // XUI default playlist uses /play/TOKEN/ts (MPEG-TS). App needs HLS /m3u8.
+        $url = preg_replace('#(/play/[^/\\?\\s]+)/ts(\\?|$)#i', '$1/m3u8$2', $url);
         if (!is_string($url) || $url === '') {
             return '';
         }
@@ -598,6 +623,10 @@ final class PortalService
             'X-Shif-App: 1',
             'X-Requested-With: com.shif.shqip.android'
         );
+        if (strpos($fetchUrl, 'http://127.0.0.1:81/') === 0) {
+            $headers[] = 'Host: k1.shifshqip.com';
+            $headers[] = 'X-Forwarded-Proto: https';
+        }
         if (strpos($fetchUrl, 'http://127.0.0.1:3000/') === 0) {
             $headers[] = 'Host: shifshqip.com';
             $headers[] = 'X-Forwarded-Proto: https';
@@ -649,12 +678,22 @@ final class PortalService
 
     /**
      * Same-VPS fetch: avoid Cloudflare + never hit blocked 127.0.0.1 client path via public loop.
+     * XUI (k1) → nginx upstream :81; all2 /k1 → node :3000.
      */
     public static function rewriteLocalUpstreamUrl($url)
     {
         $url = trim((string) $url);
         if ($url === '') {
             return $url;
+        }
+        $xui = preg_replace(
+            '#^https?://(?:[^/]+\.)?k1\.shifshqip\.com(?::\d+)?(/.*)$#i',
+            'http://127.0.0.1:81$1',
+            $url,
+            1
+        );
+        if (is_string($xui) && $xui !== '' && strpos($xui, 'http://127.0.0.1:81/') === 0) {
+            return $xui;
         }
         $rewritten = preg_replace(
             '#^https?://(?:www\.)?shifshqip\.com(?::\d+)?(/k1/.*)$#i',
@@ -670,7 +709,7 @@ final class PortalService
         if ($depth > 5) {
             return array('ok' => false, 'status' => 0, 'error' => 'redirect_limit');
         }
-        $originalUrl = trim((string) $url);
+        $originalUrl = self::preferHlsSourceUrl(trim((string) $url));
         $url = self::rewriteLocalUpstreamUrl($originalUrl);
 
         $referer = !empty($portal['outbound_referer']) ? $portal['outbound_referer'] : '';
@@ -694,6 +733,10 @@ final class PortalService
         });
 
         $headers = array('Accept: */*');
+        if (strpos($url, 'http://127.0.0.1:81/') === 0) {
+            $headers[] = 'Host: k1.shifshqip.com';
+            $headers[] = 'X-Forwarded-Proto: https';
+        }
         if (strpos($url, 'http://127.0.0.1:3000/') === 0) {
             $headers[] = 'Host: shifshqip.com';
             $headers[] = 'X-Forwarded-Proto: https';
@@ -1142,11 +1185,12 @@ final class PortalService
             }
             $target = self::resolveRelativeUrl($trimmed, $sourceUrl);
             if ($target !== '' && preg_match('#^https?://#i', $target) && $accessKey !== '') {
+                // Seal only the play/m3u8 entry — /auth and /hls stay client↔CDN.
                 $target = self::optimizeK1PlaybackUrl($target);
                 $sealed = self::sealUrl($target, $accessKey);
                 $output[] = $sealed !== '' ? $base . '/r/' . $sealed : $target;
             } else {
-                $output[] = $target;
+                $output[] = $target !== '' ? self::optimizeK1PlaybackUrl($target) : $target;
             }
         }
         return implode("\n", $output);

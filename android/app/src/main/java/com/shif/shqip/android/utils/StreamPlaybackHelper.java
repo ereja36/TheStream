@@ -54,6 +54,12 @@ public final class StreamPlaybackHelper {
         if (lower.contains("playlist.shifshqip.com")) {
             return false;
         }
+        // XUI CDN play/auth/hls — play as-is (no portal proxy after resolve).
+        if (PortalResolveHelper.isDirectCdnUrl(trimmed)
+                && lower.contains("k1.shifshqip.com")
+                && (lower.contains("/play/") || lower.contains("/auth/") || lower.contains("/hls/"))) {
+            return true;
+        }
         if (lower.contains("shifshqip.com")
                 && !lower.contains("playlist.shifshqip.com")) {
             if (lower.contains("/k1/channel-proxy/")
