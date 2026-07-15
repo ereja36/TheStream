@@ -1154,18 +1154,25 @@ require_once("Rest.inc.php");
 					'portal_slug' => 'shifshqip',
 					'portal_name' => 'Shif Shqip',
 					'public_url' => '',
-					'session_token' => ''
+					'session_token' => '',
+					'content_version' => '',
+					'source_updated_at' => ''
 				);
 
 				$tableCheck = $this->mysqli->query("SHOW TABLES LIKE 'tbl_playlist_portal'");
 				if ($tableCheck && $tableCheck->num_rows > 0) {
-					$result = $this->mysqli->query("SELECT portal_slug, portal_name, status FROM tbl_playlist_portal ORDER BY id ASC LIMIT 1");
+					$result = $this->mysqli->query("SELECT portal_slug, portal_name, status, source_url, updated_at FROM tbl_playlist_portal ORDER BY id ASC LIMIT 1");
 					if ($result && ($row = $result->fetch_assoc())) {
 						$slug = isset($row['portal_slug']) ? (string) $row['portal_slug'] : 'shifshqip';
 						$portal['portal_slug'] = $slug;
 						$portal['portal_name'] = isset($row['portal_name']) ? (string) $row['portal_name'] : 'Shif Shqip';
 						$portal['enabled'] = isset($row['status']) && (int) $row['status'] === 1 ? 1 : 0;
 						$portal['public_url'] = 'https://playlist.shifshqip.com/';
+						$sourceUrl = isset($row['source_url']) ? trim((string) $row['source_url']) : '';
+						$updatedAt = isset($row['updated_at']) ? trim((string) $row['updated_at']) : '';
+						// App uses this to auto-reload channels when admin changes playlist-portal source.
+						$portal['content_version'] = md5($sourceUrl . '|' . $updatedAt);
+						$portal['source_updated_at'] = $updatedAt;
 						if ($portal['enabled'] === 1 && strlen($deviceId) >= 8) {
 							$portal['session_token'] = $this->issuePortalSession($deviceId);
 						}

@@ -217,11 +217,21 @@ public final class DeviceApiHelper {
             if (portal.optInt("enabled", 0) == 1) {
                 String sessionToken = portal.optString("session_token", "");
                 String previousToken = sharedPref.getPortalSessionToken();
+                String contentVersion = portal.optString("content_version", "").trim();
+                String previousVersion = sharedPref.getPortalContentVersion();
                 sharedPref.savePortalSessionToken(sessionToken);
                 sharedPref.clearPortalStreamConfig();
-                if (!TextUtils.isEmpty(sessionToken)
+                boolean portalContentChanged = !TextUtils.isEmpty(contentVersion)
+                        && !contentVersion.equals(previousVersion);
+                if (!TextUtils.isEmpty(contentVersion)) {
+                    sharedPref.savePortalContentVersion(contentVersion);
+                }
+                // Clear cache when admin changes playlist-portal source (content_version),
+                // or when the portal session token is rotated.
+                if (portalContentChanged
+                        || (!TextUtils.isEmpty(sessionToken)
                         && !TextUtils.isEmpty(previousToken)
-                        && !sessionToken.equals(previousToken)) {
+                        && !sessionToken.equals(previousToken))) {
                     sharedPref.clearPlaylistChannels();
                 }
             } else {
