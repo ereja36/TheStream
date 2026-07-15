@@ -240,6 +240,16 @@ final class PortalService
             return false;
         }
         $lower = strtolower($url);
+        // Media-Colony A3 + common CDN hosts (including .js gate URLs).
+        if (strpos($lower, 'fastlycache.com') !== false
+            || strpos($lower, 'anytools.eu.org') !== false
+            || strpos($lower, 'unique-user-id=') !== false
+            || strpos($lower, 'gcore-cdn.org') !== false
+            || strpos($lower, 'gjirafa.net') !== false
+            || strpos($lower, 'gjirafa.com') !== false
+            || strpos($lower, 'ngolpdkyoctjcddxshli469r.org') !== false) {
+            return true;
+        }
         if (strpos($lower, '.m3u8') !== false || strpos($lower, '.mpd') !== false || strpos($lower, '.m3u') !== false) {
             return true;
         }
@@ -281,7 +291,14 @@ final class PortalService
         if ($resolved !== '' && strcasecmp($resolved, $url) !== 0) {
             return self::resolveToDirectCdnUrl($portal, $resolved, $depth + 1);
         }
-        return self::isDirectCdnUrl($url) ? $url : '';
+        if (self::isDirectCdnUrl($url)) {
+            return $url;
+        }
+        // Private all2 streams no longer unwrap to raw CDN; allow proxy URLs for app playback.
+        if (self::isPlayableAll2Url($url)) {
+            return $url;
+        }
+        return '';
     }
 
     public static function unwrapProxyManifest($portal, $proxyUrl)
@@ -329,22 +346,27 @@ final class PortalService
      * Server-side k1 channel-url lookup — resolves to channel-proxy on the
      * portal only; client streams directly from shifshqip.com afterward.
      */
-    public static function resolveK1ChannelPortalUrl($portal, $host, $slug, $accessKey)
+    public static function resolveK1ChannelPortalUrl($portal, $host, $slug, $accessKey, $clientIpv4 = '')
     {
         $slug = trim((string) $slug);
         if ($slug === '') {
-            return '';
+            return null;
         }
         $apiUrl = 'https://shifshqip.com/k1/api/channel-url/' . rawurlencode($slug);
-        $upstream = self::fetchUpstream($portal, $apiUrl);
+        $clientIpv4 = trim((string) $clientIpv4);
+        if ($clientIpv4 !== '' && preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $clientIpv4)) {
+            $apiUrl .= (strpos($apiUrl, '?') === false ? '?' : '&') . 'ipv4=' . rawurlencode($clientIpv4);
+        }
+        $upstream = self::fetchChannelUrlApi($portal, $apiUrl, $clientIpv4);
         if (!$upstream['ok']) {
-            return '';
+            return null;
         }
         $json = json_decode($upstream['body'], true);
         if (!is_array($json) || empty($json['ok'])) {
-            return '';
+            return null;
         }
         $url = '';
+        // Prefer direct CDN for app (fastly/gcore). Avoid Worker URLs that DC-block.
         foreach (array('direct_url', 'upstream_url', 'cdn_url', 'url', 'proxy_url') as $key) {
             if (!empty($json[$key])) {
                 $url = trim((string) $json[$key]);
@@ -352,13 +374,83 @@ final class PortalService
             }
         }
         if ($url === '') {
-            return '';
+            return null;
         }
         if ($url[0] === '/') {
             $url = 'https://shifshqip.com' . $url;
         }
         $direct = self::resolveToDirectCdnUrl($portal, $url);
-        return ($direct !== '' && self::isDirectCdnUrl($direct)) ? $direct : '';
+        if ($direct === '' || (!self::isDirectCdnUrl($direct) && !self::isPlayableAll2Url($direct))) {
+            // Still accept known A3 hosts / all2 proxy URLs even if unwrap failed.
+            if (self::isDirectCdnUrl($url) || self::isPlayableAll2Url($url)) {
+                $direct = $url;
+            } else {
+                return null;
+            }
+        }
+        $headers = array();
+        if (!empty($json['headers']) && is_array($json['headers'])) {
+            $headers = $json['headers'];
+        }
+        $userAgent = isset($json['user_agent']) ? trim((string) $json['user_agent']) : '';
+        return array(
+            'url' => $direct,
+            'headers' => $headers,
+            'user_agent' => $userAgent,
+            'a3_cdn' => isset($json['a3_cdn']) ? (string) $json['a3_cdn'] : '',
+            'direct_url' => !empty($json['direct_url']) ? trim((string) $json['direct_url']) : $direct
+        );
+    }
+
+    /**
+     * Fetch channel-url API as the app would: forward device IP + app markers so
+     * A3 preferDirect + cip rewrite use the phone's residential IPv4.
+     */
+    public static function fetchChannelUrlApi($portal, $apiUrl, $clientIpv4 = '')
+    {
+        $apiUrl = trim((string) $apiUrl);
+        if ($apiUrl === '') {
+            return array('ok' => false, 'body' => '', 'http_code' => 0);
+        }
+        $ch = curl_init($apiUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'ShifShqip/Portal (Android)');
+        $headers = array(
+            'Accept: application/json',
+            'X-Shif-App: 1',
+            'X-Requested-With: com.shif.shqip.android',
+            'X-Shif-Portal-Resolve: 1'
+        );
+        $clientIpv4 = trim((string) $clientIpv4);
+        if ($clientIpv4 !== '' && preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $clientIpv4)) {
+            $headers[] = 'X-Forwarded-For: ' . $clientIpv4;
+            $headers[] = 'CF-Connecting-IP: ' . $clientIpv4;
+            $headers[] = 'X-Real-IP: ' . $clientIpv4;
+        }
+        if (!empty($portal['outbound_extra_headers'])) {
+            $extra = json_decode($portal['outbound_extra_headers'], true);
+            if (is_array($extra)) {
+                foreach ($extra as $key => $value) {
+                    if ($key !== '' && $value !== '') {
+                        $headers[] = $key . ': ' . $value;
+                    }
+                }
+            }
+        }
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        return array(
+            'ok' => $body !== false && $code >= 200 && $code < 400,
+            'body' => $body === false ? '' : $body,
+            'http_code' => $code
+        );
     }
 
     public static function isK1ChannelProxyUrl($url)
@@ -371,6 +463,27 @@ final class PortalService
     {
         $url = strtolower((string) $url);
         return strpos($url, '/k1/playlist/') !== false;
+    }
+
+    /**
+     * all2 private delivery serves streams via /k1/playlist|/channel-proxy|/proxy.
+     * These are playable by the app even when no raw Fastly/Gcore URL is exposed.
+     */
+    public static function isPlayableAll2Url($url)
+    {
+        $url = strtolower(trim((string) $url));
+        if ($url === '' || strpos($url, 'shifshqip.com') === false) {
+            return false;
+        }
+        // Match /k1/a3hls?id=... (no trailing slash) as well as /k1/a3hls/...
+        return strpos($url, '/k1/playlist/') !== false
+            || strpos($url, '/k1/channel-proxy/') !== false
+            || strpos($url, '/k1/channel/') !== false
+            || strpos($url, '/k1/proxy/') !== false
+            || strpos($url, '/k1/a3proxy') !== false
+            || strpos($url, '/k1/a3relay') !== false
+            || strpos($url, '/k1/a3hls') !== false
+            || strpos($url, '/app-measurement/') !== false;
     }
 
     /**
@@ -426,7 +539,12 @@ final class PortalService
             return strlen($headerLine);
         });
 
-        $headers = array('Accept: */*');
+        $headers = array(
+            'Accept: */*',
+            // Prefer app/direct A3 paths (fastly) over datacenter a3hls remux.
+            'X-Shif-App: 1',
+            'X-Requested-With: com.shif.shqip.android'
+        );
         if (!empty($portal['outbound_user_agent'])) {
             curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
         } else {

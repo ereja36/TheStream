@@ -225,7 +225,7 @@ public final class PlaylistGuardHelper {
                 String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, urlString);
                 return TextUtils.isEmpty(direct) ? urlString : direct;
             }
-            if (PortalResolveHelper.isDirectCdnUrl(urlString)) {
+            if (PortalResolveHelper.isPlayableStreamUrl(urlString)) {
                 return urlString;
             }
         }
@@ -525,7 +525,7 @@ public final class PlaylistGuardHelper {
     }
 
     private static boolean isFinalChannelUrl(String url) {
-        return PortalResolveHelper.isDirectCdnUrl(url);
+        return PortalResolveHelper.isPlayableStreamUrl(url);
     }
 
     private static boolean isDirectStreamUrl(String url) {

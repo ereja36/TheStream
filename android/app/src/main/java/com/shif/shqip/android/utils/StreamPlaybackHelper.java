@@ -60,11 +60,11 @@ public final class StreamPlaybackHelper {
     }
 
     public static boolean canPlayDirectly(SharedPref sharedPref, String sourceUrl) {
-        return isRawPlaylistStreamUrl(sourceUrl) || PortalResolveHelper.isDirectCdnUrl(sourceUrl);
+        return isRawPlaylistStreamUrl(sourceUrl) || PortalResolveHelper.isPlayableStreamUrl(sourceUrl);
     }
 
     public static boolean isPlayableUrl(String url) {
-        return isRawPlaylistStreamUrl(url) || PortalResolveHelper.isDirectCdnUrl(url);
+        return isRawPlaylistStreamUrl(url) || PortalResolveHelper.isPlayableStreamUrl(url);
     }
 
     /**
@@ -80,7 +80,7 @@ public final class StreamPlaybackHelper {
             return trimmed;
         }
 
-        if (PortalResolveHelper.isDirectCdnUrl(trimmed)) {
+        if (PortalResolveHelper.isPlayableStreamUrl(trimmed)) {
             return trimmed;
         }
 
@@ -100,7 +100,7 @@ public final class StreamPlaybackHelper {
                 && !PlaylistPortalHelper.isPortalResolveUrl(trimmed)) {
             String portalUrl = K1ChannelUrlHelper.resolvePlayableUrl(sharedPref, k1Slug);
             if (!TextUtils.isEmpty(portalUrl)) {
-                if (isRawPlaylistStreamUrl(portalUrl) || PortalResolveHelper.isDirectCdnUrl(portalUrl)) {
+                if (isRawPlaylistStreamUrl(portalUrl) || PortalResolveHelper.isPlayableStreamUrl(portalUrl)) {
                     return portalUrl;
                 }
                 String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, portalUrl);

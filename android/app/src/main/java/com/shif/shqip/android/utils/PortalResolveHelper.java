@@ -16,7 +16,7 @@ import java.net.URL;
 import java.util.Locale;
 
 /**
- * One-shot portal resolve: sealed playlist URLs → direct CDN stream URL.
+ * One-shot portal resolve: sealed playlist URLs → playable stream URL (CDN or all2).
  */
 public final class PortalResolveHelper {
 
@@ -45,7 +45,7 @@ public final class PortalResolveHelper {
             return "";
         }
         String trimmed = sourceUrl.trim();
-        if (isDirectCdnUrl(trimmed)) {
+        if (isPlayableStreamUrl(trimmed)) {
             return trimmed;
         }
         if (PlaylistPortalHelper.isPortalResolveUrl(trimmed)) {
@@ -65,7 +65,7 @@ public final class PortalResolveHelper {
             return cached.url;
         }
         String resolved = fetchDirectUrl(sharedPref, portalUrl);
-        if (isDirectCdnUrl(resolved)) {
+        if (isPlayableStreamUrl(resolved)) {
             URL_CACHE.put(cacheKey, new CacheEntry(resolved, System.currentTimeMillis() + CACHE_TTL_MS));
             return resolved;
         }
@@ -102,7 +102,7 @@ public final class PortalResolveHelper {
 
             int code = connection.getResponseCode();
             String finalUrl = connection.getURL().toString();
-            if (code >= 200 && code < 400 && isDirectCdnUrl(finalUrl)) {
+            if (code >= 200 && code < 400 && isPlayableStreamUrl(finalUrl)) {
                 URL_CACHE.put(cacheKey, new CacheEntry(finalUrl, System.currentTimeMillis() + CACHE_TTL_MS));
                 return finalUrl;
             }
@@ -114,12 +114,17 @@ public final class PortalResolveHelper {
                         if (line.isEmpty() || line.startsWith("#")) {
                             continue;
                         }
-                        if (line.startsWith("http") && isDirectCdnUrl(line)) {
+                        if (line.startsWith("http") && isPlayableStreamUrl(line)) {
                             URL_CACHE.put(cacheKey, new CacheEntry(line, System.currentTimeMillis() + CACHE_TTL_MS));
                             return line;
                         }
                     }
                 }
+            }
+            // all2 playlist entries are themselves playable (manifest + /proxy/seg).
+            if (code >= 200 && code < 300 && isPlayableAll2Url(startUrl)) {
+                URL_CACHE.put(cacheKey, new CacheEntry(startUrl, System.currentTimeMillis() + CACHE_TTL_MS));
+                return startUrl;
             }
             return "";
         } catch (Exception e) {
@@ -176,7 +181,7 @@ public final class PortalResolveHelper {
             int code = connection.getResponseCode();
             if (code >= 300 && code < 400) {
                 String location = connection.getHeaderField("Location");
-                if (!TextUtils.isEmpty(location) && isDirectCdnUrl(location)) {
+                if (!TextUtils.isEmpty(location) && isPlayableStreamUrl(location)) {
                     return location;
                 }
             }
@@ -202,7 +207,7 @@ public final class PortalResolveHelper {
                 return "";
             }
             String url = json.optString("url", "").trim();
-            if (isDirectCdnUrl(url)) {
+            if (isPlayableStreamUrl(url)) {
                 return url;
             }
             if (!TextUtils.isEmpty(url)) {
@@ -217,6 +222,32 @@ public final class PortalResolveHelper {
                 connection.disconnect();
             }
         }
+    }
+
+    /** CDN direct OR same-origin all2 delivery URL the player can open. */
+    public static boolean isPlayableStreamUrl(String url) {
+        return isDirectCdnUrl(url) || isPlayableAll2Url(url);
+    }
+
+    /**
+     * all2 private delivery: /k1/playlist, /channel, a3hls, proxy — playable by ExoPlayer with Ooew UA.
+     */
+    public static boolean isPlayableAll2Url(String url) {
+        if (TextUtils.isEmpty(url)) {
+            return false;
+        }
+        String lower = url.toLowerCase(Locale.US);
+        if (!lower.contains("shifshqip.com")) {
+            return false;
+        }
+        return lower.contains("/k1/playlist/")
+                || lower.contains("/k1/channel-proxy/")
+                || lower.contains("/k1/channel/")
+                || lower.contains("/k1/proxy/")
+                || lower.contains("/k1/a3proxy")
+                || lower.contains("/k1/a3relay")
+                || lower.contains("/k1/a3hls")
+                || lower.contains("/app-measurement/");
     }
 
     public static boolean isDirectCdnUrl(String url) {
@@ -236,12 +267,22 @@ public final class PortalResolveHelper {
                     || lower.contains("/k1/proxy/")
                     || lower.contains("/k1/channel/")
                     || lower.contains("/k1/playlist/")
+                    || lower.contains("/k1/a3")
                     || lower.contains("/app-measurement/collect/")) {
                 return false;
             }
         }
         if (lower.contains("/r/") && lower.contains("/app-measurement/collect/")) {
             return false;
+        }
+        if (lower.contains("fastlycache.com")
+                || lower.contains("anytools.eu.org")
+                || lower.contains("unique-user-id=")
+                || lower.contains("gcore-cdn.org")
+                || lower.contains("gjirafa.net")
+                || lower.contains("gjirafa.com")
+                || lower.contains("ngolpdkyoctjcddxshli469r.org")) {
+            return true;
         }
         return lower.contains(".m3u8")
                 || lower.contains(".mpd")
