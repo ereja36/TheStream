@@ -14,9 +14,14 @@ python3 deploy/all2-web/scripts/patch-lokke-direct-redirect.py
 python3 deploy/all2-web/scripts/patch-lokke-hls-player.py
 python3 deploy/all2-web/scripts/patch-all-sources-direct-redirect.py
 python3 deploy/all2-web/scripts/patch-direct-source-hard-redirect.py
+python3 deploy/all2-web/scripts/patch-hlsjs-live-harden.py
 node --check /root/all/all2/server.js
 pm2 reload all2 --update-env
 ```
+
+## HLS.js live harden
+
+`patch-hlsjs-live-harden.py` pins **hls.js@1.6.16**, always enables the worker, raises live buffers/retries, soft-recovers media/network errors before full reload, and is more patient on stalls.
 
 ## Admin Direct / Proxy by Source
 
