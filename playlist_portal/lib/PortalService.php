@@ -230,6 +230,45 @@ final class PortalService
             || strpos($lower, '/app-measurement/collect/') !== false;
     }
 
+    /**
+     * XUI on k1: /play/TOKEN/m3u8 (no ".m3u8"), /auth/TOKEN, /hls/TOKEN.
+     * Client must open /play/ itself so auth tokens bind to the phone IP — do not
+     * unwrap /play/ → /auth/ on the portal/VPS.
+     */
+    public static function isXuiDirectUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '' || !preg_match('#^https?://#i', $url)) {
+            return false;
+        }
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($host === '' || ($host !== 'k1.shifshqip.com' && !preg_match('#\.k1\.shifshqip\.com$#', $host))) {
+            return false;
+        }
+        $path = strtolower((string) parse_url($url, PHP_URL_PATH));
+        return (bool) preg_match('#^/(play|auth|hls)(/|$)#', $path)
+            || (bool) preg_match('#/m3u8$#', $path);
+    }
+
+    /**
+     * Strip :443 and add ?.m3u8 so older app builds that only match ".m3u8" still play.
+     */
+    public static function normalizeDirectPlaybackUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        $url = preg_replace('#^(https?://[^/]+):443(/)#i', '$1$2', $url);
+        if (!is_string($url) || $url === '') {
+            return '';
+        }
+        if (self::isXuiDirectUrl($url) && stripos($url, '.m3u8') === false) {
+            $url .= (strpos($url, '?') === false ? '?' : '&') . '.m3u8';
+        }
+        return $url;
+    }
+
     public static function isDirectCdnUrl($url)
     {
         $url = trim((string) $url);
@@ -238,6 +277,9 @@ final class PortalService
         }
         if (self::isOurInfrastructureUrl($url)) {
             return false;
+        }
+        if (self::isXuiDirectUrl($url)) {
+            return true;
         }
         $lower = strtolower($url);
         // Media-Colony A3 + common CDN hosts (including .js gate URLs).
@@ -250,13 +292,16 @@ final class PortalService
             || strpos($lower, 'ngolpdkyoctjcddxshli469r.org') !== false) {
             return true;
         }
-        if (strpos($lower, '.m3u8') !== false || strpos($lower, '.mpd') !== false || strpos($lower, '.m3u') !== false) {
+        // XUI-style path "/m3u8" (no dot) and normal playlist extensions.
+        if (strpos($lower, '.m3u8') !== false || strpos($lower, '.mpd') !== false || strpos($lower, '.m3u') !== false
+            || preg_match('#/m3u8(\?|$)#', $lower)) {
             return true;
         }
         if (preg_match('#^https?://[^/]+:\d+/.+#i', $url)) {
             return true;
         }
-        return strpos($lower, '/live/') !== false || strpos($lower, '/hls/') !== false;
+        return strpos($lower, '/live/') !== false || strpos($lower, '/hls/') !== false
+            || strpos($lower, '/play/') !== false || strpos($lower, '/auth/') !== false;
     }
 
     /**
@@ -269,18 +314,22 @@ final class PortalService
             return '';
         }
         if (self::isDirectCdnUrl($url)) {
-            return $url;
+            return self::normalizeDirectPlaybackUrl($url);
         }
         if (self::isK1ChannelProxyUrl($url)
             || (strpos(strtolower($url), '/k1/channel/') !== false && strpos(strtolower($url), 'shifshqip.com') !== false)) {
             $direct = self::unwrapProxyManifest($portal, $url);
             if ($direct !== '') {
-                return $direct;
+                return self::normalizeDirectPlaybackUrl($direct);
             }
         }
         if (self::isK1PlaylistEntryUrl($url) || strpos(strtolower($url), '/k1/channel/') !== false) {
             $resolved = self::resolveStreamEntryUrl($portal, $url);
             if ($resolved !== '' && strcasecmp($resolved, $url) !== 0) {
+                // Stop at XUI /play/ — do not follow to /auth/ on the VPS (IP-bound tokens).
+                if (self::isXuiDirectUrl($resolved) || self::isDirectCdnUrl($resolved)) {
+                    return self::normalizeDirectPlaybackUrl($resolved);
+                }
                 return self::resolveToDirectCdnUrl($portal, $resolved, $depth + 1);
             }
         }
@@ -289,10 +338,13 @@ final class PortalService
         }
         $resolved = self::resolveStreamEntryUrl($portal, $url);
         if ($resolved !== '' && strcasecmp($resolved, $url) !== 0) {
+            if (self::isXuiDirectUrl($resolved) || self::isDirectCdnUrl($resolved)) {
+                return self::normalizeDirectPlaybackUrl($resolved);
+            }
             return self::resolveToDirectCdnUrl($portal, $resolved, $depth + 1);
         }
         if (self::isDirectCdnUrl($url)) {
-            return $url;
+            return self::normalizeDirectPlaybackUrl($url);
         }
         // Private all2 streams no longer unwrap to raw CDN; allow proxy URLs for app playback.
         if (self::isPlayableAll2Url($url)) {
@@ -519,6 +571,7 @@ final class PortalService
         if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
             return '';
         }
+        $fetchUrl = self::rewriteLocalUpstreamUrl($entryUrl);
         $referer = !empty($portal['outbound_referer']) ? $portal['outbound_referer'] : '';
         if ($referer === '' && !empty($portal['source_url'])) {
             $referer = $portal['source_url'];
@@ -526,7 +579,7 @@ final class PortalService
 
         $redirectLocation = '';
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $entryUrl);
+        curl_setopt($ch, CURLOPT_URL, $fetchUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
@@ -545,6 +598,12 @@ final class PortalService
             'X-Shif-App: 1',
             'X-Requested-With: com.shif.shqip.android'
         );
+        if (strpos($fetchUrl, 'http://127.0.0.1:3000/') === 0) {
+            $headers[] = 'Host: shifshqip.com';
+            $headers[] = 'X-Forwarded-Proto: https';
+            $headers[] = 'CF-Connecting-IP: 1.1.1.1';
+            $headers[] = 'X-Forwarded-For: 1.1.1.1';
+        }
         if (!empty($portal['outbound_user_agent'])) {
             curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
         } else {
@@ -588,11 +647,31 @@ final class PortalService
         return '';
     }
 
+    /**
+     * Same-VPS fetch: avoid Cloudflare + never hit blocked 127.0.0.1 client path via public loop.
+     */
+    public static function rewriteLocalUpstreamUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return $url;
+        }
+        $rewritten = preg_replace(
+            '#^https?://(?:www\.)?shifshqip\.com(?::\d+)?(/k1/.*)$#i',
+            'http://127.0.0.1:3000$1',
+            $url,
+            1
+        );
+        return is_string($rewritten) && $rewritten !== '' ? $rewritten : $url;
+    }
+
     public static function fetchUpstream($portal, $url, $depth = 0)
     {
         if ($depth > 5) {
             return array('ok' => false, 'status' => 0, 'error' => 'redirect_limit');
         }
+        $originalUrl = trim((string) $url);
+        $url = self::rewriteLocalUpstreamUrl($originalUrl);
 
         $referer = !empty($portal['outbound_referer']) ? $portal['outbound_referer'] : '';
         if ($referer === '' && !empty($portal['source_url'])) {
@@ -615,6 +694,12 @@ final class PortalService
         });
 
         $headers = array('Accept: */*');
+        if (strpos($url, 'http://127.0.0.1:3000/') === 0) {
+            $headers[] = 'Host: shifshqip.com';
+            $headers[] = 'X-Forwarded-Proto: https';
+            $headers[] = 'CF-Connecting-IP: 1.1.1.1';
+            $headers[] = 'X-Forwarded-For: 1.1.1.1';
+        }
         if (!empty($portal['outbound_user_agent'])) {
             curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
         } else {
@@ -659,7 +744,8 @@ final class PortalService
                 $nextUrl = $matches[1];
             }
             if ($nextUrl !== '') {
-                $nextUrl = self::resolveRelativeUrl($nextUrl, $url);
+                $baseForRelative = $originalUrl !== '' ? $originalUrl : $url;
+                $nextUrl = self::resolveRelativeUrl($nextUrl, $baseForRelative);
                 return self::fetchUpstream($portal, $nextUrl, $depth + 1);
             }
             return array('ok' => false, 'status' => $status, 'error' => 'redirect_missing');
@@ -670,7 +756,8 @@ final class PortalService
         }
 
         if (preg_match('#Redirecting to\s+(/[^\s"\'<>]+)#i', (string) $body, $matches)) {
-            $nextUrl = self::resolveRelativeUrl($matches[1], $url);
+            $baseForRelative = $originalUrl !== '' ? $originalUrl : $url;
+            $nextUrl = self::resolveRelativeUrl($matches[1], $baseForRelative);
             if ($nextUrl !== '') {
                 return self::fetchUpstream($portal, $nextUrl, $depth + 1);
             }

@@ -14,10 +14,17 @@ python3 deploy/all2-web/scripts/patch-lokke-direct-redirect.py
 python3 deploy/all2-web/scripts/patch-lokke-hls-player.py
 python3 deploy/all2-web/scripts/patch-all-sources-direct-redirect.py
 python3 deploy/all2-web/scripts/patch-direct-source-hard-redirect.py
+python3 deploy/all2-web/scripts/patch-xui-direct-play-redirect.py
 python3 deploy/all2-web/scripts/patch-hlsjs-live-harden.py
 node --check /root/all/all2/server.js
 pm2 reload all2 --update-env
 ```
+
+## XUI Custom Sport Direct (`k1.../play/.../m3u8`)
+
+`patch-xui-direct-play-redirect.py` keeps Direct as a **302 to `/play/`** (phone completes `/auth/` so tokens bind to the device IP). Appends `?.m3u8` for older app builds that only matched `.m3u8`.
+
+Portal/Android also treat `k1.shifshqip.com/play|/auth|/hls` as direct CDN and must **not** unwrap `/play/` → `/auth/` on the VPS.
 
 ## HLS.js live harden
 

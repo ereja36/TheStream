@@ -315,12 +315,34 @@ public final class PortalResolveHelper {
                 || lower.contains("ngolpdkyoctjcddxshli469r.org")) {
             return true;
         }
+        // XUI on k1: /play/TOKEN/m3u8 (no ".m3u8"), /auth/, /hls/
+        if (hostIsK1ShifShqip(lower)
+                && (lower.contains("/play/")
+                || lower.contains("/auth/")
+                || lower.contains("/hls/")
+                || lower.contains("/m3u8"))) {
+            return true;
+        }
         return lower.contains(".m3u8")
                 || lower.contains(".mpd")
                 || lower.contains(".m3u")
+                || lower.contains("/m3u8")
                 || lower.startsWith("rtsp://")
                 || lower.startsWith("rtmp://")
                 || lower.contains("/live/")
-                || lower.contains("/hls/");
+                || lower.contains("/hls/")
+                || lower.contains("/play/")
+                || lower.contains("/auth/");
+    }
+
+    private static boolean hostIsK1ShifShqip(String lowerUrl) {
+        try {
+            String host = new URL(lowerUrl).getHost();
+            return "k1.shifshqip.com".equals(host)
+                    || (host != null && host.endsWith(".k1.shifshqip.com"));
+        } catch (Exception e) {
+            return lowerUrl.contains("://k1.shifshqip.com/")
+                    || lowerUrl.contains("://k1.shifshqip.com:");
+        }
     }
 }
