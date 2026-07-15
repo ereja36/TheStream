@@ -875,6 +875,17 @@ public final class DeviceApiHelper {
             }
             String payloadHeader = connection.getHeaderField("X-Shif-Payload");
             String body = readResponseBody(connection);
+            if ("enc-api".equalsIgnoreCase(payloadHeader)) {
+                if (TextUtils.isEmpty(deviceId) && sharedPref != null) {
+                    deviceId = getLocalDeviceId(sharedPref.getContext());
+                }
+                String apiKeyMaterial = PlaylistPortalHelper.derivePlaylistKey(deviceId, Config.REST_API_KEY);
+                String decrypted = PlaylistPortalHelper.decryptPayload(body, apiKeyMaterial);
+                if (!TextUtils.isEmpty(decrypted)) {
+                    return decrypted;
+                }
+                throw new IOException("enc-api decrypt failed");
+            }
             if ("enc".equalsIgnoreCase(payloadHeader) && sharedPref != null) {
                 String sessionToken = sharedPref.getPortalSessionToken();
                 if (TextUtils.isEmpty(sessionToken)) {
@@ -904,7 +915,7 @@ public final class DeviceApiHelper {
             return "";
         }
         String payloadHeader = connection.getHeaderField("X-Shif-Payload");
-        if ("enc".equalsIgnoreCase(payloadHeader)) {
+        if ("enc".equalsIgnoreCase(payloadHeader) || "enc-api".equalsIgnoreCase(payloadHeader)) {
             return new String(readAllBytes(inputStream), StandardCharsets.UTF_8).trim();
         }
         return readAll(inputStream);

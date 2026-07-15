@@ -666,7 +666,7 @@ require_once("Rest.inc.php");
 				$blockReason = '';
 				if ($this->isDeviceBlocked($device_id, $blockReason)) {
 					$resp = array("status" => 'failed', "msg" => 'device blocked', "device_id" => $device_id, "blocked" => 1, "reason" => $blockReason, "count" => 0, "playlists" => array());
-					$this->response($this->json($resp), 200);
+					$this->respondEncrypted($resp, $device_id, $api_key);
 					return;
 				}
 
@@ -681,11 +681,19 @@ require_once("Rest.inc.php");
 				if ($globalEnabled && $globalUrl != '') {
 					$globalUrlEsc = mysqli_real_escape_string($connect, $globalUrl);
 					$globalNameEsc = mysqli_real_escape_string($connect, $globalName);
+					// Portal playlist must be type "website" so the app sends X-Shif session headers.
+					// Using "m3u" makes the app fetch without portal auth and get the HTML landing page.
+					$globalType = 'm3u';
+					$globalUrlLower = strtolower($globalUrl);
+					if (strpos($globalUrlLower, 'playlist.shifshqip.com') !== false
+						|| strpos($globalUrlLower, '/app-measurement/collect/') !== false) {
+						$globalType = 'website';
+					}
 					$playlists = array(array(
 						'id' => 0,
 						'device_id' => $device_id,
 						'playlist_name' => $globalNameEsc,
-						'playlist_type' => 'm3u',
+						'playlist_type' => $globalType,
 						'playlist_source' => $globalUrlEsc,
 						'channels_count' => 0,
 						'status' => 1,
@@ -698,7 +706,7 @@ require_once("Rest.inc.php");
 						'hide_source' => 1,
 						'playlists' => $playlists
 					);
-					$this->response($this->json($respon), 200);
+					$this->respondEncrypted($respon, $device_id, $api_key);
 					return;
 				}
 
@@ -707,8 +715,21 @@ require_once("Rest.inc.php");
 						  WHERE device_id = '$device_id' AND status = 1
 						  ORDER BY status DESC, updated_at DESC";
 				$playlists = $this->get_list_result($query);
-				$respon = array('status' => 'ok', 'count' => count($playlists), 'global_override' => 0, 'hide_source' => 0, 'playlists' => $playlists);
-				$this->response($this->json($respon), 200);
+				// Never expose channel URLs in plaintext API — app loads channels from portal.
+				foreach ($playlists as &$playlistRow) {
+					if (is_array($playlistRow)) {
+						$playlistRow['channels_snapshot'] = '';
+						if (!empty($playlistRow['playlist_source'])
+							&& (stripos($playlistRow['playlist_source'], 'playlist.shifshqip.com') !== false
+								|| stripos($playlistRow['playlist_source'], '/app-measurement/collect/') !== false)) {
+							$playlistRow['playlist_source'] = 'https://playlist.shifshqip.com/';
+							$playlistRow['playlist_type'] = 'website';
+						}
+					}
+				}
+				unset($playlistRow);
+				$respon = array('status' => 'ok', 'count' => count($playlists), 'global_override' => 0, 'hide_source' => 1, 'playlists' => $playlists);
+				$this->respondEncrypted($respon, $device_id, $api_key);
 			} else {
 				$this->responseInvalidParam();
 			}
@@ -747,7 +768,7 @@ require_once("Rest.inc.php");
 					'blocked' => $blocked ? 1 : 0,
 					'reason' => $blockReason
 				);
-				$this->response($this->json($respon), 200);
+				$this->respondEncrypted($respon, $device_id, $api_key);
 			} else {
 				$this->responseInvalidParam();
 			}
@@ -785,9 +806,10 @@ require_once("Rest.inc.php");
 					'status' => 'ok',
 					'device_id' => $device_id,
 					'blocked' => $blocked ? 1 : 0,
-					'reason' => $blockReason
+					'reason' => $blockReason,
+					'no_ads' => $this->isDeviceNoAds($device_id) ? 1 : 0
 				);
-				$this->response($this->json($respon), 200);
+				$this->respondEncrypted($respon, $device_id, $api_key);
 			} else {
 				$this->responseInvalidParam();
 			}
@@ -1447,6 +1469,40 @@ require_once("Rest.inc.php");
 		/* ==================================== End of API utilities ==========================================
 		 * ====================================================================================================
 		 */
+
+		/**
+		 * Encrypt sensitive JSON for the official app (X-Shif-Payload: enc-api).
+		 * Key = HMAC-SHA256(device_id, api_key) → SHA-256 → AES-256-CBC.
+		 */
+		private function encryptApiPayload($plaintext, $deviceId, $apiKey) {
+			$plaintext = (string) $plaintext;
+			$deviceId = trim((string) $deviceId);
+			$apiKey = (string) $apiKey;
+			if ($plaintext === '' || $deviceId === '' || $apiKey === '') {
+				return '';
+			}
+			$derived = hash_hmac('sha256', $deviceId, $apiKey);
+			$key = hash('sha256', $derived, true);
+			$iv = random_bytes(16);
+			$encrypted = openssl_encrypt($plaintext, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
+			if ($encrypted === false) {
+				return '';
+			}
+			return base64_encode($iv . $encrypted);
+		}
+
+		private function respondEncrypted($data, $deviceId, $apiKey) {
+			$json = $this->json($data);
+			$blob = $this->encryptApiPayload($json, $deviceId, $apiKey);
+			if ($blob === '') {
+				$this->response($json, 200);
+				return;
+			}
+			header('X-Shif-Payload: enc-api');
+			header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+			$this->_content_type = 'application/octet-stream';
+			$this->response($blob, 200);
+		}
 
 		/* Encode array into JSON */
 		private function json($data) {
