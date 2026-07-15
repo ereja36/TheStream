@@ -1,0 +1,34 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.google.android.exoplayer2.ext.ffmpeg.extension-ffmpeg-release-7:/values-en-rXC/values-en-rXC.xml",
+            "map": [
+                {
+                    "source": "/home/ubuntu/.gradle/caches/8.13/transforms/b87ee76b28772ccf21456270e377d788/transformed/core-1.8.0/res/values-en-rXC/values-en-rXC.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "203",
+                        "endOffsets": "254"
+                    }
+                }
+            ]
+        },
+        {
+            "outputFile": "com.google.android.exoplayer2.ext.ffmpeg.extension-ffmpeg-mergeReleaseResources-5:/values-en-rXC/values-en-rXC.xml",
+            "map": [
+                {
+                    "source": "/home/ubuntu/.gradle/caches/8.13/transforms/b87ee76b28772ccf21456270e377d788/transformed/core-1.8.0/res/values-en-rXC/values-en-rXC.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "203",
+                        "endOffsets": "254"
+                    }
+                }
+            ]
+        }
+    ]
+}

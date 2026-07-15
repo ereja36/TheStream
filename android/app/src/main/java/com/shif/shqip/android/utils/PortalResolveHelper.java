@@ -315,13 +315,16 @@ public final class PortalResolveHelper {
                 || lower.contains("ngolpdkyoctjcddxshli469r.org")) {
             return true;
         }
-        // XUI on k1: /play/TOKEN/m3u8 (no ".m3u8"), /auth/, /hls/
-        if (hostIsK1ShifShqip(lower)
-                && (lower.contains("/play/")
-                || lower.contains("/auth/")
-                || lower.contains("/hls/")
-                || lower.contains("/m3u8"))) {
-            return true;
+        // XUI: /play/ stays server-side. Client only plays /auth/ + /hls/ on CDN.
+        if (hostIsK1ShifShqip(lower)) {
+            if (lower.contains("/play/")) {
+                return false;
+            }
+            if (lower.contains("/auth/")
+                    || lower.contains("/hls/")
+                    || lower.contains("/m3u8")) {
+                return true;
+            }
         }
         return lower.contains(".m3u8")
                 || lower.contains(".mpd")
@@ -331,7 +334,6 @@ public final class PortalResolveHelper {
                 || lower.startsWith("rtmp://")
                 || lower.contains("/live/")
                 || lower.contains("/hls/")
-                || lower.contains("/play/")
                 || lower.contains("/auth/");
     }
 

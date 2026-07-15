@@ -1,0 +1,18 @@
+[
+    {
+        "merged": "com.google.android.exoplayer2.ext.ffmpeg.extension-ffmpeg-release-7:/drawable/notification_tile_bg.xml",
+        "source": "com.google.android.exoplayer2.ext.ffmpeg.extension-ffmpeg-core-1.8.0-2:/drawable/notification_tile_bg.xml"
+    },
+    {
+        "merged": "com.google.android.exoplayer2.ext.ffmpeg.extension-ffmpeg-release-7:/drawable/notification_bg.xml",
+        "source": "com.google.android.exoplayer2.ext.ffmpeg.extension-ffmpeg-core-1.8.0-2:/drawable/notification_bg.xml"
+    },
+    {
+        "merged": "com.google.android.exoplayer2.ext.ffmpeg.extension-ffmpeg-release-7:/drawable/notification_icon_background.xml",
+        "source": "com.google.android.exoplayer2.ext.ffmpeg.extension-ffmpeg-core-1.8.0-2:/drawable/notification_icon_background.xml"
+    },
+    {
+        "merged": "com.google.android.exoplayer2.ext.ffmpeg.extension-ffmpeg-release-7:/drawable/notification_bg_low.xml",
+        "source": "com.google.android.exoplayer2.ext.ffmpeg.extension-ffmpeg-core-1.8.0-2:/drawable/notification_bg_low.xml"
+    }
+]

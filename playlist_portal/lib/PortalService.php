@@ -204,12 +204,18 @@ final class PortalService
     }
 
     /**
-     * Normalize XUI play URLs for sealing; do not force channel-proxy.
-     * Client will open /play/…/m3u8 then /auth + /hls on CDN directly.
+     * Normalize XUI /play/…/m3u8 for sealing (stay server-side). Do not unwrap to /auth/.
      */
     public static function optimizeK1PlaybackUrl($url)
     {
-        return self::normalizeDirectPlaybackUrl(trim((string) $url));
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        if (self::isXuiPlayUrl($url) || preg_match('#k1\.shifshqip\.com(?::\d+)?/play/#i', $url)) {
+            return self::normalizeXuiPlayEntryUrl($url);
+        }
+        return $url;
     }
 
     public static function isOurInfrastructureUrl($url)
@@ -232,23 +238,43 @@ final class PortalService
     }
 
     /**
-     * XUI on k1: /play/TOKEN/m3u8 (no ".m3u8"), /auth/TOKEN, /hls/TOKEN.
-     * Client must open /play/ itself so auth tokens bind to the phone IP — do not
-     * unwrap /play/ → /auth/ on the portal/VPS.
+     * XUI /play/… — permanent stream key. Keep server-side only (never return to app).
      */
-    public static function isXuiDirectUrl($url)
+    public static function isXuiPlayUrl($url)
     {
         $url = trim((string) $url);
         if ($url === '' || !preg_match('#^https?://#i', $url)) {
             return false;
         }
         $host = strtolower((string) parse_url($url, PHP_URL_HOST));
-        if ($host === '' || ($host !== 'k1.shifshqip.com' && !preg_match('#\.k1\.shifshqip\.com$#', $host))) {
+        if ($host !== 'k1.shifshqip.com' && !preg_match('#\.k1\.shifshqip\.com$#', $host)) {
             return false;
         }
         $path = strtolower((string) parse_url($url, PHP_URL_PATH));
-        return (bool) preg_match('#^/(play|auth|hls)(/|$)#', $path)
-            || (bool) preg_match('#/m3u8$#', $path);
+        return (bool) preg_match('#^/play(/|$)#', $path);
+    }
+
+    /**
+     * XUI client CDN: /auth/… token + /hls/… segments — no portal proxy after resolve.
+     */
+    public static function isXuiClientCdnUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '' || !preg_match('#^https?://#i', $url)) {
+            return false;
+        }
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($host !== 'k1.shifshqip.com' && !preg_match('#\.k1\.shifshqip\.com$#', $host)) {
+            return false;
+        }
+        $path = strtolower((string) parse_url($url, PHP_URL_PATH));
+        return (bool) preg_match('#^/(auth|hls)(/|$)#', $path);
+    }
+
+    /** @deprecated use isXuiPlayUrl / isXuiClientCdnUrl */
+    public static function isXuiDirectUrl($url)
+    {
+        return self::isXuiPlayUrl($url) || self::isXuiClientCdnUrl($url);
     }
 
     /**
@@ -270,8 +296,25 @@ final class PortalService
     }
 
     /**
-     * Client-facing XUI play URL: strip :443, /ts→/m3u8, keep /play/ (phone does /auth + /hls).
-     * Adds ?.m3u8 so older APKs that only match ".m3u8" still accept the URL.
+     * Normalize sealed /play/ entry (server-side only): strip :443, /ts→/m3u8.
+     */
+    public static function normalizeXuiPlayEntryUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        $url = preg_replace('#^(https?://[^/]+):443(/)#i', '$1$2', $url);
+        if (!is_string($url) || $url === '') {
+            return '';
+        }
+        $url = preg_replace('#(/play/[^/\\?\\s]+)/ts(\\?|$)#i', '$1/m3u8$2', $url);
+        return is_string($url) ? $url : '';
+    }
+
+    /**
+     * Client-facing CDN URL (/auth or /hls): strip :443; ?.m3u8 for older APKs.
+     * Never returns /play/.
      */
     public static function normalizeDirectPlaybackUrl($url)
     {
@@ -283,15 +326,65 @@ final class PortalService
         if (!is_string($url) || $url === '') {
             return '';
         }
-        // XUI default playlist uses /play/TOKEN/ts (MPEG-TS). App needs HLS /m3u8.
-        $url = preg_replace('#(/play/[^/\\?\\s]+)/ts(\\?|$)#i', '$1/m3u8$2', $url);
-        if (!is_string($url) || $url === '') {
+        // If a /play/ URL slips through, do not hand it to the client.
+        if (self::isXuiPlayUrl($url)) {
             return '';
         }
-        if (self::isXuiDirectUrl($url) && stripos($url, '.m3u8') === false) {
+        if (self::isXuiClientCdnUrl($url) && stripos($url, '.m3u8') === false) {
             $url .= (strpos($url, '?') === false ? '?' : '&') . '.m3u8';
         }
         return $url;
+    }
+
+    /**
+     * Server-side /play/ → Location /auth/… (client then streams auth+hls on CDN).
+     */
+    public static function unwrapXuiPlayToAuthUrl($portal, $playUrl)
+    {
+        $playUrl = self::normalizeXuiPlayEntryUrl($playUrl);
+        if ($playUrl === '' || !self::isXuiPlayUrl($playUrl)) {
+            return '';
+        }
+        $fetchUrl = self::rewriteLocalUpstreamUrl($playUrl);
+        $redirectLocation = '';
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $fetchUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($handle, $headerLine) use (&$redirectLocation) {
+            if (preg_match('/^Location:\s*(.+)$/i', trim($headerLine), $matches)) {
+                $redirectLocation = trim($matches[1]);
+            }
+            return strlen($headerLine);
+        });
+        $headers = array('Accept: */*');
+        if (strpos($fetchUrl, 'http://127.0.0.1:81/') === 0) {
+            $headers[] = 'Host: k1.shifshqip.com';
+            $headers[] = 'X-Forwarded-Proto: https';
+        }
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_USERAGENT, !empty($portal['outbound_user_agent'])
+            ? $portal['outbound_user_agent']
+            : 'Ooew');
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $next = $redirectLocation;
+        if ($next === '' && is_string($body) && preg_match('#Redirecting to\s+(/[^\s"\'<>]+)#i', $body, $matches)) {
+            $next = $matches[1];
+        }
+        if ($status >= 300 && $status < 400 && $next !== '') {
+            $auth = self::resolveRelativeUrl($next, $playUrl);
+            $auth = preg_replace('#^(https?://[^/]+):443(/)#i', '$1$2', $auth);
+            if (is_string($auth) && self::isXuiClientCdnUrl($auth)) {
+                return $auth;
+            }
+        }
+        return '';
     }
 
     public static function isDirectCdnUrl($url)
@@ -303,7 +396,11 @@ final class PortalService
         if (self::isOurInfrastructureUrl($url)) {
             return false;
         }
-        if (self::isXuiDirectUrl($url)) {
+        // /play/ is not client-direct — must unwrap to /auth/ server-side first.
+        if (self::isXuiPlayUrl($url)) {
+            return false;
+        }
+        if (self::isXuiClientCdnUrl($url)) {
             return true;
         }
         $lower = strtolower($url);
@@ -326,11 +423,12 @@ final class PortalService
             return true;
         }
         return strpos($lower, '/live/') !== false || strpos($lower, '/hls/') !== false
-            || strpos($lower, '/play/') !== false || strpos($lower, '/auth/') !== false;
+            || strpos($lower, '/auth/') !== false;
     }
 
     /**
-     * Resolve once on the portal server; client streams directly from the CDN afterward.
+     * Resolve once on the portal server; client streams from CDN (/auth+/hls) afterward.
+     * /play/ is unwrapped server-side and never returned to the app.
      */
     public static function resolveToDirectCdnUrl($portal, $url, $depth = 0)
     {
@@ -338,23 +436,23 @@ final class PortalService
         if ($url === '' || $depth > 10) {
             return '';
         }
-        if (self::isDirectCdnUrl($url)) {
+        if (self::isXuiPlayUrl($url)) {
+            $auth = self::unwrapXuiPlayToAuthUrl($portal, $url);
+            return $auth !== '' ? self::normalizeDirectPlaybackUrl($auth) : '';
+        }
+        if (self::isXuiClientCdnUrl($url) || self::isDirectCdnUrl($url)) {
             return self::normalizeDirectPlaybackUrl($url);
         }
         if (self::isK1ChannelProxyUrl($url)
             || (strpos(strtolower($url), '/k1/channel/') !== false && strpos(strtolower($url), 'shifshqip.com') !== false)) {
             $direct = self::unwrapProxyManifest($portal, $url);
             if ($direct !== '') {
-                return self::normalizeDirectPlaybackUrl($direct);
+                return self::resolveToDirectCdnUrl($portal, $direct, $depth + 1);
             }
         }
         if (self::isK1PlaylistEntryUrl($url) || strpos(strtolower($url), '/k1/channel/') !== false) {
             $resolved = self::resolveStreamEntryUrl($portal, $url);
             if ($resolved !== '' && strcasecmp($resolved, $url) !== 0) {
-                // Stop at XUI /play/ — do not follow to /auth/ on the VPS (IP-bound tokens).
-                if (self::isXuiDirectUrl($resolved) || self::isDirectCdnUrl($resolved)) {
-                    return self::normalizeDirectPlaybackUrl($resolved);
-                }
                 return self::resolveToDirectCdnUrl($portal, $resolved, $depth + 1);
             }
         }
@@ -363,9 +461,6 @@ final class PortalService
         }
         $resolved = self::resolveStreamEntryUrl($portal, $url);
         if ($resolved !== '' && strcasecmp($resolved, $url) !== 0) {
-            if (self::isXuiDirectUrl($resolved) || self::isDirectCdnUrl($resolved)) {
-                return self::normalizeDirectPlaybackUrl($resolved);
-            }
             return self::resolveToDirectCdnUrl($portal, $resolved, $depth + 1);
         }
         if (self::isDirectCdnUrl($url)) {

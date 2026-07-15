@@ -20,11 +20,14 @@ node --check /root/all/all2/server.js
 pm2 reload all2 --update-env
 ```
 
-## XUI Custom Sport Direct (`k1.../play/.../m3u8`)
+## XUI: hide /play/, client gets /auth/
 
-`patch-xui-direct-play-redirect.py` keeps Direct as a **302 to `/play/`** (phone completes `/auth/` so tokens bind to the device IP). Appends `?.m3u8` for older app builds that only matched `.m3u8`.
+`patch-xui-direct-play-redirect.py`:
 
-Portal/Android also treat `k1.shifshqip.com/play|/auth|/hls` as direct CDN and must **not** unwrap `/play/` → `/auth/` on the VPS.
+1. Playlist seals `…/play/TOKEN/m3u8` (never shown to the app).
+2. On play, portal/all2 resolves `/play/` → `/auth/…` **server-side**.
+3. App receives only `/auth/…` and streams `/hls/…` **directly on CDN** (no VPS segment proxy).
+
 
 ## HLS.js live harden
 
