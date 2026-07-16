@@ -17,3 +17,12 @@ pm2 restart all2
 5. **Player status**: admin text (Features → Web UI) instead of buffering/HLS.js lines
 6. **No-ads**: clears ads when account is NoAds (incl. reward free window)
 7. **Theme**: classic vs Triangolo-style, switchable from Admin → Features
+
+## Hotfixes (channel click + features 500)
+```bash
+python3 patch-web-click-features-fix.py
+python3 patch-web-mp4-regex-escape.py
+pm2 reload all2
+```
+- Features 500: `escapeAttr` → `escapeHtmlAttr`
+- Channels not clickable: client JS called server-only `normalizeWebUiConfig`; mp4 regex `\?` was eaten inside template literal
