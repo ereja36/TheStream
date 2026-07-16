@@ -47,3 +47,15 @@ pm2 restart all2
 - Web `/api/channel-url` + watch links only allow channels on main portal (featured or categories with `showOnMain`).
 - Private playlists (`/playlist/:id/...`) are unchanged.
 - Homepage: no marketing hero; liquid-glass Triangolo UI.
+
+
+## Categories 500 + presence (cluster) + master ping
+```bash
+scp services/presenceStore.js root@vps:/root/all/all2/services/
+python3 patch-web-presence-categories.py
+pm2 restart all2
+```
+- Fixes category pages (`badgeClass` missing → 500).
+- Live viewers shared via Redis across PM2 workers (same `started` duration).
+- Stops treating nginx `127.0.0.1` as client IPv4 (IPv6-only users were shown as Local).
+- Admin → Features: **Views / presence ping (MASTER)** kills `/api/ping` + viewers polling.
