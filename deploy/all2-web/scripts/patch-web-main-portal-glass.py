@@ -67,8 +67,15 @@ body.theme-triangolo::before{
   mix-blend-mode:screen;opacity:.7;
 }
 body.theme-triangolo nav,
-body.theme-triangolo .page,
-body.theme-triangolo #playerModal{position:relative;z-index:1}
+body.theme-triangolo .page{position:relative;z-index:1}
+body.theme-triangolo #playerModal.modal-overlay,
+body.theme-triangolo #playerModal{
+  position:fixed !important;inset:0 !important;z-index:1200 !important;display:none;
+  align-items:center;justify-content:center;background:rgba(0,0,0,.92);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:12px;
+}
+body.theme-triangolo #playerModal.modal-overlay.open,
+body.theme-triangolo #playerModal.open{display:flex !important;}
 body.theme-triangolo h1,body.theme-triangolo h2,body.theme-triangolo h3,body.theme-triangolo .nav-logo,body.theme-triangolo .tri-cat-title{
   font-family:'Outfit',system-ui,sans-serif;letter-spacing:-.03em;
 }
@@ -161,10 +168,13 @@ body.theme-triangolo .category-ad-slot{
 body.theme-triangolo .native-ad-body{border-color:rgba(255,255,255,.12);min-height:70px;background:rgba(0,0,0,.18)}
 body.theme-triangolo .info-footer{color:rgba(235,240,255,.45);text-align:center;padding:18px 0 8px;font-size:.72rem;border:0}
 body.theme-triangolo #playerModal .modal,body.theme-triangolo .modal{
-  border-radius:22px;overflow:hidden;
-  background:rgba(12,16,28,.72);border:1px solid rgba(255,255,255,.16);
+  width:min(960px,96vw);max-height:92vh;overflow:auto;border-radius:22px;
+  background:rgba(12,16,28,.88);border:1px solid rgba(255,255,255,.16);
   backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);
   box-shadow:0 24px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.16);
+}
+body.theme-triangolo #playerModal .player-stage,body.theme-triangolo #playerModal video{
+  width:100%;min-height:220px;background:#000;
 }
 body.theme-triangolo .player-status a.btn-telegram-inline{
   display:inline-flex;align-items:center;gap:8px;margin-top:8px;background:linear-gradient(135deg,#34b7f1,#1e9ad6);color:#fff !important;
