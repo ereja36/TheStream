@@ -102,31 +102,10 @@ public final class DesignUiHelper {
     }
 
     public static void bindAppLogo(Activity activity, ImageView target, SharedPref sharedPref) {
-        if (target == null) {
-            return;
+        // Home chrome no longer shows a floating brand logo — splash owns branding.
+        if (target != null) {
+            target.setVisibility(View.GONE);
         }
-        String logoUrl = sharedPref == null ? "" : sharedPref.getAppLogoUrl();
-        if (TextUtils.isEmpty(logoUrl)) {
-            target.setVisibility(View.VISIBLE);
-            target.setImageResource(R.drawable.bg_splash_logo_asset);
-            return;
-        }
-        if (!logoUrl.startsWith("http") && sharedPref != null && !TextUtils.isEmpty(sharedPref.getBaseUrl())) {
-            String base = sharedPref.getBaseUrl();
-            if (logoUrl.startsWith("/")) {
-                logoUrl = base + logoUrl;
-            } else if (logoUrl.startsWith("upload/")) {
-                logoUrl = base + "/" + logoUrl;
-            } else {
-                logoUrl = base + "/upload/" + logoUrl.replace(" ", "%20");
-            }
-        }
-        target.setVisibility(View.VISIBLE);
-        com.bumptech.glide.Glide.with(activity)
-                .load(logoUrl)
-                .placeholder(R.drawable.bg_splash_logo_asset)
-                .error(R.drawable.bg_splash_logo_asset)
-                .into(target);
     }
 
     public static void refreshRemoteConfig(AppCompatActivity activity, SharedPref sharedPref, Runnable onSameDesign) {

@@ -87,7 +87,7 @@ public class ActivitySplash extends AppCompatActivity {
         deviceId = DeviceApiHelper.getLocalDeviceId(this);
 
         img_splash = findViewById(R.id.img_splash);
-        img_splash.setImageResource(R.drawable.bg_splash_default);
+        img_splash.setImageResource(R.drawable.bg_splash_logo_white);
 
         if (ENABLE_VPN_ACCESS) {
             Tools.postDelayed(this::requestConfig, Config.DELAY_SPLASH);
