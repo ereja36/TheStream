@@ -209,5 +209,6 @@
     <string name="quick_gestures_brightness">Brightness</string>
     <string name="quick_gestures_volume">Volume</string>
     <string name="quick_gestures_tv_hint">TV: ↑/↓ change channel · OK opens channel list</string>
+    <string name="quick_gestures_search_channels">Search channels</string>
 
 </resources>

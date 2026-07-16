@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class PlaylistRefreshHelper {
 
-    private static final long MIN_REFRESH_GAP_MS = 5_000L;
+    private static final long MIN_REFRESH_GAP_MS = 3_000L;
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static long lastRefreshAt;
     private static final AtomicBoolean FORCE_NEXT = new AtomicBoolean(false);
@@ -55,6 +55,10 @@ public final class PlaylistRefreshHelper {
                     return;
                 }
                 boolean shouldReload = portalChanged || result.channelsUpdated || force;
+                // When portal source changed, always rebuild home even if channel count is unchanged.
+                if (portalChanged) {
+                    shouldReload = true;
+                }
                 if (onUpdated != null && shouldReload) {
                     activity.runOnUiThread(() -> {
                         if (!activity.isFinishing()) {

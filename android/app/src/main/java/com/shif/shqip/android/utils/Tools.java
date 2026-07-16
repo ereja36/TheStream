@@ -575,6 +575,7 @@ public class Tools {
                 intent.putExtra("channel_name", channel.channel_name);
             }
             intent.putExtra("channel_id", channel.channel_id);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             activity.startActivity(intent);
             View anchor = activity.getWindow() != null ? activity.getWindow().getDecorView() : view;
             if (anchor != null) {

@@ -845,14 +845,21 @@ public final class DeviceApiHelper {
                     deviceId = getLocalDeviceId(sharedPref.getContext());
                 }
             }
+            if ("GET".equalsIgnoreCase(method) && PlaylistPortalHelper.isPortalUrl(resolvedUrl)) {
+                String bust = resolvedUrl.contains("?") ? "&" : "?";
+                resolvedUrl = resolvedUrl + bust + "_=" + System.currentTimeMillis();
+            }
             URL url = new URL(resolvedUrl);
             connection = (HttpURLConnection) url.openConnection();
             connection.setInstanceFollowRedirects(true);
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(15000);
+            connection.setUseCaches(false);
             connection.setRequestMethod(method);
             connection.setRequestProperty("User-Agent", buildAppUserAgent());
             connection.setRequestProperty("Accept", "*/*");
+            connection.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate");
+            connection.setRequestProperty("Pragma", "no-cache");
             connection.setRequestProperty("X-Requested-With", packageName);
             connection.setRequestProperty("X-Shif-App", "1");
             if (!TextUtils.isEmpty(deviceId)) {

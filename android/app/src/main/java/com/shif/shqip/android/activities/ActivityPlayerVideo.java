@@ -15,15 +15,21 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 import android.widget.SeekBar;
@@ -31,6 +37,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.databases.prefs.AdsPref;
+import com.shif.shqip.android.utils.AdPlacementHelper;
+import com.shif.shqip.android.utils.AdsManager;
 
 import java.util.ArrayList;
 import androidx.activity.OnBackPressedCallback;
@@ -119,6 +128,11 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private AudioManager audioManager;
     private float currentBrightness = -1f;
     private Toast channelToast;
+    private AdsManager adsManager;
+    private AdsPref adsPref;
+    private AlertDialog channelListDialog;
+    private AlertDialog holdDialog;
+    private long reloadGeneration = 0L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -127,31 +141,25 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         setContentView(R.layout.activity_player_video);
         Tools.setPlayerNavigation(this);
         sharedPref = new SharedPref(this);
+        adsPref = new AdsPref(this);
+        adsManager = new AdsManager(this);
+        if (adsPref.getAdStatus()) {
+            adsManager.initializeAd();
+            adsManager.loadInterstitialAd(
+                    true,
+                    AdPlacementHelper.resolveInterstitialInterval(adsPref));
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             this.getWindow().setNavigationBarColor(ContextCompat.getColor(getApplicationContext(), R.color.color_black));
             this.getWindow().setStatusBarColor(ContextCompat.getColor(getApplicationContext(), R.color.color_black));
             this.getWindow().getDecorView().setSystemUiVisibility(0);
         }
-        Intent intent = getIntent();
-        channel_id = intent.getStringExtra("channel_id");
-        video_url = intent.getStringExtra("url");
-        user_agent = intent.getStringExtra("user_agent");
-        epgChannelId = intent.getStringExtra("epg_channel_id");
-        epgUrl = intent.getStringExtra("epg_url");
-        channelName = intent.getStringExtra("channel_name");
-
-        if (channel_id == null) {
-            channel_id = "";
-        }
-        if (user_agent == null || user_agent.trim().isEmpty()) {
-            user_agent = "default";
-        }
-        if (video_url == null || video_url.trim().isEmpty()) {
+        applyChannelFromIntent(getIntent(), false);
+        if (TextUtils.isEmpty(sourceStreamUrl)) {
             Toast.makeText(this, R.string.msg_failed, Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
-        sourceStreamUrl = video_url.trim();
 
         if (!channel_id.trim().isEmpty()) {
             updateView(channel_id);
@@ -181,6 +189,50 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                     initializePlayer();
                 });
             }, "resolve-playback").start();
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        applyChannelFromIntent(intent, true);
+    }
+
+    private void applyChannelFromIntent(Intent intent, boolean switchNow) {
+        if (intent == null) {
+            return;
+        }
+        String nextId = intent.getStringExtra("channel_id");
+        String nextUrl = intent.getStringExtra("url");
+        String nextUa = intent.getStringExtra("user_agent");
+        String nextEpgId = intent.getStringExtra("epg_channel_id");
+        String nextEpgUrl = intent.getStringExtra("epg_url");
+        String nextName = intent.getStringExtra("channel_name");
+
+        channel_id = nextId == null ? "" : nextId;
+        user_agent = (nextUa == null || nextUa.trim().isEmpty()) ? "default" : nextUa;
+        epgChannelId = nextEpgId == null ? "" : nextEpgId;
+        epgUrl = nextEpgUrl == null ? "" : nextEpgUrl;
+        channelName = nextName == null ? "" : nextName;
+
+        if (nextUrl == null || nextUrl.trim().isEmpty()) {
+            if (!switchNow) {
+                sourceStreamUrl = "";
+            }
+            return;
+        }
+        sourceStreamUrl = nextUrl.trim();
+        video_url = sourceStreamUrl;
+        if (switchNow) {
+            Channel channel = new Channel();
+            channel.channel_id = channel_id;
+            channel.channel_url = sourceStreamUrl;
+            channel.user_agent = user_agent;
+            channel.epg_id = epgChannelId;
+            channel.epg_url = epgUrl;
+            channel.channel_name = channelName;
+            switchToChannel(channel, false);
         }
     }
 
@@ -227,15 +279,38 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         exoPlayer.setPlayWhenReady(true);
     }
 
+    private void silenceCurrentPlayback() {
+        if (exoPlayer == null) {
+            return;
+        }
+        try {
+            exoPlayer.setVolume(0f);
+            exoPlayer.setPlayWhenReady(false);
+            exoPlayer.stop();
+            exoPlayer.clearMediaItems();
+        } catch (Exception ignored) {
+            // Best-effort stop to avoid dual-audio while switching.
+        }
+    }
+
     private void reloadLiveStream(boolean showErrorOnFailure) {
-        progressBar.setVisibility(View.VISIBLE);
+        final long generation = ++reloadGeneration;
+        silenceCurrentPlayback();
+        if (progressBar != null) {
+            progressBar.setVisibility(View.VISIBLE);
+        }
         new Thread(() -> {
             String resolvedUrl = StreamPlaybackHelper.resolvePlaybackUrl(
                     sharedPref, sourceStreamUrl, "");
             final String playbackUrl = TextUtils.isEmpty(resolvedUrl) ? "" : resolvedUrl;
             runOnUiThread(() -> {
+                if (destroyed || isFinishing() || generation != reloadGeneration) {
+                    return;
+                }
                 if (TextUtils.isEmpty(playbackUrl) || exoPlayer == null) {
-                    progressBar.setVisibility(View.GONE);
+                    if (progressBar != null) {
+                        progressBar.setVisibility(View.GONE);
+                    }
                     if (showErrorOnFailure) {
                         errorDialog();
                     }
@@ -245,10 +320,16 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 dataSourceFactory = IptvPlayerHelper.createDataSourceFactory(
                         ActivityPlayerVideo.this, sharedPref, sourceStreamUrl, user_agent);
                 MediaSource mediaSource = IptvPlayerHelper.buildMediaSource(video_url, dataSourceFactory);
-                exoPlayer.stop();
-                exoPlayer.setMediaSource(mediaSource);
-                exoPlayer.prepare();
-                exoPlayer.setPlayWhenReady(true);
+                try {
+                    exoPlayer.setMediaSource(mediaSource);
+                    exoPlayer.prepare();
+                    exoPlayer.setVolume(1f);
+                    exoPlayer.setPlayWhenReady(true);
+                } catch (Exception ignored) {
+                    if (showErrorOnFailure) {
+                        errorDialog();
+                    }
+                }
             });
         }).start();
     }
@@ -503,7 +584,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        if (exoPlayer != null) {
+        if (isFinishing()) {
+            silenceCurrentPlayback();
+        } else if (exoPlayer != null) {
             exoPlayer.setPlayWhenReady(false);
             exoPlayer.getPlaybackState();
         }
@@ -513,6 +596,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         if (exoPlayer != null) {
+            exoPlayer.setVolume(1f);
             exoPlayer.setPlayWhenReady(true);
             exoPlayer.getPlaybackState();
         }
@@ -534,9 +618,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void stopPlayback() {
-        if (exoPlayer != null) {
-            exoPlayer.stop();
-        }
+        silenceCurrentPlayback();
     }
 
     public void errorDialog() {
@@ -601,6 +683,14 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         destroyed = true;
+        reloadGeneration++;
+        if (channelListDialog != null && channelListDialog.isShowing()) {
+            channelListDialog.dismiss();
+        }
+        if (holdDialog != null && holdDialog.isShowing()) {
+            holdDialog.dismiss();
+        }
+        silenceCurrentPlayback();
         hideBufferingSpinner();
         mainHandler.removeCallbacksAndMessages(null);
         epgExecutor.shutdownNow();
@@ -934,12 +1024,23 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         if (next < 0) {
             next += channels.size();
         }
-        switchToChannel(channels.get(next));
+        switchToChannel(channels.get(next), true);
     }
 
     private void switchToChannel(Channel channel) {
+        switchToChannel(channel, true);
+    }
+
+    private void switchToChannel(Channel channel, boolean countSwapAd) {
         if (channel == null || TextUtils.isEmpty(channel.channel_url)) {
             return;
+        }
+        silenceCurrentPlayback();
+        if (channelListDialog != null && channelListDialog.isShowing()) {
+            channelListDialog.dismiss();
+        }
+        if (holdDialog != null && holdDialog.isShowing()) {
+            holdDialog.dismiss();
         }
         channel_id = channel.channel_id == null ? "" : channel.channel_id;
         sourceStreamUrl = channel.channel_url.trim();
@@ -954,7 +1055,29 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         }
         channelToast = Toast.makeText(this, channelName, Toast.LENGTH_SHORT);
         channelToast.show();
+        if (countSwapAd) {
+            maybeShowChannelSwapAd();
+        }
         reloadLiveStream(true);
+    }
+
+    private void maybeShowChannelSwapAd() {
+        if (adsPref == null || !adsPref.getAdStatus() || adsManager == null) {
+            return;
+        }
+        int interval = AdPlacementHelper.resolveInterstitialInterval(adsPref);
+        int counter = adsPref.getInterstitialAdCounter();
+        if (counter < interval) {
+            adsPref.updateInterstitialAdCounter(counter + 1);
+            return;
+        }
+        adsPref.updateInterstitialAdCounter(1);
+        try {
+            adsManager.showInterstitialAd();
+            adsManager.loadInterstitialAd(true, interval);
+        } catch (Exception ignored) {
+            // Ads must never block channel switching.
+        }
     }
 
     private void showChannelListDialog() {
@@ -962,37 +1085,96 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         if (channels.isEmpty()) {
             return;
         }
-        String[] names = new String[channels.size()];
-        int selected = Math.max(0, currentChannelIndex(channels));
-        for (int i = 0; i < channels.size(); i++) {
-            names[i] = TextUtils.isEmpty(channels.get(i).channel_name)
-                    ? ("Channel " + (i + 1))
-                    : channels.get(i).channel_name;
+        if (channelListDialog != null && channelListDialog.isShowing()) {
+            channelListDialog.dismiss();
         }
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.quick_gestures_channel_list)
-                .setSingleChoiceItems(names, selected, (dialog, which) -> {
-                    dialog.dismiss();
-                    if (which >= 0 && which < channels.size()) {
-                        switchToChannel(channels.get(which));
+
+        View content = LayoutInflater.from(this).inflate(R.layout.dialog_player_channels, null, false);
+        EditText searchInput = content.findViewById(R.id.input_channel_search);
+        ListView listView = content.findViewById(R.id.list_channels);
+
+        final List<Channel> visible = new ArrayList<>(channels);
+        final ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_list_item_single_choice,
+                new ArrayList<>());
+        listView.setAdapter(adapter);
+        listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+
+        Runnable bindList = () -> {
+            adapter.clear();
+            for (Channel channel : visible) {
+                adapter.add(TextUtils.isEmpty(channel.channel_name)
+                        ? ("Channel " + channel.channel_id)
+                        : channel.channel_name);
+            }
+            adapter.notifyDataSetChanged();
+            int selected = 0;
+            for (int i = 0; i < visible.size(); i++) {
+                Channel channel = visible.get(i);
+                if (!TextUtils.isEmpty(channel_id) && channel_id.equals(channel.channel_id)) {
+                    selected = i;
+                    break;
+                }
+            }
+            if (!visible.isEmpty()) {
+                listView.setItemChecked(selected, true);
+                listView.setSelection(selected);
+            }
+        };
+        bindList.run();
+
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                String q = s == null ? "" : s.toString().trim().toLowerCase(Locale.US);
+                visible.clear();
+                for (Channel channel : channels) {
+                    String name = channel.channel_name == null ? "" : channel.channel_name.toLowerCase(Locale.US);
+                    if (q.isEmpty() || name.contains(q)) {
+                        visible.add(channel);
                     }
-                })
+                }
+                bindList.run();
+            }
+        });
+
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            if (position < 0 || position >= visible.size()) {
+                return;
+            }
+            Channel selected = visible.get(position);
+            if (channelListDialog != null) {
+                channelListDialog.dismiss();
+            }
+            switchToChannel(selected);
+        });
+
+        channelListDialog = new MaterialAlertDialogBuilder(this)
+                .setView(content)
                 .setNegativeButton(android.R.string.cancel, null)
-                .show();
+                .create();
+        if (channelListDialog.getWindow() != null) {
+            channelListDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        channelListDialog.show();
+        if (channelListDialog.getButton(AlertDialog.BUTTON_NEGATIVE) != null) {
+            channelListDialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+                    .setTextColor(ContextCompat.getColor(this, R.color.color_dark_accent));
+        }
     }
 
     private void showBrightnessVolumeDialog() {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        int pad = (int) (20 * getResources().getDisplayMetrics().density);
-        panel.setPadding(pad, pad, pad, pad);
+        if (holdDialog != null && holdDialog.isShowing()) {
+            holdDialog.dismiss();
+        }
+        View content = LayoutInflater.from(this).inflate(R.layout.dialog_player_hold, null, false);
+        SeekBar brightSeek = content.findViewById(R.id.seek_brightness);
+        SeekBar volumeSeek = content.findViewById(R.id.seek_volume);
 
-        TextView brightLabel = new TextView(this);
-        brightLabel.setText(R.string.quick_gestures_brightness);
-        brightLabel.setTextColor(0xFFFFFFFF);
-        panel.addView(brightLabel);
-
-        SeekBar brightSeek = new SeekBar(this);
         float brightness = currentBrightness;
         if (brightness < 0f) {
             brightness = getWindow().getAttributes().screenBrightness;
@@ -1000,7 +1182,6 @@ public class ActivityPlayerVideo extends AppCompatActivity {
                 brightness = 0.5f;
             }
         }
-        brightSeek.setMax(100);
         brightSeek.setProgress(Math.round(brightness * 100f));
         brightSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -1015,15 +1196,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
-        panel.addView(brightSeek);
 
-        TextView volumeLabel = new TextView(this);
-        volumeLabel.setText(R.string.quick_gestures_volume);
-        volumeLabel.setTextColor(0xFFFFFFFF);
-        volumeLabel.setPadding(0, pad, 0, 0);
-        panel.addView(volumeLabel);
-
-        SeekBar volumeSeek = new SeekBar(this);
         int max = audioManager != null ? audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) : 15;
         int cur = audioManager != null ? audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) : 7;
         volumeSeek.setMax(Math.max(1, max));
@@ -1039,14 +1212,24 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
         });
-        panel.addView(volumeSeek);
 
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.quick_gestures_hold_title)
-                .setView(panel)
+        holdDialog = new MaterialAlertDialogBuilder(this)
+                .setView(content)
                 .setPositiveButton(android.R.string.ok, null)
                 .setNeutralButton(R.string.quick_gestures_channel_list, (d, w) -> showChannelListDialog())
-                .show();
+                .create();
+        if (holdDialog.getWindow() != null) {
+            holdDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+        }
+        holdDialog.show();
+        if (holdDialog.getButton(AlertDialog.BUTTON_POSITIVE) != null) {
+            holdDialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                    .setTextColor(ContextCompat.getColor(this, R.color.color_dark_accent));
+        }
+        if (holdDialog.getButton(AlertDialog.BUTTON_NEUTRAL) != null) {
+            holdDialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+                    .setTextColor(ContextCompat.getColor(this, R.color.color_dark_accent));
+        }
     }
 
     @Override

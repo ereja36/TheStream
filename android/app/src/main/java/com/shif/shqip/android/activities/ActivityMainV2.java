@@ -308,6 +308,13 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void stopHeroForPlayback() {
+        if (heroPlayer != null) {
+            try {
+                heroPlayer.setVolume(0f);
+                heroPlayer.setPlayWhenReady(false);
+            } catch (Exception ignored) {
+            }
+        }
         releaseHeroPreview();
     }
 
