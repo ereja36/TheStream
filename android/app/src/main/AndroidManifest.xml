@@ -73,6 +73,10 @@
             android:configChanges="orientation|keyboardHidden|screenSize" />
 
         <activity
+            android:name=".activities.ActivityPlaylistBrowser"
+            android:configChanges="orientation|keyboardHidden|screenSize" />
+
+        <activity
             android:name=".activities.ActivitySearch"
             android:configChanges="orientation|keyboardHidden|screenSize" />
 

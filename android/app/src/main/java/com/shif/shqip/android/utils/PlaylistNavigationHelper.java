@@ -3,7 +3,7 @@ package com.shif.shqip.android.utils;
 import android.content.Context;
 import android.content.Intent;
 
-import com.shif.shqip.android.activities.ActivityCategoryDetail;
+import com.shif.shqip.android.activities.ActivityPlaylistBrowser;
 import com.shif.shqip.android.models.Category;
 
 public final class PlaylistNavigationHelper {
@@ -18,13 +18,13 @@ public final class PlaylistNavigationHelper {
         category.cid = 0;
         category.category_name = ALL_CHANNELS_CATEGORY;
         category.category_image = "";
-        Intent intent = new Intent(context, ActivityCategoryDetail.class);
+        Intent intent = new Intent(context, ActivityPlaylistBrowser.class);
         intent.putExtra(Constant.EXTRA_OBJC, category);
         return intent;
     }
 
     public static Intent createCategoryIntent(Context context, Category category) {
-        Intent intent = new Intent(context, ActivityCategoryDetail.class);
+        Intent intent = new Intent(context, ActivityPlaylistBrowser.class);
         intent.putExtra(Constant.EXTRA_OBJC, category);
         return intent;
     }

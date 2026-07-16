@@ -49,6 +49,7 @@ public class SharedPref {
     private static final String KEY_PORTAL_STREAM_COOKIE = "portal_stream_cookie";
     private static final String KEY_PORTAL_CONTENT_VERSION = "portal_content_version";
     private static final String KEY_QUICK_GESTURES_TIP_SHOWN = "quick_gestures_tip_shown";
+    private static final String KEY_GESTURE_DEMO_COUNT = "gesture_demo_shown_count";
     private static final String KEY_CATEGORY_LOGOS = "category_logos_json";
 
     Context context;
@@ -511,12 +512,28 @@ public class SharedPref {
     }
 
     public boolean isQuickGesturesTipShown() {
-        return sharedPreferences.getBoolean(KEY_QUICK_GESTURES_TIP_SHOWN, false);
+        return getGestureDemoShownCount() >= 3;
     }
 
     public void setQuickGesturesTipShown(boolean shown) {
-        editor.putBoolean(KEY_QUICK_GESTURES_TIP_SHOWN, shown);
+        if (shown) {
+            int count = getGestureDemoShownCount();
+            editor.putInt(KEY_GESTURE_DEMO_COUNT, Math.min(3, count + 1));
+        } else {
+            editor.putInt(KEY_GESTURE_DEMO_COUNT, 0);
+        }
         editor.apply();
+    }
+
+    public int getGestureDemoShownCount() {
+        // Migrate old boolean tip flag into count.
+        if (sharedPreferences.contains(KEY_QUICK_GESTURES_TIP_SHOWN)
+                && sharedPreferences.getBoolean(KEY_QUICK_GESTURES_TIP_SHOWN, false)
+                && !sharedPreferences.contains(KEY_GESTURE_DEMO_COUNT)) {
+            editor.putInt(KEY_GESTURE_DEMO_COUNT, 3);
+            editor.apply();
+        }
+        return sharedPreferences.getInt(KEY_GESTURE_DEMO_COUNT, 0);
     }
 
     public boolean isPortalSessionActive() {

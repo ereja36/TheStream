@@ -195,7 +195,7 @@
     <string name="epg_unknown_title">Unknown program</string>
 
     <string name="quick_gestures_title">Quick gestures</string>
-    <string name="quick_gestures_subtitle">Anywhere on the video</string>
+    <string name="quick_gestures_subtitle">Demo: ku të prekësh për kanal · volume · brightness</string>
     <string name="quick_gestures_swipe_up_title">Swipe up</string>
     <string name="quick_gestures_swipe_up_desc">Next channel</string>
     <string name="quick_gestures_swipe_down_title">Swipe down</string>

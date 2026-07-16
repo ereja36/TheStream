@@ -521,8 +521,8 @@ public class ActivityMainV2 extends AppCompatActivity {
             if (categoryChannels.isEmpty()) {
                 continue;
             }
-            if (categoryChannels.size() > 20) {
-                categoryChannels = new ArrayList<>(categoryChannels.subList(0, 20));
+            if (categoryChannels.size() > 24) {
+                categoryChannels = new ArrayList<>(categoryChannels.subList(0, 24));
             }
 
             View section = inflater.inflate(R.layout.include_v2_category_section, categorySections, false);
@@ -547,9 +547,7 @@ public class ActivityMainV2 extends AppCompatActivity {
 
             section.findViewById(R.id.category_header).setOnClickListener(v -> {
                 AdPlacementHelper.showInterstitialBeforeAction(this);
-                Intent intent = new Intent(this, ActivityCategoryDetail.class);
-                intent.putExtra(Constant.EXTRA_OBJC, category);
-                startActivity(intent);
+                startActivity(PlaylistNavigationHelper.createCategoryIntent(this, category));
             });
 
             categorySections.addView(section);

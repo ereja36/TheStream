@@ -105,13 +105,28 @@ public final class DesignUiHelper {
         if (target == null) {
             return;
         }
-        String logoUrl = sharedPref.getAppLogoUrl();
+        String logoUrl = sharedPref == null ? "" : sharedPref.getAppLogoUrl();
         if (TextUtils.isEmpty(logoUrl)) {
-            target.setVisibility(View.GONE);
+            target.setVisibility(View.VISIBLE);
+            target.setImageResource(R.drawable.bg_splash_logo_asset);
             return;
         }
+        if (!logoUrl.startsWith("http") && sharedPref != null && !TextUtils.isEmpty(sharedPref.getBaseUrl())) {
+            String base = sharedPref.getBaseUrl();
+            if (logoUrl.startsWith("/")) {
+                logoUrl = base + logoUrl;
+            } else if (logoUrl.startsWith("upload/")) {
+                logoUrl = base + "/" + logoUrl;
+            } else {
+                logoUrl = base + "/upload/" + logoUrl.replace(" ", "%20");
+            }
+        }
         target.setVisibility(View.VISIBLE);
-        com.bumptech.glide.Glide.with(activity).load(logoUrl).into(target);
+        com.bumptech.glide.Glide.with(activity)
+                .load(logoUrl)
+                .placeholder(R.drawable.bg_splash_logo_asset)
+                .error(R.drawable.bg_splash_logo_asset)
+                .into(target);
     }
 
     public static void refreshRemoteConfig(AppCompatActivity activity, SharedPref sharedPref, Runnable onSameDesign) {
@@ -146,7 +161,7 @@ public final class DesignUiHelper {
                         }
                         String remoteDesign = normalizeDesignId(resp.app.design_id);
                         String localDesign = sharedPref.getDesignId();
-                        if (resp.app.app_logo_url != null) {
+                        if (!TextUtils.isEmpty(resp.app.app_logo_url)) {
                             sharedPref.saveAppLogoUrl(resp.app.app_logo_url);
                         }
                         if (!remoteDesign.equals(localDesign)) {

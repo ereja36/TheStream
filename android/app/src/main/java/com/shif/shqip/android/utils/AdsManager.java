@@ -36,6 +36,8 @@ public class AdsManager {
     AdsPref adsPref;
     GDPR gdpr;
 
+    DirectAdMobBannerHelper directBanner;
+
     public AdsManager(Activity activity) {
         this.activity = activity;
         this.sharedPref = new SharedPref(activity);
@@ -47,6 +49,11 @@ public class AdsManager {
         interstitialAd = new InterstitialAd(activity);
         nativeAd = new NativeAd(activity);
         nativeAdView = new NativeAdView(activity);
+        try {
+            directBanner = DirectAdMobBannerHelper.forActivity(activity);
+        } catch (Exception ignored) {
+            directBanner = null;
+        }
     }
 
     public void initializeAd() {
@@ -96,34 +103,87 @@ public class AdsManager {
     }
 
     public void loadBannerAd(boolean placement) {
-        if (placement) {
-            if (adsPref.getAdStatus()) {
-                bannerAd.setAdStatus("1")
-                        .setAdNetwork(activeAdNetwork())
-                        .setBackupAdNetwork(adsPref.getBackupAds())
-                        .setAdMobBannerId(adsPref.getAdMobBannerId())
-                        .setGoogleAdManagerBannerId(adsPref.getAdManagerBannerId())
-                        .setFanBannerId(adsPref.getFanBannerId())
-                        .setUnityBannerId(adsPref.getUnityBannerPlacementId())
-                        .setAppLovinBannerId(adsPref.getAppLovinBannerAdUnitId())
-                        .setAppLovinBannerZoneId(adsPref.getAppLovinBannerZoneId())
-                        .setIronSourceBannerId(adsPref.getIronSourceBannerId())
-                        .setIsCollapsibleBanner(false)
-                        .setDarkTheme(sharedPref.getIsDarkTheme())
-                        .build();
+        if (!placement || !adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if (directBanner != null && AdPlacementHelper.hasValidAdNetwork(adsPref)) {
+                directBanner.ensureLoaded();
+                return;
             }
+            bannerAd.setAdStatus("1")
+                    .setAdNetwork(activeAdNetwork())
+                    .setBackupAdNetwork(adsPref.getBackupAds())
+                    .setAdMobBannerId(adsPref.getAdMobBannerId())
+                    .setGoogleAdManagerBannerId(adsPref.getAdManagerBannerId())
+                    .setFanBannerId(adsPref.getFanBannerId())
+                    .setUnityBannerId(adsPref.getUnityBannerPlacementId())
+                    .setAppLovinBannerId(adsPref.getAppLovinBannerAdUnitId())
+                    .setAppLovinBannerZoneId(adsPref.getAppLovinBannerZoneId())
+                    .setIronSourceBannerId(adsPref.getIronSourceBannerId())
+                    .setIsCollapsibleBanner(false)
+                    .setDarkTheme(sharedPref.getIsDarkTheme())
+                    .build();
+        } catch (Exception ignored) {
         }
     }
 
     public void destroyBannerAd() {
+        try {
+            if (directBanner != null) {
+                directBanner.destroy();
+            }
+        } catch (Exception ignored) {
+        }
         if (adsPref.getAdStatus()) {
-            bannerAd.destroyAndDetachBanner();
+            try {
+                bannerAd.destroyAndDetachBanner();
+            } catch (Exception ignored) {
+            }
         }
     }
 
     public void resumeBannerAd(boolean placement) {
-        if (adsPref.getAdStatus()) {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if (directBanner != null) {
+                directBanner.ensureLoaded();
+                return;
+            }
             loadBannerAd(placement);
+        } catch (Exception ignored) {
+            loadBannerAd(placement);
+        }
+    }
+
+    public void ensureBannerAd() {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if (directBanner != null) {
+                directBanner.ensureLoaded();
+                return;
+            }
+            loadBannerAd(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public void forceReloadBannerAd() {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if (directBanner != null) {
+                directBanner.forceReload();
+                return;
+            }
+            destroyBannerAd();
+            loadBannerAd(true);
+        } catch (Exception ignored) {
         }
     }
 

@@ -141,6 +141,10 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private float mxGestureStartY;
     private float mxGestureStartValue;
     private final Runnable hideMxGestureRunnable = this::hideMxGestureOverlay;
+    private View channelSwitchOverlay;
+    private TextView channelSwitchName;
+    private ImageView channelSwitchLogo;
+    private final Runnable hideChannelSwitchRunnable = this::hideChannelSwitchOverlay;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -911,6 +915,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         mxGestureLabel = findViewById(R.id.mx_gesture_label);
         mxGestureValue = findViewById(R.id.mx_gesture_value);
         mxGestureProgress = findViewById(R.id.mx_gesture_progress);
+        channelSwitchOverlay = findViewById(R.id.channel_switch_overlay);
+        channelSwitchName = findViewById(R.id.channel_switch_name);
+        channelSwitchLogo = findViewById(R.id.channel_switch_logo);
         View gotIt = findViewById(R.id.btn_quick_gestures_got_it);
         View tvHint = findViewById(R.id.txt_quick_gestures_tv_hint);
         if (tvHint != null && isTelevisionDevice()) {
@@ -1172,10 +1179,46 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         }
         channelToast = Toast.makeText(this, channelName, Toast.LENGTH_SHORT);
         channelToast.show();
+        showChannelSwitchOverlay(channel);
         if (countSwapAd) {
             maybeShowChannelSwapAd();
         }
         reloadLiveStream(true);
+    }
+
+    private void showChannelSwitchOverlay(Channel channel) {
+        if (channelSwitchOverlay == null) {
+            return;
+        }
+        String name = channel == null || TextUtils.isEmpty(channel.channel_name)
+                ? channelName
+                : channel.channel_name;
+        if (channelSwitchName != null) {
+            channelSwitchName.setText(name);
+        }
+        if (channelSwitchLogo != null) {
+            String image = channel == null ? "" : channel.channel_image;
+            if (!TextUtils.isEmpty(image)) {
+                String url = image.startsWith("http") ? image
+                        : sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+                Glide.with(this)
+                        .load(url)
+                        .placeholder(R.drawable.ic_category_app_logo)
+                        .error(R.drawable.ic_category_app_logo)
+                        .into(channelSwitchLogo);
+            } else {
+                channelSwitchLogo.setImageResource(R.drawable.ic_category_app_logo);
+            }
+        }
+        channelSwitchOverlay.setVisibility(View.VISIBLE);
+        mainHandler.removeCallbacks(hideChannelSwitchRunnable);
+        mainHandler.postDelayed(hideChannelSwitchRunnable, 1_800L);
+    }
+
+    private void hideChannelSwitchOverlay() {
+        if (channelSwitchOverlay != null) {
+            channelSwitchOverlay.setVisibility(View.GONE);
+        }
     }
 
     private void maybeShowChannelSwapAd() {

@@ -146,7 +146,7 @@ public final class AdPlacementHelper {
                 || isValidAdUnit(adsPref.getAdMobNativeId());
     }
 
-    private static boolean isValidAdUnit(String unitId) {
+    public static boolean isValidAdUnit(String unitId) {
         return !TextUtils.isEmpty(unitId)
                 && !"0".equals(unitId)
                 && !unitId.startsWith("0");
