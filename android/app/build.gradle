@@ -10,8 +10,8 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 85
-        versionName = "6.9.65"
+        versionCode = 107
+        versionName = "6.9.87"
         multiDexEnabled = true
     }
     compileOptions {
@@ -90,6 +90,7 @@ dependencies {
 
     //Ad Network Sdk options
     implementation 'com.github.solodroid-dev.ads:admob-ads-sdk:1.+'
+    implementation 'com.google.android.gms:play-services-ads:24.9.0'
 
     //Push notification
     implementation 'com.github.solodroid-dev.push:notification-sdk:1.+'

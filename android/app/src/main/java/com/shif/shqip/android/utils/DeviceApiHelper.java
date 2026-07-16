@@ -217,11 +217,21 @@ public final class DeviceApiHelper {
             if (portal.optInt("enabled", 0) == 1) {
                 String sessionToken = portal.optString("session_token", "");
                 String previousToken = sharedPref.getPortalSessionToken();
+                String contentVersion = portal.optString("content_version", "").trim();
+                String previousVersion = sharedPref.getPortalContentVersion();
                 sharedPref.savePortalSessionToken(sessionToken);
                 sharedPref.clearPortalStreamConfig();
-                if (!TextUtils.isEmpty(sessionToken)
+                boolean portalContentChanged = !TextUtils.isEmpty(contentVersion)
+                        && !contentVersion.equals(previousVersion);
+                if (!TextUtils.isEmpty(contentVersion)) {
+                    sharedPref.savePortalContentVersion(contentVersion);
+                }
+                // Clear cache when admin changes playlist-portal source (content_version),
+                // or when the portal session token is rotated.
+                if (portalContentChanged
+                        || (!TextUtils.isEmpty(sessionToken)
                         && !TextUtils.isEmpty(previousToken)
-                        && !sessionToken.equals(previousToken)) {
+                        && !sessionToken.equals(previousToken))) {
                     sharedPref.clearPlaylistChannels();
                 }
             } else {
@@ -230,6 +240,45 @@ public final class DeviceApiHelper {
             }
         } catch (Exception ignored) {
             // keep cached portal key
+        }
+    }
+
+    public static void refreshCategoryLogos(SharedPref sharedPref) {
+        if (sharedPref == null || TextUtils.isEmpty(sharedPref.getBaseUrl())) {
+            return;
+        }
+        try {
+            String deviceId = getLocalDeviceId(sharedPref.getContext());
+            String endpoint = buildApiUrl(
+                    sharedPref.getBaseUrl(),
+                    "/api/api.php?get_category_index&api_key=" + urlEncode(Config.REST_API_KEY)
+                            + "&_=" + System.currentTimeMillis()
+            );
+            String response = fetchUrlContent(endpoint, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
+            JSONObject json = new JSONObject(response);
+            if (!"ok".equals(json.optString("status"))) {
+                return;
+            }
+            JSONArray categories = json.optJSONArray("categories");
+            if (categories == null) {
+                return;
+            }
+            java.util.LinkedHashMap<String, String> logos = new java.util.LinkedHashMap<>();
+            for (int i = 0; i < categories.length(); i++) {
+                JSONObject item = categories.optJSONObject(i);
+                if (item == null) {
+                    continue;
+                }
+                String name = item.optString("category_name", "").trim();
+                String image = item.optString("category_image", "").trim();
+                if (TextUtils.isEmpty(name) || TextUtils.isEmpty(image)) {
+                    continue;
+                }
+                logos.put(name, image);
+            }
+            sharedPref.saveCategoryLogoMap(logos);
+        } catch (Exception ignored) {
+            // Keep previous category logos on errors.
         }
     }
 
@@ -835,14 +884,21 @@ public final class DeviceApiHelper {
                     deviceId = getLocalDeviceId(sharedPref.getContext());
                 }
             }
+            if ("GET".equalsIgnoreCase(method) && PlaylistPortalHelper.isPortalUrl(resolvedUrl)) {
+                String bust = resolvedUrl.contains("?") ? "&" : "?";
+                resolvedUrl = resolvedUrl + bust + "_=" + System.currentTimeMillis();
+            }
             URL url = new URL(resolvedUrl);
             connection = (HttpURLConnection) url.openConnection();
             connection.setInstanceFollowRedirects(true);
             connection.setConnectTimeout(15000);
             connection.setReadTimeout(15000);
+            connection.setUseCaches(false);
             connection.setRequestMethod(method);
             connection.setRequestProperty("User-Agent", buildAppUserAgent());
             connection.setRequestProperty("Accept", "*/*");
+            connection.setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate");
+            connection.setRequestProperty("Pragma", "no-cache");
             connection.setRequestProperty("X-Requested-With", packageName);
             connection.setRequestProperty("X-Shif-App", "1");
             if (!TextUtils.isEmpty(deviceId)) {
@@ -875,6 +931,17 @@ public final class DeviceApiHelper {
             }
             String payloadHeader = connection.getHeaderField("X-Shif-Payload");
             String body = readResponseBody(connection);
+            if ("enc-api".equalsIgnoreCase(payloadHeader)) {
+                if (TextUtils.isEmpty(deviceId) && sharedPref != null) {
+                    deviceId = getLocalDeviceId(sharedPref.getContext());
+                }
+                String apiKeyMaterial = PlaylistPortalHelper.derivePlaylistKey(deviceId, Config.REST_API_KEY);
+                String decrypted = PlaylistPortalHelper.decryptPayload(body, apiKeyMaterial);
+                if (!TextUtils.isEmpty(decrypted)) {
+                    return decrypted;
+                }
+                throw new IOException("enc-api decrypt failed");
+            }
             if ("enc".equalsIgnoreCase(payloadHeader) && sharedPref != null) {
                 String sessionToken = sharedPref.getPortalSessionToken();
                 if (TextUtils.isEmpty(sessionToken)) {
@@ -904,7 +971,7 @@ public final class DeviceApiHelper {
             return "";
         }
         String payloadHeader = connection.getHeaderField("X-Shif-Payload");
-        if ("enc".equalsIgnoreCase(payloadHeader)) {
+        if ("enc".equalsIgnoreCase(payloadHeader) || "enc-api".equalsIgnoreCase(payloadHeader)) {
             return new String(readAllBytes(inputStream), StandardCharsets.UTF_8).trim();
         }
         return readAll(inputStream);

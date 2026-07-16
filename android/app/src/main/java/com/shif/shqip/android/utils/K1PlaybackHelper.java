@@ -33,6 +33,6 @@ public final class K1PlaybackHelper {
     }
 
     public static boolean isK1LiveStream(String url) {
-        return isK1ProxyUrl(url) || PortalResolveHelper.isDirectCdnUrl(url);
+        return isK1ProxyUrl(url) || PortalResolveHelper.isPlayableStreamUrl(url);
     }
 }

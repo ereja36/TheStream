@@ -308,6 +308,13 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void stopHeroForPlayback() {
+        if (heroPlayer != null) {
+            try {
+                heroPlayer.setVolume(0f);
+                heroPlayer.setPlayWhenReady(false);
+            } catch (Exception ignored) {
+            }
+        }
         releaseHeroPreview();
     }
 
@@ -514,17 +521,18 @@ public class ActivityMainV2 extends AppCompatActivity {
             if (categoryChannels.isEmpty()) {
                 continue;
             }
-            if (categoryChannels.size() > 20) {
-                categoryChannels = new ArrayList<>(categoryChannels.subList(0, 20));
+            if (categoryChannels.size() > 24) {
+                categoryChannels = new ArrayList<>(categoryChannels.subList(0, 24));
             }
 
             View section = inflater.inflate(R.layout.include_v2_category_section, categorySections, false);
             TextView title = section.findViewById(R.id.category_title);
             View dot = section.findViewById(R.id.category_dot);
+            ImageView categoryLogo = section.findViewById(R.id.category_logo);
             RecyclerView recyclerView = section.findViewById(R.id.recycler_channels);
 
             title.setText(category.category_name);
-            tintCategoryDot(dot, category.category_name);
+            bindCategoryLogo(dot, categoryLogo, category);
 
             AdapterChannelCardV2 adapter = new AdapterChannelCardV2(this);
             adapter.setOnChannelClickListener(channel -> {
@@ -539,9 +547,7 @@ public class ActivityMainV2 extends AppCompatActivity {
 
             section.findViewById(R.id.category_header).setOnClickListener(v -> {
                 AdPlacementHelper.showInterstitialBeforeAction(this);
-                Intent intent = new Intent(this, ActivityCategoryDetail.class);
-                intent.putExtra(Constant.EXTRA_OBJC, category);
-                startActivity(intent);
+                startActivity(PlaylistNavigationHelper.createCategoryIntent(this, category));
             });
 
             categorySections.addView(section);
@@ -622,6 +628,36 @@ public class ActivityMainV2 extends AppCompatActivity {
             }
         }
         return result;
+    }
+
+    private void bindCategoryLogo(View dot, ImageView categoryLogo, Category category) {
+        String image = category == null ? "" : category.category_image;
+        if (TextUtils.isEmpty(image) && category != null) {
+            image = sharedPref.getCategoryLogo(category.category_name);
+        }
+        if (!TextUtils.isEmpty(image) && categoryLogo != null) {
+            String url = image.startsWith("http")
+                    ? image
+                    : sharedPref.getBaseUrl() + "/upload/category/" + image.replace(" ", "%20");
+            categoryLogo.setVisibility(View.VISIBLE);
+            if (dot != null) {
+                dot.setVisibility(View.GONE);
+            }
+            com.bumptech.glide.Glide.with(this)
+                    .load(url)
+                    .placeholder(R.drawable.ic_category_app_logo)
+                    .error(R.drawable.ic_category_app_logo)
+                    .circleCrop()
+                    .into(categoryLogo);
+            return;
+        }
+        if (categoryLogo != null) {
+            categoryLogo.setVisibility(View.GONE);
+        }
+        if (dot != null) {
+            dot.setVisibility(View.VISIBLE);
+            tintCategoryDot(dot, category == null ? "" : category.category_name);
+        }
     }
 
     private void tintCategoryDot(View dot, String categoryName) {
