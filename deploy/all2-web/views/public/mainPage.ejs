@@ -1,25 +1,10 @@
 <div class="page">
 <% if (typeof theme !== 'undefined' && theme === 'triangolo') { %>
-<div class="main-hero">
-  <div class="main-hero-pane">
-    <div class="tri-brand-mark"><span class="mark">S</span><span class="brand-text">Shif Shqip IPTV PORTAL</span></div>
-    <span class="hero-chip"><span class="server-dot"></span> PREMIUM STREAMING PORTAL</span>
-    <h1>Shif Shqip IPTV PORTAL</h1>
-    <p>Shiko Kanale Shqip Falas &amp; Radio Online</p>
-    <div class="main-hero-actions" data-testid="hero-main-actions">
-      <a href="<%= basePath %>/" class="a-btn a-btn-primary btn-tri-primary"><i class="fas fa-tv"></i> Browse Channels</a>
-      <a href="#muzike" class="a-btn btn-tri-secondary" onclick="try{filterChannels('radio');}catch(e){}; return true;"><i class="fas fa-broadcast-tower"></i> Listen Radios</a>
-      <a href="<%= typeof telegramUrl !== 'undefined' && telegramUrl ? telegramUrl : 'https://t.me/albview' %>" target="_blank" rel="noopener noreferrer" class="a-btn btn-telegram" data-testid="hero-telegram-button"><i class="fab fa-telegram-plane"></i> Bashkohu në Telegram</a>
-    </div>
-    <div class="search-bar"><i class="fas fa-search"></i>
-      <input id="channelSearchInput" data-testid="main-channel-search-input" type="text" placeholder="Search channels or radios..." oninput="filterChannels(this.value)">
-    </div>
-    <div class="tri-stats">
-      <div class="tri-stat"><%= typeof channelCount !== 'undefined' ? channelCount : visibleMainCount %> Channels</div>
-      <div class="tri-stat">Live</div>
-      <div class="tri-stat"><%= typeof categoryCount !== 'undefined' ? categoryCount : 0 %> Categories</div>
-    </div>
+<div class="tri-topbar">
+  <div class="search-bar"><i class="fas fa-search"></i>
+    <input id="channelSearchInput" data-testid="main-channel-search-input" type="text" placeholder="Search channels..." oninput="filterChannels(this.value)">
   </div>
+  <a href="<%= typeof telegramUrl !== 'undefined' && telegramUrl ? telegramUrl : 'https://t.me/albview' %>" target="_blank" rel="noopener noreferrer" class="a-btn btn-telegram" data-testid="hero-telegram-button"><i class="fab fa-telegram-plane"></i> Telegram</a>
 </div>
 <div id="favSection" style="display:none;margin-bottom:24px">
   <div class="tri-cat-head"><div><div class="tri-cat-kicker">YOURS</div><h2 class="tri-cat-title">Favoritet</h2></div></div>
@@ -28,6 +13,7 @@
 <%- typeof categoryRowsHtml !== 'undefined' ? categoryRowsHtml : '' %>
 <div class="info-footer">© Shif Shqip</div>
 <% } else { %>
+
 
 <div class="main-hero">
   <div class="main-hero-pane">

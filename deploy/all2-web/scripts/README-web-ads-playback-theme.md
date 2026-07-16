@@ -37,3 +37,13 @@ pm2 reload all2
 ```
 - Features 500: `escapeAttr` → `escapeHtmlAttr`
 - Channels not clickable: client JS called server-only `normalizeWebUiConfig`; mp4 regex `\?` was eaten inside template literal
+
+
+## Main portal gate + liquid glass
+```bash
+python3 patch-web-main-portal-glass.py
+pm2 restart all2
+```
+- Web `/api/channel-url` + watch links only allow channels on main portal (featured or categories with `showOnMain`).
+- Private playlists (`/playlist/:id/...`) are unchanged.
+- Homepage: no marketing hero; liquid-glass Triangolo UI.
