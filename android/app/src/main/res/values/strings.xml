@@ -203,7 +203,7 @@
     <string name="quick_gestures_tap_title">Tap</string>
     <string name="quick_gestures_tap_desc">Show player controls</string>
     <string name="quick_gestures_hold_title">Tap &amp; hold</string>
-    <string name="quick_gestures_hold_desc">Brightness · Volume · Channel</string>
+    <string name="quick_gestures_hold_desc">Open channel list</string>
     <string name="quick_gestures_got_it">Got it</string>
     <string name="quick_gestures_channel_list">Channels</string>
     <string name="quick_gestures_brightness">Brightness</string>

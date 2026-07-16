@@ -9,15 +9,14 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.Editable;
 import android.text.TextUtils;
-import android.text.TextWatcher;
 import android.view.GestureDetector;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
@@ -25,21 +24,20 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.widget.ArrayAdapter;
-import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
-import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.shif.shqip.android.models.Category;
 import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.CategoryDisplayHelper;
+import com.shif.shqip.android.utils.PlaylistNavigationHelper;
 
 import java.util.ArrayList;
 import androidx.activity.OnBackPressedCallback;
@@ -49,6 +47,8 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
@@ -70,7 +70,6 @@ import com.google.android.exoplayer2.text.Cue;
 import com.google.android.exoplayer2.ui.StyledPlayerView;
 import com.google.android.exoplayer2.upstream.DefaultDataSource;
 import com.google.android.exoplayer2.util.Log;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.snackbar.Snackbar;
 
 import org.xmlpull.v1.XmlPullParser;
@@ -958,7 +957,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
             @Override
             public void onLongPress(MotionEvent e) {
-                showBrightnessVolumeDialog();
+                showChannelListDialog();
             }
 
             @Override
@@ -1241,155 +1240,144 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void showChannelListDialog() {
-        List<Channel> channels = playableChannels();
-        if (channels.isEmpty()) {
+        List<Channel> allPlayable = playableChannels();
+        if (allPlayable.isEmpty()) {
             return;
         }
         if (channelListDialog != null && channelListDialog.isShowing()) {
             channelListDialog.dismiss();
         }
-
-        View content = LayoutInflater.from(this).inflate(R.layout.dialog_player_channels, null, false);
-        EditText searchInput = content.findViewById(R.id.input_channel_search);
-        ListView listView = content.findViewById(R.id.list_channels);
-
-        final List<Channel> visible = new ArrayList<>(channels);
-        final ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_list_item_single_choice,
-                new ArrayList<>());
-        listView.setAdapter(adapter);
-        listView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-
-        Runnable bindList = () -> {
-            adapter.clear();
-            for (Channel channel : visible) {
-                adapter.add(TextUtils.isEmpty(channel.channel_name)
-                        ? ("Channel " + channel.channel_id)
-                        : channel.channel_name);
-            }
-            adapter.notifyDataSetChanged();
-            int selected = 0;
-            for (int i = 0; i < visible.size(); i++) {
-                Channel channel = visible.get(i);
-                if (!TextUtils.isEmpty(channel_id) && channel_id.equals(channel.channel_id)) {
-                    selected = i;
-                    break;
-                }
-            }
-            if (!visible.isEmpty()) {
-                listView.setItemChecked(selected, true);
-                listView.setSelection(selected);
-            }
-        };
-        bindList.run();
-
-        searchInput.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                String q = s == null ? "" : s.toString().trim().toLowerCase(Locale.US);
-                visible.clear();
-                for (Channel channel : channels) {
-                    String name = channel.channel_name == null ? "" : channel.channel_name.toLowerCase(Locale.US);
-                    if (q.isEmpty() || name.contains(q)) {
-                        visible.add(channel);
-                    }
-                }
-                bindList.run();
-            }
-        });
-
-        listView.setOnItemClickListener((parent, view, position, id) -> {
-            if (position < 0 || position >= visible.size()) {
-                return;
-            }
-            Channel selected = visible.get(position);
-            if (channelListDialog != null) {
-                channelListDialog.dismiss();
-            }
-            switchToChannel(selected);
-        });
-
-        channelListDialog = new MaterialAlertDialogBuilder(this)
-                .setView(content)
-                .setNegativeButton(android.R.string.cancel, null)
-                .create();
-        if (channelListDialog.getWindow() != null) {
-            channelListDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-        }
-        channelListDialog.show();
-        if (channelListDialog.getButton(AlertDialog.BUTTON_NEGATIVE) != null) {
-            channelListDialog.getButton(AlertDialog.BUTTON_NEGATIVE)
-                    .setTextColor(ContextCompat.getColor(this, R.color.color_dark_accent));
-        }
-    }
-
-    private void showBrightnessVolumeDialog() {
         if (holdDialog != null && holdDialog.isShowing()) {
             holdDialog.dismiss();
         }
-        View content = LayoutInflater.from(this).inflate(R.layout.dialog_player_hold, null, false);
-        SeekBar brightSeek = content.findViewById(R.id.seek_brightness);
-        SeekBar volumeSeek = content.findViewById(R.id.seek_volume);
 
-        float brightness = currentBrightness;
-        if (brightness < 0f) {
-            brightness = getWindow().getAttributes().screenBrightness;
-            if (brightness < 0f) {
-                brightness = 0.5f;
-            }
-        }
-        brightSeek.setProgress(Math.round(brightness * 100f));
-        brightSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                float value = Math.max(0.05f, progress / 100f);
-                currentBrightness = value;
-                WindowManager.LayoutParams lp = getWindow().getAttributes();
-                lp.screenBrightness = value;
-                getWindow().setAttributes(lp);
-            }
+        View content = LayoutInflater.from(this).inflate(R.layout.dialog_player_channel_browser, null, false);
+        TextView title = content.findViewById(R.id.txt_channel_browser_title);
+        View close = content.findViewById(R.id.btn_close_channel_browser);
+        RecyclerView sidebar = content.findViewById(R.id.recycler_sidebar);
+        RecyclerView channelsRv = content.findViewById(R.id.recycler_channels);
 
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
-        });
+        final List<Category> categories = new ArrayList<>();
+        Category allCat = new Category();
+        allCat.category_name = PlaylistNavigationHelper.ALL_CHANNELS_CATEGORY;
+        categories.add(allCat);
+        categories.addAll(sharedPref.getPlaylistCategories());
 
-        int max = audioManager != null ? audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) : 15;
-        int cur = audioManager != null ? audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) : 7;
-        volumeSeek.setMax(Math.max(1, max));
-        volumeSeek.setProgress(cur);
-        volumeSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                if (audioManager != null) {
-                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, progress, 0);
-                }
-            }
+        final String[] selectedKey = {PlaylistNavigationHelper.ALL_CHANNELS_CATEGORY};
+        final List<Channel> visible = new ArrayList<>(allPlayable);
 
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
-        });
+        final RecyclerView.Adapter<RecyclerView.ViewHolder> channelAdapter =
+                new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                    @NonNull
+                    @Override
+                    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+                        View row = LayoutInflater.from(parent.getContext())
+                                .inflate(R.layout.item_playlist_channel_row, parent, false);
+                        return new RecyclerView.ViewHolder(row) {};
+                    }
 
-        holdDialog = new MaterialAlertDialogBuilder(this)
+                    @Override
+                    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+                        Channel channel = visible.get(position);
+                        TextView name = holder.itemView.findViewById(R.id.channel_name);
+                        ImageView logo = holder.itemView.findViewById(R.id.channel_logo);
+                        View row = holder.itemView.findViewById(R.id.channel_row);
+                        name.setText(TextUtils.isEmpty(channel.channel_name)
+                                ? ("Channel " + (position + 1))
+                                : channel.channel_name);
+                        boolean current = !TextUtils.isEmpty(channel_id)
+                                && channel_id.equals(channel.channel_id);
+                        row.setBackgroundColor(current ? Color.parseColor("#333333") : Color.TRANSPARENT);
+                        String image = channel.channel_image;
+                        if (!TextUtils.isEmpty(image)) {
+                            String url = image.startsWith("http") ? image
+                                    : sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+                            Glide.with(ActivityPlayerVideo.this)
+                                    .load(url)
+                                    .placeholder(R.drawable.ic_category_app_logo)
+                                    .error(R.drawable.ic_category_app_logo)
+                                    .into(logo);
+                        } else {
+                            logo.setImageResource(R.drawable.ic_category_app_logo);
+                        }
+                        holder.itemView.setOnClickListener(v -> {
+                            if (channelListDialog != null) {
+                                channelListDialog.dismiss();
+                            }
+                            switchToChannel(channel, true);
+                        });
+                    }
+
+                    @Override
+                    public int getItemCount() {
+                        return visible.size();
+                    }
+                };
+
+        final RecyclerView.Adapter<RecyclerView.ViewHolder> sidebarAdapter =
+                new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+                    @NonNull
+                    @Override
+                    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+                        View row = LayoutInflater.from(parent.getContext())
+                                .inflate(R.layout.item_sidebar_category, parent, false);
+                        return new RecyclerView.ViewHolder(row) {};
+                    }
+
+                    @Override
+                    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+                        Category category = categories.get(position);
+                        TextView name = holder.itemView.findViewById(R.id.sidebar_category_name);
+                        boolean all = PlaylistNavigationHelper.isAllChannelsCategory(category);
+                        String label = all ? getString(R.string.title_all_channels)
+                                : CategoryDisplayHelper.displayName(category.category_name);
+                        boolean selected = selectedKey[0].equals(category.category_name);
+                        name.setText(label);
+                        name.setBackgroundColor(selected ? Color.parseColor("#2563EB") : Color.TRANSPARENT);
+                        name.setTextColor(Color.WHITE);
+                        holder.itemView.setOnClickListener(v -> {
+                            selectedKey[0] = category.category_name;
+                            visible.clear();
+                            if (all) {
+                                visible.addAll(allPlayable);
+                                title.setText(R.string.title_all_channels);
+                            } else {
+                                for (Channel channel : allPlayable) {
+                                    String cat = CategoryDisplayHelper.displayName(channel.category_name);
+                                    if (cat.equalsIgnoreCase(CategoryDisplayHelper.displayName(category.category_name))) {
+                                        visible.add(channel);
+                                    }
+                                }
+                                title.setText(label);
+                            }
+                            notifyDataSetChanged();
+                            channelAdapter.notifyDataSetChanged();
+                            channelsRv.scrollToPosition(0);
+                        });
+                    }
+
+                    @Override
+                    public int getItemCount() {
+                        return categories.size();
+                    }
+                };
+
+        sidebar.setLayoutManager(new LinearLayoutManager(this));
+        channelsRv.setLayoutManager(new LinearLayoutManager(this));
+        channelsRv.setItemViewCacheSize(40);
+        sidebar.setAdapter(sidebarAdapter);
+        channelsRv.setAdapter(channelAdapter);
+        title.setText(R.string.title_all_channels);
+
+        channelListDialog = new AlertDialog.Builder(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
                 .setView(content)
-                .setPositiveButton(android.R.string.ok, null)
-                .setNeutralButton(R.string.quick_gestures_channel_list, (d, w) -> showChannelListDialog())
                 .create();
-        if (holdDialog.getWindow() != null) {
-            holdDialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-        }
-        holdDialog.show();
-        if (holdDialog.getButton(AlertDialog.BUTTON_POSITIVE) != null) {
-            holdDialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                    .setTextColor(ContextCompat.getColor(this, R.color.color_dark_accent));
-        }
-        if (holdDialog.getButton(AlertDialog.BUTTON_NEUTRAL) != null) {
-            holdDialog.getButton(AlertDialog.BUTTON_NEUTRAL)
-                    .setTextColor(ContextCompat.getColor(this, R.color.color_dark_accent));
-        }
+        close.setOnClickListener(v -> {
+            if (channelListDialog != null) {
+                channelListDialog.dismiss();
+            }
+        });
+        channelListDialog.show();
     }
 
     @Override
