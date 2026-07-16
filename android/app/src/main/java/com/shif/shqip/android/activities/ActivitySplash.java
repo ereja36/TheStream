@@ -206,6 +206,7 @@ public class ActivitySplash extends AppCompatActivity {
             String versionBefore = sharedPref.getPortalContentVersion();
             try {
                 DeviceApiHelper.refreshPlaylistPortalConfig(sharedPref);
+                DeviceApiHelper.refreshCategoryLogos(sharedPref);
             } catch (Exception ignored) {
             }
             String versionAfter = sharedPref.getPortalContentVersion();

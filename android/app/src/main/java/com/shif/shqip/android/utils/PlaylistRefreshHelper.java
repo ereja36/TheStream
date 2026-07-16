@@ -20,6 +20,7 @@ public final class PlaylistRefreshHelper {
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
     private static long lastRefreshAt;
     private static final AtomicBoolean FORCE_NEXT = new AtomicBoolean(false);
+    private static final AtomicBoolean IN_FLIGHT = new AtomicBoolean(false);
 
     private PlaylistRefreshHelper() {
     }
@@ -37,12 +38,19 @@ public final class PlaylistRefreshHelper {
         if (!force && now - lastRefreshAt < MIN_REFRESH_GAP_MS) {
             return;
         }
+        if (!IN_FLIGHT.compareAndSet(false, true)) {
+            if (force) {
+                FORCE_NEXT.set(true);
+            }
+            return;
+        }
         lastRefreshAt = now;
         final String versionBefore = sharedPref.getPortalContentVersion();
         EXECUTOR.execute(() -> {
             try {
                 String deviceId = DeviceApiHelper.getLocalDeviceId(activity);
                 DeviceApiHelper.refreshPlaylistPortalConfig(sharedPref);
+                DeviceApiHelper.refreshCategoryLogos(sharedPref);
                 String versionAfter = sharedPref.getPortalContentVersion();
                 boolean portalChanged = !TextUtils.isEmpty(versionAfter)
                         && !versionAfter.equals(versionBefore);
@@ -55,10 +63,6 @@ public final class PlaylistRefreshHelper {
                     return;
                 }
                 boolean shouldReload = portalChanged || result.channelsUpdated || force;
-                // When portal source changed, always rebuild home even if channel count is unchanged.
-                if (portalChanged) {
-                    shouldReload = true;
-                }
                 if (onUpdated != null && shouldReload) {
                     activity.runOnUiThread(() -> {
                         if (!activity.isFinishing()) {
@@ -68,6 +72,8 @@ public final class PlaylistRefreshHelper {
                 }
             } catch (Exception ignored) {
                 // Keep cached playlist on refresh errors.
+            } finally {
+                IN_FLIGHT.set(false);
             }
         });
     }

@@ -243,6 +243,45 @@ public final class DeviceApiHelper {
         }
     }
 
+    public static void refreshCategoryLogos(SharedPref sharedPref) {
+        if (sharedPref == null || TextUtils.isEmpty(sharedPref.getBaseUrl())) {
+            return;
+        }
+        try {
+            String deviceId = getLocalDeviceId(sharedPref.getContext());
+            String endpoint = buildApiUrl(
+                    sharedPref.getBaseUrl(),
+                    "/api/api.php?get_category_index&api_key=" + urlEncode(Config.REST_API_KEY)
+                            + "&_=" + System.currentTimeMillis()
+            );
+            String response = fetchUrlContent(endpoint, "GET", null, deviceId, BuildConfig.APPLICATION_ID, sharedPref);
+            JSONObject json = new JSONObject(response);
+            if (!"ok".equals(json.optString("status"))) {
+                return;
+            }
+            JSONArray categories = json.optJSONArray("categories");
+            if (categories == null) {
+                return;
+            }
+            java.util.LinkedHashMap<String, String> logos = new java.util.LinkedHashMap<>();
+            for (int i = 0; i < categories.length(); i++) {
+                JSONObject item = categories.optJSONObject(i);
+                if (item == null) {
+                    continue;
+                }
+                String name = item.optString("category_name", "").trim();
+                String image = item.optString("category_image", "").trim();
+                if (TextUtils.isEmpty(name) || TextUtils.isEmpty(image)) {
+                    continue;
+                }
+                logos.put(name, image);
+            }
+            sharedPref.saveCategoryLogoMap(logos);
+        } catch (Exception ignored) {
+            // Keep previous category logos on errors.
+        }
+    }
+
     public static void refreshPlaylistGuardRulesAsync(SharedPref sharedPref) {
         PlaylistGuardSession.refreshAsync(sharedPref);
     }

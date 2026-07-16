@@ -49,6 +49,7 @@ public class SharedPref {
     private static final String KEY_PORTAL_STREAM_COOKIE = "portal_stream_cookie";
     private static final String KEY_PORTAL_CONTENT_VERSION = "portal_content_version";
     private static final String KEY_QUICK_GESTURES_TIP_SHOWN = "quick_gestures_tip_shown";
+    private static final String KEY_CATEGORY_LOGOS = "category_logos_json";
 
     Context context;
     SharedPreferences sharedPreferences;
@@ -371,6 +372,7 @@ public class SharedPref {
     public List<Category> getPlaylistCategories() {
         List<Channel> channels = getPlaylistChannels();
         LinkedHashMap<String, Category> categoryMap = new LinkedHashMap<>();
+        LinkedHashMap<String, String> logos = getCategoryLogoMap();
         int index = 1;
         for (Channel channel : channels) {
             String categoryName = sanitizeCategoryName(channel.category_name);
@@ -378,11 +380,57 @@ public class SharedPref {
                 Category category = new Category();
                 category.cid = index++;
                 category.category_name = categoryName;
-                category.category_image = "";
+                category.category_image = resolveCategoryLogo(logos, categoryName);
                 categoryMap.put(categoryName, category);
             }
         }
         return new ArrayList<>(categoryMap.values());
+    }
+
+    public void saveCategoryLogoMap(LinkedHashMap<String, String> logos) {
+        if (logos == null || logos.isEmpty()) {
+            editor.putString(KEY_CATEGORY_LOGOS, "");
+        } else {
+            editor.putString(KEY_CATEGORY_LOGOS, new Gson().toJson(logos));
+        }
+        editor.apply();
+    }
+
+    public LinkedHashMap<String, String> getCategoryLogoMap() {
+        String json = sharedPreferences.getString(KEY_CATEGORY_LOGOS, "");
+        LinkedHashMap<String, String> logos = new LinkedHashMap<>();
+        if (TextUtils.isEmpty(json)) {
+            return logos;
+        }
+        try {
+            Type type = new TypeToken<LinkedHashMap<String, String>>() {}.getType();
+            LinkedHashMap<String, String> parsed = new Gson().fromJson(json, type);
+            if (parsed != null) {
+                logos.putAll(parsed);
+            }
+        } catch (Exception ignored) {
+        }
+        return logos;
+    }
+
+    public String getCategoryLogo(String categoryName) {
+        return resolveCategoryLogo(getCategoryLogoMap(), sanitizeCategoryName(categoryName));
+    }
+
+    private String resolveCategoryLogo(LinkedHashMap<String, String> logos, String categoryName) {
+        if (logos == null || logos.isEmpty() || TextUtils.isEmpty(categoryName)) {
+            return "";
+        }
+        String direct = logos.get(categoryName);
+        if (!TextUtils.isEmpty(direct)) {
+            return direct;
+        }
+        for (java.util.Map.Entry<String, String> entry : logos.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(categoryName)) {
+                return entry.getValue() == null ? "" : entry.getValue();
+            }
+        }
+        return "";
     }
 
     public List<Channel> getPlaylistChannelsByCategory(String categoryName) {

@@ -125,6 +125,10 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private static final long EPG_LOAD_DELAY_MS = 8_000L;
     private GestureDetector gestureDetector;
     private View quickGesturesOverlay;
+    private View mxGestureOverlay;
+    private TextView mxGestureLabel;
+    private TextView mxGestureValue;
+    private ProgressBar mxGestureProgress;
     private AudioManager audioManager;
     private float currentBrightness = -1f;
     private Toast channelToast;
@@ -133,6 +137,10 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private AlertDialog channelListDialog;
     private AlertDialog holdDialog;
     private long reloadGeneration = 0L;
+    private int mxGestureMode = 0; // 0 none, 1 brightness, 2 volume
+    private float mxGestureStartY;
+    private float mxGestureStartValue;
+    private final Runnable hideMxGestureRunnable = this::hideMxGestureOverlay;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -145,9 +153,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         adsManager = new AdsManager(this);
         if (adsPref.getAdStatus()) {
             adsManager.initializeAd();
-            adsManager.loadInterstitialAd(
-                    true,
-                    AdPlacementHelper.resolveInterstitialInterval(adsPref));
+            // Interval 1 here: AdsPref counter in maybeShowChannelSwapAd already throttles to every 3.
+            adsManager.loadInterstitialAd(true, 1);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             this.getWindow().setNavigationBarColor(ContextCompat.getColor(getApplicationContext(), R.color.color_black));
@@ -900,6 +907,10 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private void setupPlayerGestures() {
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
         quickGesturesOverlay = findViewById(R.id.quick_gestures_overlay);
+        mxGestureOverlay = findViewById(R.id.mx_gesture_overlay);
+        mxGestureLabel = findViewById(R.id.mx_gesture_label);
+        mxGestureValue = findViewById(R.id.mx_gesture_value);
+        mxGestureProgress = findViewById(R.id.mx_gesture_progress);
         View gotIt = findViewById(R.id.btn_quick_gestures_got_it);
         View tvHint = findViewById(R.id.txt_quick_gestures_tv_hint);
         if (tvHint != null && isTelevisionDevice()) {
@@ -926,15 +937,15 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
             @Override
             public boolean onSingleTapConfirmed(MotionEvent e) {
-                showChannelListDialog();
+                if (styledPlayerView != null) {
+                    styledPlayerView.showController();
+                }
                 return true;
             }
 
             @Override
             public boolean onDoubleTap(MotionEvent e) {
-                if (styledPlayerView != null) {
-                    styledPlayerView.showController();
-                }
+                showChannelListDialog();
                 return true;
             }
 
@@ -944,14 +955,72 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             }
 
             @Override
+            public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+                if (e1 == null || e2 == null || Math.abs(distanceY) < Math.abs(distanceX)) {
+                    return false;
+                }
+                int width = styledPlayerView != null ? styledPlayerView.getWidth() : 0;
+                if (width <= 0) {
+                    View bg = findViewById(R.id.background_view);
+                    width = bg != null ? bg.getWidth() : 0;
+                }
+                if (width <= 0) {
+                    return false;
+                }
+                float startX = e1.getX();
+                if (mxGestureMode == 0) {
+                    if (startX < width * 0.35f) {
+                        mxGestureMode = 1;
+                        mxGestureStartY = e1.getY();
+                        float brightness = currentBrightness;
+                        if (brightness < 0f) {
+                            brightness = getWindow().getAttributes().screenBrightness;
+                            if (brightness < 0f) {
+                                brightness = 0.5f;
+                            }
+                        }
+                        mxGestureStartValue = brightness;
+                    } else if (startX > width * 0.65f) {
+                        mxGestureMode = 2;
+                        mxGestureStartY = e1.getY();
+                        int max = audioManager != null ? audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) : 15;
+                        int cur = audioManager != null ? audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) : 7;
+                        mxGestureStartValue = max <= 0 ? 0f : (cur / (float) max);
+                    } else {
+                        return false;
+                    }
+                }
+                float delta = (mxGestureStartY - e2.getY()) / Math.max(1f, (float) width);
+                float next = Math.max(0f, Math.min(1f, mxGestureStartValue + delta));
+                if (mxGestureMode == 1) {
+                    applyBrightness(next);
+                    showMxGestureOverlay(getString(R.string.quick_gestures_brightness), Math.round(next * 100f));
+                    return true;
+                }
+                if (mxGestureMode == 2) {
+                    applyVolumeFraction(next);
+                    showMxGestureOverlay(getString(R.string.quick_gestures_volume), Math.round(next * 100f));
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
             public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
-                if (e1 == null || e2 == null) {
+                if (mxGestureMode != 0 || e1 == null || e2 == null) {
                     return false;
                 }
                 float dy = e2.getY() - e1.getY();
                 float dx = e2.getX() - e1.getX();
                 if (Math.abs(dy) < SWIPE_MIN || Math.abs(dy) < Math.abs(dx) || Math.abs(velocityY) < SWIPE_VEL) {
                     return false;
+                }
+                int width = styledPlayerView != null ? styledPlayerView.getWidth() : 0;
+                if (width > 0) {
+                    float startX = e1.getX();
+                    if (startX < width * 0.35f || startX > width * 0.65f) {
+                        return false;
+                    }
                 }
                 if (dy < 0) {
                     switchChannelByOffset(1);
@@ -966,8 +1035,12 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             if (quickGesturesOverlay != null && quickGesturesOverlay.getVisibility() == View.VISIBLE) {
                 return true;
             }
-            gestureDetector.onTouchEvent(event);
-            // Consume touches so Quick gestures own swipe/tap/hold on the video surface.
+            boolean handled = gestureDetector.onTouchEvent(event);
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                mxGestureMode = 0;
+                scheduleHideMxGestureOverlay();
+            }
             return true;
         };
         if (styledPlayerView != null) {
@@ -976,6 +1049,50 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         View background = findViewById(R.id.background_view);
         if (background != null) {
             background.setOnTouchListener(gestureTouchListener);
+        }
+    }
+
+    private void applyBrightness(float value) {
+        currentBrightness = Math.max(0.05f, Math.min(1f, value));
+        WindowManager.LayoutParams lp = getWindow().getAttributes();
+        lp.screenBrightness = currentBrightness;
+        getWindow().setAttributes(lp);
+    }
+
+    private void applyVolumeFraction(float fraction) {
+        if (audioManager == null) {
+            return;
+        }
+        int max = Math.max(1, audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+        int next = Math.round(Math.max(0f, Math.min(1f, fraction)) * max);
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, next, 0);
+    }
+
+    private void showMxGestureOverlay(String label, int percent) {
+        if (mxGestureOverlay == null) {
+            return;
+        }
+        mxGestureOverlay.setVisibility(View.VISIBLE);
+        if (mxGestureLabel != null) {
+            mxGestureLabel.setText(label);
+        }
+        if (mxGestureValue != null) {
+            mxGestureValue.setText(percent + "%");
+        }
+        if (mxGestureProgress != null) {
+            mxGestureProgress.setProgress(Math.max(0, Math.min(100, percent)));
+        }
+        mainHandler.removeCallbacks(hideMxGestureRunnable);
+    }
+
+    private void scheduleHideMxGestureOverlay() {
+        mainHandler.removeCallbacks(hideMxGestureRunnable);
+        mainHandler.postDelayed(hideMxGestureRunnable, 700L);
+    }
+
+    private void hideMxGestureOverlay() {
+        if (mxGestureOverlay != null) {
+            mxGestureOverlay.setVisibility(View.GONE);
         }
     }
 
@@ -1074,7 +1191,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         adsPref.updateInterstitialAdCounter(1);
         try {
             adsManager.showInterstitialAd();
-            adsManager.loadInterstitialAd(true, interval);
+            adsManager.loadInterstitialAd(true, 1);
         } catch (Exception ignored) {
             // Ads must never block channel switching.
         }
