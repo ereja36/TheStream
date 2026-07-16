@@ -18,6 +18,17 @@ pm2 restart all2
 6. **No-ads**: clears ads when account is NoAds (incl. reward free window)
 7. **Theme**: classic vs Triangolo-style, switchable from Admin → Features
 
+## CDN segments + Triangolo polish
+```bash
+python3 patch-web-cdn-triangolo-telegram.py
+python3 patch-web-category-bottom-ads.py
+python3 fix-bottomad-commas.py   # if SyntaxError after bottomAdHtml patch
+python3 patch-web-triangolo-polish.py
+pm2 restart all2
+```
+- **Prod API traffic**: playlist manifest stays on VPS (`X-Playlist-Proxy: api-headers`); `.ts` segments are rewritten to absolute CDN URLs (`X-Segment-Mode: direct-cdn`) so media does **not** consume VPS bandwidth.
+- **Triangolo**: red/dark homepage like AlbKanale; category horizontal rows; native/banner slot under each category; Telegram CTA button → `https://t.me/albview`.
+
 ## Hotfixes (channel click + features 500)
 ```bash
 python3 patch-web-click-features-fix.py
