@@ -354,10 +354,18 @@ public final class DirectAdMobBannerHelper {
         if (strip != null) {
             strip.setVisibility(View.VISIBLE);
             strip.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            strip.bringToFront();
         }
         View chrome = activity.findViewById(R.id.bottom_chrome);
         if (chrome != null) {
             chrome.setVisibility(View.VISIBLE);
+            chrome.bringToFront();
+            chrome.setElevation(24f * activity.getResources().getDisplayMetrics().density);
+        }
+        View nav = activity.findViewById(R.id.bottom_nav_pill);
+        if (nav != null) {
+            nav.bringToFront();
+            nav.setElevation(28f * activity.getResources().getDisplayMetrics().density);
         }
     }
 

@@ -96,7 +96,8 @@ public class ActivityMainV2 extends AppCompatActivity {
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
         setContentView(getHomeLayoutResId());
-        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_container,
+        // bottom_chrome owns system-bar inset; do not also margin bottom_nav_pill (child).
+        DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_chrome,
                 R.id.scroll_home, 0);
 
         categorySections = findViewById(R.id.category_sections);
@@ -234,8 +235,8 @@ public class ActivityMainV2 extends AppCompatActivity {
     private void bringChromeToFront() {
         View topActions = findViewById(R.id.top_actions);
         View bottomNav = findViewById(R.id.bottom_nav_pill);
-        View bottomContainer = findViewById(R.id.bottom_container);
-        DesignInsetsHelper.bringChromeToFront(topActions, bottomContainer, bottomNav);
+        View bottomChrome = findViewById(R.id.bottom_chrome);
+        DesignInsetsHelper.bringChromeToFront(topActions, bottomChrome, bottomNav);
     }
 
     private void loadChannels() {

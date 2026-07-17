@@ -10,11 +10,11 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 117
-        versionName = "6.9.97"
+        versionCode = 118
+        versionName = "6.9.98"
         multiDexEnabled = true
-        // Main Shif Shqip app uses liquid-glass Design V4 (same applicationId / server key).
-        buildConfigField "boolean", "FORCE_DESIGN_V4", "true"
+        // Main Shif Shqip: design comes from admin panel (v1/v2/v3/v4), not forced.
+        buildConfigField "boolean", "FORCE_DESIGN_V4", "false"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

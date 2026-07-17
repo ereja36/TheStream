@@ -162,7 +162,7 @@ public final class DesignUiHelper {
 
     private static String normalizeDesignId(String designId) {
         String normalized = designId == null ? "v1" : designId.trim().toLowerCase();
-        if ("v2".equals(normalized) || "v3".equals(normalized)) {
+        if ("v2".equals(normalized) || "v3".equals(normalized) || "v4".equals(normalized)) {
             return normalized;
         }
         return "v1";

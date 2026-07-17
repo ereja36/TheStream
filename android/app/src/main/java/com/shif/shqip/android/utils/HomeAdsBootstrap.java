@@ -58,6 +58,12 @@ public final class HomeAdsBootstrap {
                 adsManager.ensureBannerAd();
                 adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
                         AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
+                // Keep bottom chrome (banner + nav) above scroll content on V2/V4.
+                View chrome = activity.findViewById(R.id.bottom_chrome);
+                if (chrome != null) {
+                    chrome.bringToFront();
+                    chrome.setElevation(24f * activity.getResources().getDisplayMetrics().density);
+                }
                 anchor.postDelayed(() -> {
                     if (!activity.isFinishing() && adsPref.getAdStatus()) {
                         adsManager.ensureBannerAd();
