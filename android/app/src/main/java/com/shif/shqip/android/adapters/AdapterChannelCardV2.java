@@ -60,7 +60,10 @@ public class AdapterChannelCardV2 extends RecyclerView.Adapter<AdapterChannelCar
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_channel_card_v2, parent, false);
+        int layout = "v4".equals(sharedPref.getDesignId())
+                ? R.layout.item_channel_card_v4
+                : R.layout.item_channel_card_v2;
+        View view = LayoutInflater.from(parent.getContext()).inflate(layout, parent, false);
         return new ViewHolder(view);
     }
 
