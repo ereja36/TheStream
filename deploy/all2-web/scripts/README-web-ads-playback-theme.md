@@ -70,3 +70,13 @@ python3 patch-web-falcon-v2-alb-disk.py
 pm2 restart all2
 ```
 See `SERVER-CLUSTER-SYNC-ANALYSIS.md` for full audit.
+
+## Channel name marquee + TRING text-logo toggle
+```bash
+python3 patch-web-marquee-text-logos.py
+pm2 reload all2
+```
+- Long channel names slide casually with **random stagger** (not all in sync / stuck).
+- Admin → Features → Web UI: **Logo text-badge (stil TRING SPORT 3)** ON/OFF.
+  - ON = red square badge with channel name (like `TRING SPORT 3`)
+  - OFF = normal logos
