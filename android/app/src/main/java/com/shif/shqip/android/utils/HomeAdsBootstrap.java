@@ -57,7 +57,7 @@ public final class HomeAdsBootstrap {
                 adsManager.updateConsentStatus();
                 adsManager.ensureBannerAd();
                 adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST,
-                        AdPlacementHelper.resolveInterstitialInterval(adsPref));
+                        AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
                 anchor.postDelayed(() -> {
                     if (!activity.isFinishing() && adsPref.getAdStatus()) {
                         adsManager.ensureBannerAd();
@@ -93,10 +93,10 @@ public final class HomeAdsBootstrap {
             return;
         }
         try {
+            // Soft resume only (official/oneiptv). Never force-destroy a filled banner
+            // via antiblock reload_on_resume — that was wiping ads on every return home.
             adsManager.resumeBannerAd(Constant.BANNER_HOME);
-            if (antiblockHelper != null && antiblockHelper.shouldForceAdReloadOnResume()) {
-                adsManager.forceReloadBannerAd();
-            }
+            adsManager.ensureBannerAd();
         } catch (Exception e) {
             Log.e(TAG, "Home ads resume failed", e);
         }

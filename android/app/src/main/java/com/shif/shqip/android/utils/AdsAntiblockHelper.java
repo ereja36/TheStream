@@ -64,7 +64,9 @@ public final class AdsAntiblockHelper {
     }
 
     public boolean shouldForceAdReloadOnResume() {
-        return parseConfig().optBoolean("reload_on_resume", true);
+        // Default off — resume force-reloads were wiping filled banners/natives.
+        // Matches official/oneiptv: only soft resume, never destroy a shown ad.
+        return parseConfig().optBoolean("reload_on_resume", false);
     }
 
     private JSONObject parseConfig() {
@@ -106,7 +108,7 @@ public final class AdsAntiblockHelper {
             json.put("reload_on_fail", true);
             json.put("max_retries", 3);
             json.put("retry_delay_ms", DEFAULT_RETRY_DELAY_MS);
-            json.put("reload_on_resume", true);
+            json.put("reload_on_resume", false);
         } catch (Exception ignored) {
             // no-op
         }
