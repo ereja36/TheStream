@@ -80,3 +80,13 @@ pm2 reload all2
 - Admin → Features → Web UI: **Logo text-badge (stil TRING SPORT 3)** ON/OFF.
   - ON = red square badge with channel name (like `TRING SPORT 3`)
   - OFF = normal logos
+
+## Adsterra / multi-banner: one ad per Sponsored slot
+```bash
+python3 patch-web-adsterra-slot-split.py
+pm2 reload all2
+```
+- Auto-splits pasted Adsterra `atOptions` + `invoke.js` units (and Adskeeper blocks) into distinct snippets.
+- Each Sponsored row gets a **different** zone; no reuse of the same invoke/container on one page.
+- Client renders native slots **sequentially** so global `atOptions` cannot dump every ad into the first box.
+- Admin hint: separate with `---` (optional — auto-split works if pasted together).
