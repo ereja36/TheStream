@@ -211,91 +211,13 @@ else:
 # ---------------------------------------------------------------------------
 # 5) Client: better Adsterra execute + sequential native render
 # ---------------------------------------------------------------------------
-old_exec = """function executeHtmlSnippet(target, html){
-  if(!target) return;
-  target.innerHTML=String(html||'');
-  const scripts=Array.from(target.querySelectorAll('script'));
-  scripts.forEach((oldScript)=>{
-    const newScript=document.createElement('script');
-    Array.from(oldScript.attributes||[]).forEach(attr=>newScript.setAttribute(attr.name, attr.value));
-    if(oldScript.textContent) newScript.textContent=oldScript.textContent;
-    oldScript.parentNode?.replaceChild(newScript, oldScript);
-  });
-}"""
-
-new_exec = """function executeHtmlSnippet(target, html){
-  if(!target) return Promise.resolve();
-  const raw=String(html||'');
-  const keyMatch=raw.match(/['\"]key['\"]\\s*:\\s*['\"]([a-f0-9]+)['\"]/i);
-  const invokeMatch=raw.match(/src=[\"'](https?:\\/\\/[^\"']+\\/([a-f0-9]+)\\/invoke\\.js)[\"']/i)
-    || raw.match(/(https?:\\/\\/[^\\s\"'<>]+\\/([a-f0-9]+)\\/invoke\\.js)/i);
-  const containerKey=(keyMatch&&keyMatch[1])||(invokeMatch&&invokeMatch[2])||'';
-  const invokeUrl=invokeMatch?invokeMatch[1]:'';
-  // Adsterra: isolate one unit per Sponsored slot (global atOptions + unique container).
-  if(containerKey && invokeUrl){
-    const heightMatch=raw.match(/['\"]height['\"]\\s*:\\s*(\\d+)/i);
-    const widthMatch=raw.match(/['\"]width['\"]\\s*:\\s*(\\d+)/i);
-    const height=heightMatch?parseInt(heightMatch[1],10):90;
-    const width=widthMatch?parseInt(widthMatch[1],10):728;
-    const slotSuffix=String(target.dataset.adSlotIndex||Math.random().toString(36).slice(2,8));
-    // Unique DOM id per slot so reuse never collides; Adsterra still keys off atOptions.key.
-    const domId='container-'+containerKey+'-'+slotSuffix;
-    target.innerHTML='';
-    const box=document.createElement('div');
-    box.id='container-'+containerKey;
-    box.setAttribute('data-ad-container', domId);
-    box.style.cssText='width:100%;max-width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:'+Math.max(40,height)+'px';
-    target.appendChild(box);
-    window.atOptions={
-      key: containerKey,
-      format: 'iframe',
-      height: Number.isFinite(height)?height:90,
-      width: Number.isFinite(width)?width:728,
-      params: {}
-    };
-    return new Promise((resolve)=>{
-      const s=document.createElement('script');
-      s.src=invokeUrl+(invokeUrl.includes('?')?'&':'?')+'slot='+encodeURIComponent(slotSuffix);
-      s.async=true;
-      let done=false;
-      const finish=()=>{ if(done) return; done=true; setTimeout(resolve, 120); };
-      s.onload=finish;
-      s.onerror=finish;
-      // Fallback if onload never fires (cached script quirks)
-      setTimeout(finish, 1800);
-      target.appendChild(s);
-    });
-  }
-  target.innerHTML=raw;
-  const scripts=Array.from(target.querySelectorAll('script'));
-  const runNext=(i)=>new Promise((resolve)=>{
-    if(i>=scripts.length) return resolve();
-    const oldScript=scripts[i];
-    const newScript=document.createElement('script');
-    Array.from(oldScript.attributes||[]).forEach(attr=>newScript.setAttribute(attr.name, attr.value));
-    if(oldScript.src){
-      let finished=false;
-      const finish=()=>{ if(finished) return; finished=true; runNext(i+1).then(resolve); };
-      newScript.onload=finish;
-      newScript.onerror=finish;
-      setTimeout(finish, 2000);
-      oldScript.parentNode?.replaceChild(newScript, oldScript);
-      return;
-    }
-    if(oldScript.textContent) newScript.textContent=oldScript.textContent;
-    oldScript.parentNode?.replaceChild(newScript, oldScript);
-    runNext(i+1).then(resolve);
-  });
-  return runNext(0);
-}"""
-
-if "Adsterra: isolate one unit" not in t:
-    if old_exec not in t:
-        raise SystemExit("FAIL: executeHtmlSnippet")
-    t = t.replace(old_exec, new_exec, 1)
-    changed.append("executeHtmlSnippet")
+# executeHtmlSnippet lives inside a JS template literal — NEVER use \s \d \/ \. in regex
+# literals here (they get eaten and break the whole page script). See patch-web-fix-adsterra-regex.py.
+if "function extractAdsterraMeta(" not in t:
+    print("NOTE: run patch-web-fix-adsterra-regex.py for safe Adsterra executeHtmlSnippet")
+    changed.append("executeHtmlSnippet:needs-fix-script")
 else:
-    changed.append("executeHtmlSnippet:already")
+    changed.append("executeHtmlSnippet:safe")
 
 old_native = """function renderNativeGridAds(){
   const nodes=document.querySelectorAll('.native-ad-body[data-ad-snippet]');
