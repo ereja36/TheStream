@@ -64,6 +64,20 @@ public final class IptvHttpDataSource implements HttpDataSource {
                         sharedPref
                 ));
             }
+        } else if (PortalResolveHelper.isDirectCdnUrl(requestUrl)
+                && requestUrl.toLowerCase(java.util.Locale.US).contains("k1.shifshqip.com")) {
+            // XUI CDN: client ↔ source CDN only (6.9.87 behavior).
+            String ua = StreamHeaderSession.resolveUserAgent(requestUrl, channelUserAgent);
+            if (TextUtils.isEmpty(ua)) {
+                ua = TextUtils.isEmpty(channelUserAgent) || "default".equalsIgnoreCase(channelUserAgent)
+                        ? "ExoPlayer"
+                        : channelUserAgent;
+            }
+            headers.put("User-Agent", ua);
+            Map<String, String> resolvedHeaders = StreamHeaderSession.headersFor(requestUrl);
+            if (resolvedHeaders != null && !resolvedHeaders.isEmpty()) {
+                headers.putAll(resolvedHeaders);
+            }
         } else {
             PlaylistGuardRule rule = PlaylistGuardHelper.resolveRule(sharedPref, requestUrl);
             String sessionUa = StreamHeaderSession.resolveUserAgent(requestUrl, channelUserAgent);

@@ -37,7 +37,6 @@ import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.CategoryDisplayHelper;
-import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
@@ -411,10 +410,14 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
 
     private String resolveChannelImage(Channel channel) {
-        if (channel == null) {
+        if (channel == null || TextUtils.isEmpty(channel.channel_image)) {
             return "";
         }
-        return ChannelLogoHelper.resolve(channel.channel_image, sharedPref.getBaseUrl(), channel.channel_name);
+        String image = channel.channel_image.trim();
+        if (image.startsWith("http://") || image.startsWith("https://")) {
+            return image;
+        }
+        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
     }
 
 

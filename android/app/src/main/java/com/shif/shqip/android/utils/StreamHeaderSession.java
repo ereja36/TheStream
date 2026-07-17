@@ -13,8 +13,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Holds per-playback upstream headers returned by playlist portal resolve
- * (Referer/Origin/Cookie/UA) so ExoPlayer can replay them on the CDN host.
+ * Holds EXTVLCOPT / portal headers for the active channel source host only.
+ * After open, requests to that stream host use these headers; unrelated hosts do not.
  */
 public final class StreamHeaderSession {
 
@@ -23,7 +23,6 @@ public final class StreamHeaderSession {
     private static volatile String activeUserAgent = "";
     private static volatile Map<String, String> activeHeaders = Collections.emptyMap();
 
-    /** Optional sticky headers keyed by exact source/playlist URL (M3U EXTVLCOPT). */
     private static final ConcurrentHashMap<String, StickyHeaders> BY_SOURCE = new ConcurrentHashMap<>();
 
     private StreamHeaderSession() {
@@ -48,8 +47,7 @@ public final class StreamHeaderSession {
     }
 
     public static void rememberResolved(String playUrl, String userAgent, JSONObject headersJson) {
-        Map<String, String> headers = sanitizeHeaders(headersJson);
-        rememberResolved(playUrl, userAgent, headers);
+        rememberResolved(playUrl, userAgent, sanitizeHeaders(headersJson));
     }
 
     public static void rememberResolved(String playUrl, String userAgent, Map<String, String> headers) {
@@ -85,25 +83,12 @@ public final class StreamHeaderSession {
             return;
         }
         synchronized (LOCK) {
-            if (TextUtils.isEmpty(activeHost)) {
-                activeHost = hostOf(sourceUrl);
-            }
-            // Prefer already-resolved portal headers; fill gaps from M3U sticky.
-            if (TextUtils.isEmpty(activeUserAgent) && !TextUtils.isEmpty(sticky.userAgent)
-                    && !"default".equalsIgnoreCase(sticky.userAgent)) {
+            activeHost = hostOf(sourceUrl);
+            if (!TextUtils.isEmpty(sticky.userAgent) && !"default".equalsIgnoreCase(sticky.userAgent)) {
                 activeUserAgent = sticky.userAgent;
             }
-            if (activeHeaders.isEmpty() && !sticky.headers.isEmpty()) {
+            if (!sticky.headers.isEmpty()) {
                 activeHeaders = sticky.headers;
-            }
-            if (TextUtils.isEmpty(activeHost) && !activeHeaders.isEmpty()) {
-                String referer = activeHeaders.get("Referer");
-                if (TextUtils.isEmpty(referer)) {
-                    referer = activeHeaders.get("referer");
-                }
-                if (!TextUtils.isEmpty(referer)) {
-                    activeHost = hostOf(referer);
-                }
             }
         }
     }
@@ -111,8 +96,8 @@ public final class StreamHeaderSession {
     public static String resolveUserAgent(String requestUrl, String fallback) {
         synchronized (LOCK) {
             if (!TextUtils.isEmpty(activeUserAgent)
-                    && !"default".equalsIgnoreCase(activeUserAgent)) {
-                // Session-scoped: keep UA across proxy→CDN hops.
+                    && !"default".equalsIgnoreCase(activeUserAgent)
+                    && hostMatches(requestUrl, activeHost)) {
                 return activeUserAgent;
             }
         }
@@ -124,10 +109,9 @@ public final class StreamHeaderSession {
 
     public static Map<String, String> headersFor(String requestUrl) {
         synchronized (LOCK) {
-            if (activeHeaders.isEmpty()) {
+            if (activeHeaders.isEmpty() || !hostMatches(requestUrl, activeHost)) {
                 return Collections.emptyMap();
             }
-            // Session-scoped headers for the whole playback (proxy + CDN redirects).
             return new HashMap<>(activeHeaders);
         }
     }
@@ -173,8 +157,7 @@ public final class StreamHeaderSession {
         Iterator<String> keys = json.keys();
         while (keys.hasNext()) {
             String key = keys.next();
-            String value = json.optString(key, "");
-            putSafe(out, key, value);
+            putSafe(out, key, json.optString(key, ""));
         }
         return out;
     }
@@ -203,11 +186,9 @@ public final class StreamHeaderSession {
                 || "x-forwarded-for".equals(lower)
                 || "x-real-ip".equals(lower)
                 || "cf-connecting-ip".equals(lower)
-                || "forwarded".equals(lower)) {
+                || "forwarded".equals(lower)
+                || "user-agent".equals(lower)) {
             return;
-        }
-        if ("user-agent".equals(lower)) {
-            return; // handled separately
         }
         out.put(key.trim(), value.trim());
     }
