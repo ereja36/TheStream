@@ -129,9 +129,18 @@ public final class DirectAdMobBannerHelper {
         }
         String unitId = adsPref.getAdMobBannerId();
         if (!AdPlacementHelper.isValidAdUnit(unitId)) {
-            Log.w(TAG, "invalid banner unit id");
+            Log.w(TAG, "invalid banner unit id adStatus=" + adsPref.getAdStatus()
+                    + " deviceNoAds=" + adsPref.getDeviceNoAds()
+                    + " testMode=" + adsPref.getTestMode());
             hideStrip();
             return;
+        }
+        if (unitId.contains("3940256099942544")) {
+            Log.w(TAG, "loading Google SAMPLE banner unit — fills on all devices as Test Ad");
+        } else {
+            Log.d(TAG, "loading production banner unit …" + unitId.substring(Math.max(0, unitId.lastIndexOf('/')))
+                    + " adStatus=" + adsPref.getAdStatus()
+                    + " deviceNoAds=" + adsPref.getDeviceNoAds());
         }
         if (shown && adView != null) {
             showStrip();

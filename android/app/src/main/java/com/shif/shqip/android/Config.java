@@ -51,6 +51,14 @@ public class Config {
     //GDPR
     public static final boolean ENABLE_GDPR_EU_CONSENT = true;
 
+    /**
+     * Optional AdMob test-device hashes (debug only). Paste the hash from logcat:
+     * {@code Use RequestConfiguration.Builder().setTestDeviceIds(Arrays.asList("XXXX"))}.
+     * Leave empty for production — registering a phone here only makes THAT phone get
+     * labelled Test Ads; it does not unlock fills for other users.
+     */
+    public static final String[] ADMOB_TEST_DEVICE_IDS = {};
+
     //delay splash screen
     public static final int DELAY_SPLASH = 500;
 

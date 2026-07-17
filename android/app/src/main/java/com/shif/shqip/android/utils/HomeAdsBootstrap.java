@@ -34,6 +34,11 @@ public final class HomeAdsBootstrap {
             strip.setVisibility(View.GONE);
         }
         if (!adsPref.getAdStatus() || !AdPlacementHelper.hasValidAdNetwork(adsPref)) {
+            Log.w(TAG, "skip home ads adStatus=" + adsPref.getAdStatus()
+                    + " deviceNoAds=" + adsPref.getDeviceNoAds()
+                    + " serverAds=" + adsPref.getServerAdsEnabled()
+                    + " network=" + AdPlacementHelper.resolveAdNetwork(adsPref)
+                    + " testMode=" + adsPref.getTestMode());
             return;
         }
         if (antiblockHelper != null) {
