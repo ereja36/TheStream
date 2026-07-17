@@ -59,3 +59,14 @@ pm2 restart all2
 - Live viewers shared via Redis across PM2 workers (same `started` duration).
 - Stops treating nginx `127.0.0.1` as client IPv4 (IPv6-only users were shown as Local).
 - Admin → Features: **Views / presence ping (MASTER)** kills `/api/ping` + viewers polling.
+
+
+## Cluster channel sync (Lokke 4 vs 16 fix)
+```bash
+scp services/channelStateSync.js root@vps:/root/all/all2/services/
+python3 patch-web-cluster-channel-sync.py
+python3 patch-web-cluster-sync-harden.py
+python3 patch-web-falcon-v2-alb-disk.py
+pm2 restart all2
+```
+See `SERVER-CLUSTER-SYNC-ANALYSIS.md` for full audit.
