@@ -10,10 +10,11 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 116
-        versionName = "6.9.96"
+        versionCode = 117
+        versionName = "6.9.97"
         multiDexEnabled = true
-        buildConfigField "boolean", "FORCE_DESIGN_V4", "false"
+        // Main Shif Shqip app uses liquid-glass Design V4 (same applicationId / server key).
+        buildConfigField "boolean", "FORCE_DESIGN_V4", "true"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -21,20 +22,6 @@ android {
     }
     buildFeatures {
         buildConfig = true
-    }
-    flavorDimensions "distribution"
-    productFlavors {
-        prod {
-            dimension "distribution"
-            buildConfigField "boolean", "FORCE_DESIGN_V4", "false"
-        }
-        demo {
-            dimension "distribution"
-            applicationIdSuffix ".demo"
-            versionNameSuffix "-DEMO"
-            buildConfigField "boolean", "FORCE_DESIGN_V4", "true"
-            resValue "string", "app_name", "Shif Shqip DEMO"
-        }
     }
     bundle {
         storeArchive {
