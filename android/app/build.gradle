@@ -10,9 +10,10 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 115
-        versionName = "6.9.95"
+        versionCode = 116
+        versionName = "6.9.96"
         multiDexEnabled = true
+        buildConfigField "boolean", "FORCE_DESIGN_V4", "false"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -20,6 +21,20 @@ android {
     }
     buildFeatures {
         buildConfig = true
+    }
+    flavorDimensions "distribution"
+    productFlavors {
+        prod {
+            dimension "distribution"
+            buildConfigField "boolean", "FORCE_DESIGN_V4", "false"
+        }
+        demo {
+            dimension "distribution"
+            applicationIdSuffix ".demo"
+            versionNameSuffix "-DEMO"
+            buildConfigField "boolean", "FORCE_DESIGN_V4", "true"
+            resValue "string", "app_name", "Shif Shqip DEMO"
+        }
     }
     bundle {
         storeArchive {

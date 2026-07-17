@@ -95,7 +95,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         adsPref = new AdsPref(this);
         adsManager = new AdsManager(this);
         adsAntiblockHelper = new AdsAntiblockHelper(this);
-        setContentView(R.layout.activity_main_v2);
+        setContentView(getHomeLayoutResId());
         DesignInsetsHelper.apply(this, R.id.design_root, R.id.top_actions, R.id.bottom_container,
                 R.id.scroll_home, 0);
 
@@ -113,6 +113,14 @@ public class ActivityMainV2 extends AppCompatActivity {
         HomeAdsBootstrap.initFast(this, adsManager, adsPref, adsAntiblockHelper);
         bindAllChannelsNativeAd();
         loadChannels();
+    }
+
+    protected int getHomeLayoutResId() {
+        return R.layout.activity_main_v2;
+    }
+
+    protected int getCategorySectionLayoutResId() {
+        return R.layout.include_v2_category_section;
     }
 
     public void showInterstitialAd() {
@@ -525,7 +533,7 @@ public class ActivityMainV2 extends AppCompatActivity {
                 categoryChannels = new ArrayList<>(categoryChannels.subList(0, 24));
             }
 
-            View section = inflater.inflate(R.layout.include_v2_category_section, categorySections, false);
+            View section = inflater.inflate(getCategorySectionLayoutResId(), categorySections, false);
             TextView title = section.findViewById(R.id.category_title);
             View dot = section.findViewById(R.id.category_dot);
             ImageView categoryLogo = section.findViewById(R.id.category_logo);

@@ -70,7 +70,8 @@ public class SharedPref {
     public void ensureDefaultTheme() {
         if (!sharedPreferences.contains("theme")) {
             String designId = getDesignId();
-            boolean defaultDark = "v2".equals(designId) || "v3".equals(designId) || Config.SET_DARK_MODE_AS_DEFAULT_THEME;
+            boolean defaultDark = "v2".equals(designId) || "v3".equals(designId) || "v4".equals(designId)
+                    || Config.SET_DARK_MODE_AS_DEFAULT_THEME;
             editor.putBoolean("theme", defaultDark);
             editor.apply();
         }
@@ -78,7 +79,7 @@ public class SharedPref {
 
     public void saveDesignId(String designId) {
         String normalized = designId == null ? "v1" : designId.trim().toLowerCase();
-        if (!"v2".equals(normalized) && !"v3".equals(normalized)) {
+        if (!"v2".equals(normalized) && !"v3".equals(normalized) && !"v4".equals(normalized)) {
             normalized = "v1";
         }
         editor.putString(KEY_DESIGN_ID, normalized);
@@ -86,8 +87,11 @@ public class SharedPref {
     }
 
     public String getDesignId() {
+        if (BuildConfig.FORCE_DESIGN_V4) {
+            return "v4";
+        }
         String designId = sharedPreferences.getString(KEY_DESIGN_ID, "v1");
-        if ("v2".equals(designId) || "v3".equals(designId)) {
+        if ("v2".equals(designId) || "v3".equals(designId) || "v4".equals(designId)) {
             return designId;
         }
         return "v1";
@@ -145,7 +149,7 @@ public class SharedPref {
 
     public Boolean getIsDarkTheme() {
         if (!sharedPreferences.contains("theme")) {
-            if ("v2".equals(getDesignId()) || "v3".equals(getDesignId())) {
+            if ("v2".equals(getDesignId()) || "v3".equals(getDesignId()) || "v4".equals(getDesignId())) {
                 return true;
             }
             return Config.SET_DARK_MODE_AS_DEFAULT_THEME;

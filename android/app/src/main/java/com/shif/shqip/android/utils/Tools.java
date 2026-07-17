@@ -139,6 +139,8 @@ public class Tools {
         String designId = sharedPref.getDesignId();
         if ("v3".equals(designId)) {
             bgColor = ContextCompat.getColor(activity, R.color.v3_surface);
+        } else if ("v4".equals(designId)) {
+            bgColor = ContextCompat.getColor(activity, R.color.v4_bg);
         } else {
             bgColor = ContextCompat.getColor(activity, R.color.v2_bg);
         }
