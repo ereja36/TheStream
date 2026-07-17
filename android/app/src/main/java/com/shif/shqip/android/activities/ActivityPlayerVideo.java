@@ -58,6 +58,9 @@ import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.IptvPlayerHelper;
 import com.shif.shqip.android.utils.PlaylistGuardHelper;
+import com.shif.shqip.android.utils.IptvStallRecoveryHelper;
+import com.shif.shqip.android.utils.PortalResolveHelper;
+import com.shif.shqip.android.utils.StreamHeaderSession;
 import com.shif.shqip.android.utils.StreamPlaybackHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.bumptech.glide.Glide;
@@ -116,6 +119,7 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     private LinearLayout layoutEpgInfo;
     private final ExecutorService epgExecutor = Executors.newSingleThreadExecutor();
     private int autoRetryCount = 0;
+    private IptvStallRecoveryHelper stallRecoveryHelper;
     private boolean destroyed = false;
     private boolean epgLoadScheduled = false;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -216,6 +220,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         String nextId = intent.getStringExtra("channel_id");
         String nextUrl = intent.getStringExtra("url");
         String nextUa = intent.getStringExtra("user_agent");
+        String nextReferer = intent.getStringExtra("stream_referer");
+        String nextOrigin = intent.getStringExtra("stream_origin");
         String nextEpgId = intent.getStringExtra("epg_channel_id");
         String nextEpgUrl = intent.getStringExtra("epg_url");
         String nextName = intent.getStringExtra("channel_name");
@@ -234,6 +240,12 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         }
         sourceStreamUrl = nextUrl.trim();
         video_url = sourceStreamUrl;
+        StreamHeaderSession.clearActive();
+        if (!TextUtils.isEmpty(nextReferer) || !TextUtils.isEmpty(nextOrigin)
+                || (!TextUtils.isEmpty(user_agent) && !"default".equalsIgnoreCase(user_agent))) {
+            StreamHeaderSession.rememberForSource(sourceStreamUrl, user_agent, nextReferer, nextOrigin);
+        }
+        StreamHeaderSession.applySourceIfPresent(sourceStreamUrl);
         if (switchNow) {
             Channel channel = new Channel();
             channel.channel_id = channel_id;
@@ -269,9 +281,39 @@ public class ActivityPlayerVideo extends AppCompatActivity {
 
         startExoPlayback();
         attachPlayerListener();
+        attachStallRecovery();
         setupControls();
         setupPlayerGestures();
         handleOnBackPressed();
+    }
+
+    private void attachStallRecovery() {
+        if (exoPlayer == null) {
+            return;
+        }
+        if (stallRecoveryHelper != null) {
+            exoPlayer.removeListener(stallRecoveryHelper);
+            stallRecoveryHelper.release();
+            stallRecoveryHelper = null;
+        }
+        stallRecoveryHelper = new IptvStallRecoveryHelper(exoPlayer, video_url, new IptvStallRecoveryHelper.Callback() {
+            @Override
+            public void onStallSoftRecover(int attempt) {
+                Log.d(TAG, "stall soft recover #" + attempt);
+                showBufferingSpinnerDelayed();
+            }
+
+            @Override
+            public void onStallHardRecover() {
+                Log.d(TAG, "stall hard recover — re-resolve");
+                PortalResolveHelper.invalidateCache();
+                if (autoRetryCount < StreamPlaybackHelper.AUTO_RETRY_MAX) {
+                    autoRetryCount++;
+                }
+                reloadLiveStream(false);
+            }
+        });
+        exoPlayer.addListener(stallRecoveryHelper);
     }
 
     private void scheduleEpgLoad() {
@@ -356,6 +398,13 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void releasePlayers() {
+        if (stallRecoveryHelper != null) {
+            if (exoPlayer != null) {
+                exoPlayer.removeListener(stallRecoveryHelper);
+            }
+            stallRecoveryHelper.release();
+            stallRecoveryHelper = null;
+        }
         if (exoPlayer != null) {
             exoPlayer.release();
             exoPlayer = null;

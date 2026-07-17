@@ -20,6 +20,7 @@ import com.shif.shqip.android.Config;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
@@ -117,33 +118,47 @@ public class AdapterSuggested extends RecyclerView.Adapter<RecyclerView.ViewHold
 
                 vItem.channel_name.setText(p.channel_name);
 
-                vItem.channel_category.setText(p.category_name);
-                if (Config.ENABLE_CHANNEL_LIST_CATEGORY_NAME) {
+                String categoryLabel = p.category_name == null ? "" : p.category_name.trim();
+                if ("null".equalsIgnoreCase(categoryLabel)) {
+                    categoryLabel = "";
+                }
+                vItem.channel_category.setText(categoryLabel);
+                if (Config.ENABLE_CHANNEL_LIST_CATEGORY_NAME && !categoryLabel.isEmpty()) {
                     vItem.channel_category.setVisibility(View.VISIBLE);
                 } else {
                     vItem.channel_category.setVisibility(View.GONE);
                 }
 
-                if (p.channel_type != null && p.channel_type.equals("YOUTUBE")) {
-                    if (!p.channel_image.equals("")) {
-                        Glide.with(context)
-                                .load(resolveChannelImage(p))
-                                .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
-                                .placeholder(R.drawable.ic_thumbnail)
-                                .diskCacheStrategy(DiskCacheStrategy.ALL)
-                                .into(vItem.channel_image);
+                if (p.channel_type != null && p.channel_type.equals("YOUTUBE") && (p.channel_image == null || p.channel_image.equals(""))) {
+                    Glide.with(context).clear(vItem.channel_image);
+                    Glide.with(context)
+                            .load(Constant.YOUTUBE_IMG_FRONT + p.video_id + Constant.YOUTUBE_IMG_BACK)
+                            .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height).fitCenter())
+                            .placeholder(R.drawable.ic_thumbnail)
+                            .error(R.drawable.ic_thumbnail)
+                            .diskCacheStrategy(DiskCacheStrategy.ALL)
+                            .dontAnimate()
+                            .into(vItem.channel_image);
+                } else {
+                    Glide.with(context).clear(vItem.channel_image);
+                    String logoUrl = ChannelLogoHelper.resolve(p.channel_image, sharedPref.getBaseUrl(), p.channel_name);
+                    if (logoUrl == null || logoUrl.isEmpty()) {
+                        vItem.channel_image.setImageResource(R.drawable.ic_thumbnail);
                     } else {
                         Glide.with(context)
-                                .load(Constant.YOUTUBE_IMG_FRONT + p.video_id + Constant.YOUTUBE_IMG_BACK)
-                                .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
+                                .load(logoUrl)
+                                .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height).fitCenter())
                                 .placeholder(R.drawable.ic_thumbnail)
+                                .error(R.drawable.ic_thumbnail)
                                 .diskCacheStrategy(DiskCacheStrategy.ALL)
+                                .dontAnimate()
                                 .into(vItem.channel_image);
                     }
+                }
                 } else {
                     Glide.with(context)
                             .load(resolveChannelImage(p))
-                            .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
+                            .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height).fitCenter())
                             .placeholder(R.drawable.ic_thumbnail)
                             .diskCacheStrategy(DiskCacheStrategy.ALL)
                             .into(vItem.channel_image);
@@ -252,14 +267,11 @@ public class AdapterSuggested extends RecyclerView.Adapter<RecyclerView.ViewHold
     }
 
     private String resolveChannelImage(Channel channel) {
-        if (channel == null || TextUtils.isEmpty(channel.channel_image)) {
+        if (channel == null) {
             return "";
         }
-        String image = channel.channel_image.trim();
-        if (image.startsWith("http://") || image.startsWith("https://")) {
-            return image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(channel.channel_image, sharedPref.getBaseUrl(), channel.channel_name);
     }
+
 
 }

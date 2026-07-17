@@ -37,6 +37,7 @@ import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.CategoryDisplayHelper;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
@@ -166,8 +167,9 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
             vItem.channel_name.setText(p.channel_name);
 
-            vItem.channel_category.setText(CategoryDisplayHelper.displayName(p.category_name));
-            if (Config.ENABLE_CHANNEL_LIST_CATEGORY_NAME) {
+            String categoryLabel = CategoryDisplayHelper.displayName(p.category_name);
+            vItem.channel_category.setText(categoryLabel);
+            if (Config.ENABLE_CHANNEL_LIST_CATEGORY_NAME && !TextUtils.isEmpty(categoryLabel)) {
                 vItem.channel_category.setVisibility(View.VISIBLE);
             } else {
                 vItem.channel_category.setVisibility(View.GONE);
@@ -363,24 +365,33 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     private void loadChannelImage(ImageView imageView, String imageUrl) {
+        if (imageView == null) {
+            return;
+        }
+        if (TextUtils.isEmpty(imageUrl)) {
+            Glide.with(context).clear(imageView);
+            imageView.setImageResource(R.drawable.ic_thumbnail);
+            return;
+        }
         Glide.with(context)
                 .load(imageUrl)
-                .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
+                .apply(new RequestOptions()
+                        .override(Constant.list_image_width, Constant.list_image_height)
+                        .fitCenter())
                 .placeholder(R.drawable.ic_thumbnail)
+                .error(R.drawable.ic_thumbnail)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
                 .dontAnimate()
                 .into(imageView);
     }
 
+
     private String resolveChannelImage(Channel channel) {
-        if (channel == null || TextUtils.isEmpty(channel.channel_image)) {
+        if (channel == null) {
             return "";
         }
-        String image = channel.channel_image.trim();
-        if (image.startsWith("http://") || image.startsWith("https://")) {
-            return image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(channel.channel_image, sharedPref.getBaseUrl(), channel.channel_name);
     }
+
 
 }

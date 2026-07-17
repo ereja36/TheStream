@@ -8,15 +8,11 @@ import android.text.TextUtils;
 
 import java.util.Locale;
 
-/**
- * IPTV-first playback: any normal stream URL plays as-is (VLC-style).
- * Only sealed portal /r/ (and a few proxy endpoints) need server resolve.
- */
 public final class StreamPlaybackHelper {
 
     public static final int AUTO_RETRY_MAX = 4;
-    public static final int CONNECT_TIMEOUT_MS = 8_000;
-    public static final int READ_TIMEOUT_MS = 15_000;
+    public static final int CONNECT_TIMEOUT_MS = 10_000;
+    public static final int READ_TIMEOUT_MS = 20_000;
 
     private StreamPlaybackHelper() {
     }
@@ -30,8 +26,8 @@ public final class StreamPlaybackHelper {
     }
 
     /**
-     * True for normal IPTV stream URLs that ExoPlayer can open without portal resolve.
-     * External playlists, /k1/playlist entries, CDN links, etc.
+     * VLC-style: any http/https/rtsp/rtmp URL from the playlist plays directly in ExoPlayer.
+     * Only sealed portal /r/ URLs and our channel-proxy endpoints need server resolution.
      */
     public static boolean isRawPlaylistStreamUrl(String url) {
         if (TextUtils.isEmpty(url)) {
@@ -47,21 +43,13 @@ public final class StreamPlaybackHelper {
                 && !lower.startsWith("mms://")) {
             return false;
         }
-        // Sealed portal tokens must be resolved first.
         if (PlaylistPortalHelper.isPortalResolveUrl(trimmed)) {
             return false;
         }
         if (lower.contains("playlist.shifshqip.com")) {
             return false;
         }
-        // XUI CDN /auth + /hls — play as-is (no portal proxy). /play/ must be resolved first.
-        if (PortalResolveHelper.isDirectCdnUrl(trimmed)
-                && lower.contains("k1.shifshqip.com")
-                && (lower.contains("/auth/") || lower.contains("/hls/"))) {
-            return true;
-        }
-        if (lower.contains("shifshqip.com")
-                && !lower.contains("playlist.shifshqip.com")) {
+        if (lower.contains("shifshqip.com")) {
             if (lower.contains("/k1/channel-proxy/")
                     || lower.contains("/k1/proxy/")
                     || lower.contains("/app-measurement/collect/")) {
@@ -72,20 +60,15 @@ public final class StreamPlaybackHelper {
     }
 
     public static boolean canPlayDirectly(SharedPref sharedPref, String sourceUrl) {
-        // Portal sealed URLs need a background resolve thread.
-        if (PlaylistPortalHelper.isPortalResolveUrl(sourceUrl)) {
-            return false;
-        }
-        return isRawPlaylistStreamUrl(sourceUrl) || PortalResolveHelper.isPlayableStreamUrl(sourceUrl);
+        return isRawPlaylistStreamUrl(sourceUrl) || PortalResolveHelper.isDirectCdnUrl(sourceUrl);
     }
 
     public static boolean isPlayableUrl(String url) {
-        return isRawPlaylistStreamUrl(url) || PortalResolveHelper.isPlayableStreamUrl(url);
+        return isRawPlaylistStreamUrl(url) || PortalResolveHelper.isDirectCdnUrl(url);
     }
 
     /**
-     * Returns a play URL. External IPTV URLs always pass through.
-     * Portal /r/ URLs are resolved once to CDN/all2.
+     * Returns a play URL: raw playlist URLs as-is (like VLC/MX Player), portal URLs resolved once to CDN.
      */
     public static String resolvePlaybackUrl(SharedPref sharedPref, String sourceUrl, String k1Slug) {
         if (TextUtils.isEmpty(sourceUrl)) {
@@ -93,33 +76,31 @@ public final class StreamPlaybackHelper {
         }
         String trimmed = sourceUrl.trim();
 
-        // 1) Normal IPTV / raw playlist streams — play as-is (external + most k1 entries).
         if (isRawPlaylistStreamUrl(trimmed)) {
             return trimmed;
         }
 
-        // 2) Already a playable all2/CDN URL (never sealed portal).
-        if (PortalResolveHelper.isPlayableStreamUrl(trimmed)
-                && !PlaylistPortalHelper.isPortalResolveUrl(trimmed)) {
+        if (PortalResolveHelper.isDirectCdnUrl(trimmed)) {
             return trimmed;
         }
 
-        // 3) Sealed portal /r/ → resolve to real stream.
-        if (PlaylistPortalHelper.isPortalResolveUrl(trimmed)) {
-            String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, trimmed);
-            if (!TextUtils.isEmpty(direct)) {
-                return direct;
+        if (sharedPref != null && sharedPref.isPortalSessionActive()) {
+            if (PlaylistPortalHelper.isPortalResolveUrl(trimmed)
+                    || PlaylistPortalHelper.isUpstreamStreamUrl(trimmed)
+                    || K1PlaybackHelper.isK1ProxyUrl(trimmed)) {
+                String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, trimmed);
+                if (!TextUtils.isEmpty(direct)) {
+                    return direct;
+                }
             }
-            return "";
         }
 
-        // 4) Optional k1 slug helper via portal /u/ API.
         if (!TextUtils.isEmpty(k1Slug)
                 && K1ChannelUrlHelper.looksLikeK1Slug(k1Slug)
-                && sharedPref != null) {
+                && !PlaylistPortalHelper.isPortalResolveUrl(trimmed)) {
             String portalUrl = K1ChannelUrlHelper.resolvePlayableUrl(sharedPref, k1Slug);
             if (!TextUtils.isEmpty(portalUrl)) {
-                if (isRawPlaylistStreamUrl(portalUrl) || PortalResolveHelper.isPlayableStreamUrl(portalUrl)) {
+                if (isRawPlaylistStreamUrl(portalUrl) || PortalResolveHelper.isDirectCdnUrl(portalUrl)) {
                     return portalUrl;
                 }
                 String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, portalUrl);
@@ -129,22 +110,14 @@ public final class StreamPlaybackHelper {
             }
         }
 
-        // 5) Proxy endpoints that need unwrap — try resolve, else original.
-        if (K1PlaybackHelper.isK1ProxyUrl(trimmed)) {
+        if (PlaylistPortalHelper.isPortalResolveUrl(trimmed)
+                || K1PlaybackHelper.isK1ProxyUrl(trimmed)) {
             String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, trimmed);
             if (!TextUtils.isEmpty(direct)) {
                 return direct;
             }
-            return trimmed;
         }
 
-        // IPTV player fallback: never block unknown http(s) stream URLs.
-        String lower = trimmed.toLowerCase(Locale.US);
-        if (lower.startsWith("http://") || lower.startsWith("https://")
-                || lower.startsWith("rtsp://") || lower.startsWith("rtmp://")
-                || lower.startsWith("udp://") || lower.startsWith("mms://")) {
-            return trimmed;
-        }
         return "";
     }
 
