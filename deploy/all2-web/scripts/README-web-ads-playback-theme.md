@@ -85,10 +85,15 @@ pm2 reload all2
 ```bash
 python3 patch-web-adsterra-slot-split.py
 python3 patch-web-fix-adsterra-regex.py   # required: safe executeHtmlSnippet (template-literal safe)
+python3 patch-web-ad-junk-gmail-gate.py
+python3 fix-ad-junk-scrub-call.py
+python3 fix-gmail-prompt-newline.py
 pm2 reload all2
 ```
 - Auto-splits pasted Adsterra `atOptions` + `invoke.js` units (and Adskeeper blocks) into distinct snippets.
 - Each Sponsored row gets a **different** zone; no reuse of the same invoke/container on one page.
 - Client renders native slots **sequentially** so global `atOptions` cannot dump every ad into the first box.
+- Hides Adsterra empty-fill junk text (`frame_width=;frame_height=;/* go_banner */`) and empty Sponsored shells.
+- Admin → Integrime → Firebase: **Login me Gmail i detyrueshëm** + free channel slug allowlist.
 - Admin hint: separate with `---` (optional — auto-split works if pasted together).
 - Hotfix: broken regex escapes inside the page template caused a SyntaxError → **no ads at all**; `patch-web-fix-adsterra-regex.py` restores them.
