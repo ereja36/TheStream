@@ -144,7 +144,7 @@ public class ActivitySearch extends AppCompatActivity {
             Intent intent = new Intent(getApplicationContext(), ActivityChannelDetail.class);
             intent.putExtra(Constant.EXTRA_OBJC, obj);
             startActivity(intent);
-            showInterstitialAd();
+            AdPlacementHelper.showInterstitialBeforeAction(this);
             adsManager.destroyBannerAd();
         });
 

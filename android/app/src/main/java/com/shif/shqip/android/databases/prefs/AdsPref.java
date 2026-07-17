@@ -236,8 +236,8 @@ public class AdsPref {
     }
 
     public int getInterstitialAdInterval() {
-        int interval = sharedPreferences.getInt("interstitial_ad_interval", 3);
-        return Math.max(1, interval);
+        // Product rule: interstitial every 3 channel clicks (ignore remote overrides).
+        return 3;
     }
 
     public boolean getAppOpenOnStart() {

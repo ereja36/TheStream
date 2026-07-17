@@ -947,7 +947,7 @@ public class Tools {
                 intent.putExtra(Constant.EXTRA_OBJC, channel);
                 activity.startActivity(intent);
                 if (isFragment) {
-                    ((MainActivity) activity).showInterstitialAd();
+                    AdPlacementHelper.showInterstitialBeforeAction(activity);
                     ((MainActivity) activity).destroyBannerAd();
                 }
             }
