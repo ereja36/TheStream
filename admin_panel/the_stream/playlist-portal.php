@@ -99,6 +99,14 @@ if (isset($_POST['submit'])) {
     }
 }
 
+if (isset($_POST['force_refresh']) && validateResourceAccess($inputToken)) {
+    $portalId = clean($portal['id']);
+    mysqli_query($connect, "UPDATE tbl_playlist_portal SET updated_at = NOW() WHERE id = '$portalId'");
+    $_SESSION['msg'] = 'Force refresh sent. App users will reload playlist on next open/resume (content_version bumped).';
+    header('Location:playlist-portal.php');
+    exit;
+}
+
 if (isset($_POST['regenerate_key']) && validateResourceAccess($inputToken)) {
     $newKey = generatePortalAccessKey();
     update('tbl_playlist_portal', array('access_key' => $newKey), "WHERE id = '" . clean($portal['id']) . "'");
@@ -147,6 +155,16 @@ if ($settingsResult) {
                             <p>URL që përdorin përdoruesit në app (burimi real mbetet i fshehur):</p>
                             <p><code><?php echo htmlspecialchars($publicUrl); ?></code></p>
                             <p>Kur ndryshon source në panel, përdoruesit vazhdojnë me të njëjtën URL — app-i merr automatikisht kanalet e reja.</p>
+
+                            <div class="form-group m-b-20">
+                                <button type="submit" name="force_refresh" class="btn bg-teal waves-effect"
+                                    onclick="return confirm('Bump updated_at tani? App do e lexoje playlist e re ne open/resume.');">
+                                    Force refresh now
+                                </button>
+                                <small class="text-muted" style="display:block;margin-top:6px;">
+                                    Nuk ndryshon URL. Vetëm bump-on <code>updated_at</code> që app të sync-ojë menjëherë.
+                                </small>
+                            </div>
 
                             <div class="form-group">
                                 <input type="checkbox" name="status" id="status" <?php echo ((int) $portal['status'] === 1) ? 'checked' : ''; ?>>

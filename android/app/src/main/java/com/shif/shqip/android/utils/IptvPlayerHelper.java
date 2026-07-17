@@ -32,10 +32,10 @@ import java.util.Locale;
 @SuppressWarnings("deprecation")
 public final class IptvPlayerHelper {
 
-  private static final int LIVE_MIN_BUFFER_MS = 5_000;
-  private static final int LIVE_MAX_BUFFER_MS = 40_000;
-  private static final int BUFFER_FOR_PLAYBACK_MS = 2_000;
-  private static final int BUFFER_AFTER_REBUFFER_MS = 4_000;
+  private static final int LIVE_MIN_BUFFER_MS = 6_000;
+  private static final int LIVE_MAX_BUFFER_MS = 45_000;
+  private static final int BUFFER_FOR_PLAYBACK_MS = 2_500;
+  private static final int BUFFER_AFTER_REBUFFER_MS = 5_000;
 
   private static final long LIVE_SEEK_BACK_MS = 6_000;
 
@@ -155,7 +155,10 @@ public final class IptvPlayerHelper {
             || lower.contains("/channel/")
             || lower.contains("/channel-proxy/")
             || lower.contains("/r/")
-            || lower.contains("/proxy/");
+            || lower.contains("/proxy/")
+            || lower.contains("/a3proxy")
+            || lower.contains("/a3hls")
+            || lower.contains("a3.phinemi.live");
   }
 
   private static int inferStreamType(String playbackUrl, Uri uri) {
@@ -168,7 +171,10 @@ public final class IptvPlayerHelper {
             && (lowerUrl.contains(".m3u8")
             || lowerUrl.contains(".m3u")
             || lowerUrl.contains("/hls/")
-            || lowerUrl.contains("/r/"))) {
+            || lowerUrl.contains("/r/")
+            || lowerUrl.contains("/a3proxy")
+            || lowerUrl.contains("/a3hls")
+            || lowerUrl.contains("a3.phinemi.live"))) {
       return C.TYPE_HLS;
     }
     return type;

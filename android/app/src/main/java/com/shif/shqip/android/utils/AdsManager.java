@@ -36,6 +36,8 @@ public class AdsManager {
     AdsPref adsPref;
     GDPR gdpr;
 
+    DirectAdMobBannerHelper directBanner;
+
     public AdsManager(Activity activity) {
         this.activity = activity;
         this.sharedPref = new SharedPref(activity);
@@ -47,6 +49,11 @@ public class AdsManager {
         interstitialAd = new InterstitialAd(activity);
         nativeAd = new NativeAd(activity);
         nativeAdView = new NativeAdView(activity);
+        try {
+            directBanner = DirectAdMobBannerHelper.forActivity(activity);
+        } catch (Exception ignored) {
+            directBanner = null;
+        }
     }
 
     public void initializeAd() {
@@ -96,35 +103,105 @@ public class AdsManager {
     }
 
     public void loadBannerAd(boolean placement) {
-        if (placement) {
-            if (adsPref.getAdStatus()) {
-                bannerAd.setAdStatus("1")
-                        .setAdNetwork(activeAdNetwork())
-                        .setBackupAdNetwork(adsPref.getBackupAds())
-                        .setAdMobBannerId(adsPref.getAdMobBannerId())
-                        .setGoogleAdManagerBannerId(adsPref.getAdManagerBannerId())
-                        .setFanBannerId(adsPref.getFanBannerId())
-                        .setUnityBannerId(adsPref.getUnityBannerPlacementId())
-                        .setAppLovinBannerId(adsPref.getAppLovinBannerAdUnitId())
-                        .setAppLovinBannerZoneId(adsPref.getAppLovinBannerZoneId())
-                        .setIronSourceBannerId(adsPref.getIronSourceBannerId())
-                        .setIsCollapsibleBanner(false)
-                        .setDarkTheme(sharedPref.getIsDarkTheme())
-                        .build();
+        if (!placement || !adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            // Home/V2 layouts have banner_strip + admob_banner_host → Direct AdMob.
+            // Category/Search often only have Solodroid BannerAdView → use that path.
+            if (canUseDirectBanner()) {
+                directBanner.ensureLoaded();
+                return;
             }
+            bannerAd.setAdStatus("1")
+                    .setAdNetwork(activeAdNetwork())
+                    .setBackupAdNetwork(adsPref.getBackupAds())
+                    .setAdMobBannerId(adsPref.getAdMobBannerId())
+                    .setGoogleAdManagerBannerId(adsPref.getAdManagerBannerId())
+                    .setFanBannerId(adsPref.getFanBannerId())
+                    .setUnityBannerId(adsPref.getUnityBannerPlacementId())
+                    .setAppLovinBannerId(adsPref.getAppLovinBannerAdUnitId())
+                    .setAppLovinBannerZoneId(adsPref.getAppLovinBannerZoneId())
+                    .setIronSourceBannerId(adsPref.getIronSourceBannerId())
+                    .setIsCollapsibleBanner(false)
+                    .setDarkTheme(sharedPref.getIsDarkTheme())
+                    .build();
+        } catch (Exception ignored) {
         }
     }
 
     public void destroyBannerAd() {
+        try {
+            if (directBanner != null) {
+                directBanner.destroy();
+            }
+        } catch (Exception ignored) {
+        }
         if (adsPref.getAdStatus()) {
-            bannerAd.destroyAndDetachBanner();
+            try {
+                bannerAd.destroyAndDetachBanner();
+            } catch (Exception ignored) {
+            }
         }
     }
 
     public void resumeBannerAd(boolean placement) {
-        if (adsPref.getAdStatus()) {
+        if (!placement || !adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if (canUseDirectBanner()) {
+                directBanner.onResume();
+                return;
+            }
+            loadBannerAd(placement);
+        } catch (Exception ignored) {
             loadBannerAd(placement);
         }
+    }
+
+    public void ensureBannerAd() {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if (canUseDirectBanner()) {
+                directBanner.ensureLoaded();
+                return;
+            }
+            loadBannerAd(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public void forceReloadBannerAd() {
+        if (!adsPref.getAdStatus()) {
+            return;
+        }
+        try {
+            if (canUseDirectBanner()) {
+                directBanner.forceReload();
+                return;
+            }
+            destroyBannerAd();
+            loadBannerAd(true);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private boolean canUseDirectBanner() {
+        if (directBanner == null) {
+            return false;
+        }
+        if (!"admob".equalsIgnoreCase(activeAdNetwork())) {
+            return false;
+        }
+        if (!AdPlacementHelper.isValidAdUnit(adsPref.getAdMobBannerId())) {
+            return false;
+        }
+        // Only when layout has DirectAdMob host/strip (home). Otherwise Solodroid BannerAdView.
+        return activity.findViewById(R.id.admob_banner_host) != null
+                || activity.findViewById(R.id.banner_strip) != null;
     }
 
     public void loadInterstitialAd(boolean placement, int interval) {

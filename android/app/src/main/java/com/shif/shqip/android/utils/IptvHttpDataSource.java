@@ -64,12 +64,35 @@ public final class IptvHttpDataSource implements HttpDataSource {
                         sharedPref
                 ));
             }
+        } else if (PortalResolveHelper.isDirectCdnUrl(requestUrl)
+                && requestUrl.toLowerCase(java.util.Locale.US).contains("k1.shifshqip.com")) {
+            // XUI CDN: client ↔ source CDN only (6.9.87 behavior).
+            String ua = StreamHeaderSession.resolveUserAgent(requestUrl, channelUserAgent);
+            if (TextUtils.isEmpty(ua)) {
+                ua = TextUtils.isEmpty(channelUserAgent) || "default".equalsIgnoreCase(channelUserAgent)
+                        ? "ExoPlayer"
+                        : channelUserAgent;
+            }
+            headers.put("User-Agent", ua);
+            Map<String, String> resolvedHeaders = StreamHeaderSession.headersFor(requestUrl);
+            if (resolvedHeaders != null && !resolvedHeaders.isEmpty()) {
+                headers.putAll(resolvedHeaders);
+            }
         } else {
             PlaylistGuardRule rule = PlaylistGuardHelper.resolveRule(sharedPref, requestUrl);
-            headers.put("User-Agent", PlaylistGuardHelper.resolveUserAgent(rule, channelUserAgent));
+            String sessionUa = StreamHeaderSession.resolveUserAgent(requestUrl, channelUserAgent);
+            if (!TextUtils.isEmpty(sessionUa)) {
+                headers.put("User-Agent", sessionUa);
+            } else {
+                headers.put("User-Agent", PlaylistGuardHelper.resolveUserAgent(rule, channelUserAgent));
+            }
             Map<String, String> ruleHeaders = PlaylistGuardHelper.buildRequestHeaders(rule);
             if (ruleHeaders != null) {
                 headers.putAll(ruleHeaders);
+            }
+            Map<String, String> resolvedHeaders = StreamHeaderSession.headersFor(requestUrl);
+            if (resolvedHeaders != null && !resolvedHeaders.isEmpty()) {
+                headers.putAll(resolvedHeaders);
             }
         }
 

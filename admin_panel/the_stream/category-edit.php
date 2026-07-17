@@ -82,13 +82,15 @@
                                         <div class="form-line">
                                             <div class="font-12">Category Name</div>
                                             <input type="text" class="form-control" name="category_name" id="category_name" value="<?php echo $row['category_name']; ?>" required>
+                                            <small class="text-muted">Emri duhet te perputhet me group-title ne playlist qe app te marr logo automatikisht.</small>
                                         </div>
                                     </div>
 
                                     <div class="col-sm-6" style="margin-bottom: 0px;">
                                         <div class="form-group">
-                                            <div class="font-12 ex1">Image ( JPG, JPEG, PNG or GIF )</div>
+                                            <div class="font-12 ex1">Logo / Image ( JPG, JPEG, PNG or GIF )</div>
                                             <input type="file" name="category_image" id="category_image" class="dropify-image" data-max-file-size="3M" data-allowed-file-extensions="jpg jpeg png gif" data-default-file="upload/category/<?php echo $row['category_image']; ?>" data-show-remove="false"/>
+                                            <small class="text-muted">Kjo logo shfaqet ne app per kategorite e playlist me te njejtin emer.</small>
                                         </div>
                                     </div>
 

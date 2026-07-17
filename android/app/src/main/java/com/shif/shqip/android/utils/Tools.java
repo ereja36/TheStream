@@ -570,11 +570,24 @@ public class Tools {
                 intent = new Intent(activity, ActivityPlayerVideo.class);
                 intent.putExtra("url", channel.channel_url);
                 intent.putExtra("user_agent", channel.user_agent);
+                intent.putExtra("stream_referer", channel.stream_referer);
+                intent.putExtra("stream_origin", channel.stream_origin);
                 intent.putExtra("epg_channel_id", channel.epg_id);
                 intent.putExtra("epg_url", channel.epg_url);
                 intent.putExtra("channel_name", channel.channel_name);
+                if (!TextUtils.isEmpty(channel.stream_referer)
+                        || !TextUtils.isEmpty(channel.stream_origin)
+                        || (!TextUtils.isEmpty(channel.user_agent) && !"default".equalsIgnoreCase(channel.user_agent))) {
+                    StreamHeaderSession.rememberForSource(
+                            channel.channel_url,
+                            channel.user_agent,
+                            channel.stream_referer,
+                            channel.stream_origin
+                    );
+                }
             }
             intent.putExtra("channel_id", channel.channel_id);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             activity.startActivity(intent);
             View anchor = activity.getWindow() != null ? activity.getWindow().getDecorView() : view;
             if (anchor != null) {
@@ -1054,14 +1067,10 @@ public class Tools {
     }
 
     private String resolveChannelImage(Channel channel) {
-        if (channel == null || TextUtils.isEmpty(channel.channel_image)) {
+        if (channel == null) {
             return "";
         }
-        String image = channel.channel_image.trim();
-        if (image.startsWith("http://") || image.startsWith("https://")) {
-            return image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(channel.channel_image, sharedPref.getBaseUrl());
     }
 
     public static String getApplicationId() {
