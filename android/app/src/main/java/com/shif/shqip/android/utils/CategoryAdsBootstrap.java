@@ -41,7 +41,7 @@ public final class CategoryAdsBootstrap {
             adsManager.initializeAd();
             adsManager.updateConsentStatus();
             adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
-            adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, AdPlacementHelper.resolveInterstitialInterval(adsPref));
+            adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
             AdPlacementHelper.preloadNativeAds(activity, adsManager, 3);
         } catch (Exception e) {
             Log.e(TAG, "Category ads init failed", e);

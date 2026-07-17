@@ -3,18 +3,24 @@ package com.shif.shqip.android.utils;
 import android.app.Activity;
 import android.text.TextUtils;
 
+import com.shif.shqip.android.activities.ActivityCategoryDetail;
 import com.shif.shqip.android.activities.ActivityMainV2;
 import com.shif.shqip.android.activities.ActivityMainV3;
+import com.shif.shqip.android.activities.ActivitySearch;
 import com.shif.shqip.android.activities.MainActivity;
 import com.shif.shqip.android.activities.MyApplication;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 
 /**
  * Central place to show interstitials and refresh app-open ads after remote config.
+ * Same 6.9.87 ads logic, with Solodroid interval=1 so our click counter drives display,
+ * and CategoryDetail/Search use their own loaded AdsManager (category ads path).
  */
 public final class AdPlacementHelper {
 
     public static final int INTERSTITIAL_EVERY_CLICKS = 3;
+    /** Solodroid only shows when its internal counter == interval; use 1 so our counter drives display. */
+    public static final int SOLODROID_SHOW_EVERY_CALL = 1;
     private static final int NATIVE_PRELOAD_COUNT = 2;
 
     private AdPlacementHelper() {
@@ -39,9 +45,8 @@ public final class AdPlacementHelper {
         if (activity == null || adsManager == null || adsPref == null || !adsPref.getAdStatus()) {
             return;
         }
-        int interval = resolveInterstitialInterval(adsPref);
         adsManager.loadBannerAd(Constant.BANNER_HOME);
-        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, interval);
+        adsManager.loadInterstitialAd(Constant.INTERSTITIAL_AD_CHANNEL_LIST, SOLODROID_SHOW_EVERY_CALL);
         preloadNativeAds(activity, adsManager, NATIVE_PRELOAD_COUNT);
     }
 
@@ -95,10 +100,15 @@ public final class AdPlacementHelper {
             ((ActivityMainV2) activity).showInterstitialAd();
         } else if (activity instanceof ActivityMainV3) {
             ((ActivityMainV3) activity).showInterstitialAd();
+        } else if (activity instanceof ActivityCategoryDetail) {
+            ((ActivityCategoryDetail) activity).showInterstitialAd();
+        } else if (activity instanceof ActivitySearch) {
+            ((ActivitySearch) activity).showInterstitialAd();
         } else {
             AdsManager adsManager = new AdsManager(activity);
-            adsManager.loadInterstitialAd(true, interval);
-            adsManager.showInterstitialAd();
+            adsManager.initializeAd();
+            adsManager.loadInterstitialAd(true, SOLODROID_SHOW_EVERY_CALL);
+            activity.getWindow().getDecorView().postDelayed(adsManager::showInterstitialAd, 400L);
         }
     }
 

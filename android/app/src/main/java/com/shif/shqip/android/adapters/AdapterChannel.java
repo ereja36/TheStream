@@ -58,7 +58,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private OnItemClickListener mOnItemClickListener;
     private OnItemOverflowClickListener mOnItemOverflowClickListener;
     boolean scrolling = false;
-    private static final int NATIVE_AD_BOUND_TAG_KEY = R.id.recyclerView;
+    private static final Object NATIVE_AD_BOUND_TAG = new Object();
     SharedPref sharedPref;
     AdsPref adsPref;
     AdsManager adsManager;
@@ -204,18 +204,10 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             });
 
         } else if (holder instanceof NativeAdViewHolder) {
-            Object bound = holder.itemView.getTag(NATIVE_AD_BOUND_TAG_KEY);
-            if (bound == null) {
-                try {
-                    holder.itemView.setVisibility(View.VISIBLE);
-                    adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
-                    holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, Boolean.TRUE);
-                    // Collapse empty native rows that never fill (avoids grey skeleton bars).
-                    holder.itemView.postDelayed(() -> collapseEmptyNativeRow(holder), 2_500L);
-                } catch (Exception e) {
-                    Log.e("AdapterChannel", "native bind failed", e);
-                    collapseEmptyNativeRow(holder);
-                }
+            try {
+                adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
+            } catch (Exception e) {
+                Log.e("AdapterChannel", "native bind failed", e);
             }
         }
 
@@ -224,22 +216,6 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
 
         applyStaggeredSpan(holder, getItemViewType(position) == VIEW_PROG || getItemViewType(position) == VIEW_AD);
-    }
-
-    private void collapseEmptyNativeRow(RecyclerView.ViewHolder holder) {
-        if (holder == null || holder.itemView == null) {
-            return;
-        }
-        View item = holder.itemView;
-        if (item.getVisibility() != View.VISIBLE || item.getHeight() < 24) {
-            ViewGroup.LayoutParams lp = item.getLayoutParams();
-            if (lp != null) {
-                lp.height = 0;
-                item.setLayoutParams(lp);
-            }
-            item.setVisibility(View.GONE);
-            item.setPadding(0, 0, 0, 0);
-        }
     }
 
     private void applyStaggeredSpan(RecyclerView.ViewHolder holder, boolean fullSpan) {
