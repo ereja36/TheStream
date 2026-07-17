@@ -159,15 +159,6 @@ public class AdapterFavorite extends RecyclerView.Adapter<RecyclerView.ViewHolde
                                 .into(vItem.channel_image);
                     }
                 }
-                } else {
-                    Glide.with(context)
-                            .load(sharedPref.getBaseUrl() + "/upload/" + p.channel_image.replace(" ", "%20"))
-                            .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height).fitCenter())
-                            .placeholder(R.drawable.ic_thumbnail)
-                            .error(R.drawable.ic_thumbnail)
-                            .diskCacheStrategy(DiskCacheStrategy.ALL)
-                            .into(vItem.channel_image);
-                }
 
                 if (sharedPref.getIsDarkTheme()) {
                     vItem.overflow.setColorFilter(ContextCompat.getColor(context, R.color.color_dark_icon), PorterDuff.Mode.SRC_IN);

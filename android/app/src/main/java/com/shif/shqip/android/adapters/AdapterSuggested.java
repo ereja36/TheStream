@@ -155,14 +155,6 @@ public class AdapterSuggested extends RecyclerView.Adapter<RecyclerView.ViewHold
                                 .into(vItem.channel_image);
                     }
                 }
-                } else {
-                    Glide.with(context)
-                            .load(resolveChannelImage(p))
-                            .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height).fitCenter())
-                            .placeholder(R.drawable.ic_thumbnail)
-                            .diskCacheStrategy(DiskCacheStrategy.ALL)
-                            .into(vItem.channel_image);
-                }
 
                 vItem.lyt_parent.setOnClickListener(view -> {
                     if (mOnItemClickListener != null) {
