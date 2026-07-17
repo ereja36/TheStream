@@ -1,0 +1,73 @@
+<div class="page">
+<% if (typeof theme !== 'undefined' && theme === 'triangolo') { %>
+<div class="tri-topbar">
+  <div class="search-bar"><i class="fas fa-search"></i>
+    <input id="channelSearchInput" data-testid="main-channel-search-input" type="text" placeholder="Search channels..." oninput="filterChannels(this.value)">
+  </div>
+  <a href="<%= typeof telegramUrl !== 'undefined' && telegramUrl ? telegramUrl : 'https://t.me/albview' %>" target="_blank" rel="noopener noreferrer" class="a-btn btn-telegram" data-testid="hero-telegram-button"><i class="fab fa-telegram-plane"></i> Telegram</a>
+</div>
+<div id="favSection" style="display:none;margin-bottom:24px">
+  <div class="tri-cat-head"><div><div class="tri-cat-kicker">YOURS</div><h2 class="tri-cat-title">Favoritet</h2></div></div>
+  <div class="channels-grid tri-h-scroll" id="favGrid"></div>
+</div>
+<%- typeof categoryRowsHtml !== 'undefined' ? categoryRowsHtml : '' %>
+<div class="info-footer">© Shif Shqip</div>
+<% } else { %>
+
+
+<div class="main-hero">
+  <div class="main-hero-pane">
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <span class="hero-chip"><span class="server-dot"></span> SHIF SHQIP • LIVE</span>
+      <div style="display:flex;gap:6px">
+        <button class="a-btn a-btn-primary" data-testid="main-language-sq-button" style="padding:4px 10px;font-size:.68rem" onclick="setUiLang('sq')">SQ</button>
+        <button class="a-btn a-btn-purple" data-testid="main-language-en-button" style="padding:4px 10px;font-size:.68rem" onclick="setUiLang('en')">EN</button>
+      </div>
+    </div>
+    <h1 data-i18n="hero_title">Shif Shqip Live TV</h1>
+    <p data-i18n="hero_desc">Kanale live të organizuara sipas kategorive.</p>
+    <div class="main-hero-actions" data-testid="hero-main-actions">
+      <a href="<%= basePath %>/" class="a-btn a-btn-primary" data-testid="hero-live-tv-button"><i class="fas fa-tv"></i> <span data-i18n="hero_live_cta">Live TV</span></a>
+      <a href="<%= basePath %>/vod" class="a-btn a-btn-green" data-testid="hero-vod-button"><i class="fas fa-film"></i> <span data-i18n="hero_vod_cta">VOD</span></a>
+      <a href="https://t.me/albview" target="_blank" rel="noopener noreferrer" class="a-btn a-btn-primary" style="background:#2AABEE;border-color:#2AABEE"><i class="fab fa-telegram-plane"></i> Telegram</a>
+    </div>
+  </div>
+</div>
+
+<div class="main-grid-two single-col" data-testid="main-custom-categories-section">
+  <section class="section-shell">
+    <div class="section-head"><i class="fas fa-folder-open" style="color:var(--accent)"></i><h2 data-i18n="custom_categories">Kategori Custom</h2></div>
+    <div class="cat-grid" style="margin-bottom:0">
+    <%- customCards %>
+    </div>
+  </section>
+</div>
+<div class="admin-bar">
+  <span class="server-dot"></span> <span data-i18n="server_active">SERVER AKTIV</span>
+  <span style="color:var(--muted)"><i class="fas fa-eye"></i> <%= visibleMainCount %> kanale</span>
+  <span id="publicLiveViewerBadge" style="display:none;color:var(--sport);font-weight:700;align-items:center;gap:5px"><i class="fas fa-users"></i> 0 shikues live</span>
+  <span style="color:var(--muted)"><i class="fas fa-list-check"></i> <%= manualMainEnabled ? 'Main: Manual' : 'Main: Auto' %></span>
+</div>
+<div id="favSection" style="display:none;margin-bottom:24px">
+<div class="page-header" style="margin-bottom:12px"><i class="fas fa-heart" style="color:var(--red)"></i><h2 style="font-size:1.1rem" data-i18n="favorites">Favoritet e Tua</h2></div>
+<div class="channels-grid" id="favGrid"></div>
+</div>
+<div class="search-bar"><i class="fas fa-search"></i>
+<input id="channelSearchInput" data-testid="main-channel-search-input" type="text" placeholder="Kërko kanale..." oninput="filterChannels(this.value)"></div>
+<div class="channels-grid"><%- cards %></div>
+<div class="info-footer" data-i18n="footer">© Shif Shqip</div>
+<% } %>
+</div>
+<script>
+const UI_I18N={
+  sq:{hero_title:'Shif Shqip Live TV',hero_desc:'Kanale live të organizuara sipas kategorive.',hero_live_cta:'Live TV',hero_vod_cta:'VOD',custom_categories:'Kategori Custom',server_active:'SERVER AKTIV',favorites:'Favoritet e Tua',footer:'© Shif Shqip',search:'Kërko kanale...'},
+  en:{hero_title:'Shif Shqip Live TV',hero_desc:'Live channels organized by categories.',hero_live_cta:'Live TV',hero_vod_cta:'VOD',custom_categories:'Custom Categories',server_active:'SERVER ONLINE',favorites:'Your Favorites',footer:'© Shif Shqip',search:'Search channels...'}
+};
+function setUiLang(lang){
+  const l=UI_I18N[lang]||UI_I18N.sq;
+  Object.entries(l).forEach(([k,v])=>{const node=document.querySelector('[data-i18n="'+k+'"]'); if(node) node.textContent=v;});
+  const input=document.getElementById('channelSearchInput'); if(input) input.placeholder=l.search||input.placeholder;
+  try{localStorage.setItem('k1_ui_lang',lang);}catch{}
+}
+try{setUiLang(localStorage.getItem('k1_ui_lang')||'sq');}catch{setUiLang('sq');}
+</script>
