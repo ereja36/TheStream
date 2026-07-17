@@ -107,7 +107,9 @@ public class AdsManager {
             return;
         }
         try {
-            if (directBanner != null && AdPlacementHelper.hasValidAdNetwork(adsPref)) {
+            // Home/V2 layouts have banner_strip + admob_banner_host → Direct AdMob.
+            // Category/Search often only have Solodroid BannerAdView → use that path.
+            if (canUseDirectBanner()) {
                 directBanner.ensureLoaded();
                 return;
             }
@@ -144,12 +146,12 @@ public class AdsManager {
     }
 
     public void resumeBannerAd(boolean placement) {
-        if (!adsPref.getAdStatus()) {
+        if (!placement || !adsPref.getAdStatus()) {
             return;
         }
         try {
-            if (directBanner != null) {
-                directBanner.ensureLoaded();
+            if (canUseDirectBanner()) {
+                directBanner.onResume();
                 return;
             }
             loadBannerAd(placement);
@@ -163,7 +165,7 @@ public class AdsManager {
             return;
         }
         try {
-            if (directBanner != null) {
+            if (canUseDirectBanner()) {
                 directBanner.ensureLoaded();
                 return;
             }
@@ -177,7 +179,7 @@ public class AdsManager {
             return;
         }
         try {
-            if (directBanner != null) {
+            if (canUseDirectBanner()) {
                 directBanner.forceReload();
                 return;
             }
@@ -185,6 +187,21 @@ public class AdsManager {
             loadBannerAd(true);
         } catch (Exception ignored) {
         }
+    }
+
+    private boolean canUseDirectBanner() {
+        if (directBanner == null) {
+            return false;
+        }
+        if (!"admob".equalsIgnoreCase(activeAdNetwork())) {
+            return false;
+        }
+        if (!AdPlacementHelper.isValidAdUnit(adsPref.getAdMobBannerId())) {
+            return false;
+        }
+        // Only when layout has DirectAdMob host/strip (home). Otherwise Solodroid BannerAdView.
+        return activity.findViewById(R.id.admob_banner_host) != null
+                || activity.findViewById(R.id.banner_strip) != null;
     }
 
     public void loadInterstitialAd(boolean placement, int interval) {

@@ -11,6 +11,8 @@ import com.shif.shqip.android.activities.MainActivity;
 import com.shif.shqip.android.activities.MyApplication;
 import com.shif.shqip.android.databases.prefs.AdsPref;
 
+import java.util.Locale;
+
 /**
  * Central place to show interstitials and refresh app-open ads after remote config.
  * Same 6.9.87 ads logic, with Solodroid interval=1 so our click counter drives display,
@@ -112,16 +114,38 @@ public final class AdPlacementHelper {
         }
     }
 
+    public static boolean shouldInsertNativeAds(AdsPref adsPref) {
+        if (!Constant.NATIVE_AD_CHANNEL_LIST || adsPref == null || !adsPref.getAdStatus()
+                || !hasValidAdNetwork(adsPref)) {
+            return false;
+        }
+        return isValidAdUnit(adsPref.getAdMobNativeId())
+                || isValidAdUnit(adsPref.getAdManagerNativeId())
+                || isValidAdUnit(adsPref.getFanNativeId())
+                || isValidAdUnit(adsPref.getAppLovinNativeAdManualUnitId())
+                || isValidAdUnit(adsPref.getWortiseNativeId());
+    }
+
+    /** @deprecated Use {@link #shouldInsertNativeAds(AdsPref)} */
+    @Deprecated
     public static boolean shouldInsertNativeAds() {
         return Constant.NATIVE_AD_CHANNEL_LIST;
     }
 
     public static int resolveNativeInterval(AdsPref adsPref) {
-        return 3;
+        if (adsPref == null) {
+            return 3;
+        }
+        int interval = adsPref.getNativeAdInterval();
+        return interval > 0 ? interval : 3;
     }
 
     public static int resolveNativeStartIndex(AdsPref adsPref) {
-        return 3;
+        if (adsPref == null) {
+            return 3;
+        }
+        int index = adsPref.getNativeAdIndex();
+        return index > 0 ? index : 3;
     }
 
     public static boolean hasValidAdNetwork(AdsPref adsPref) {
@@ -138,14 +162,14 @@ public final class AdPlacementHelper {
         }
         String mainAds = adsPref.getMainAds();
         if (!TextUtils.isEmpty(mainAds) && !"0".equals(mainAds)) {
-            return mainAds;
+            return mainAds.trim().toLowerCase(Locale.US);
         }
         if (hasConfiguredAdMobUnits(adsPref)) {
             return "admob";
         }
         String backup = adsPref.getBackupAds();
         if (!TextUtils.isEmpty(backup) && !"0".equals(backup) && !"none".equalsIgnoreCase(backup)) {
-            return backup;
+            return backup.trim().toLowerCase(Locale.US);
         }
         return "";
     }
