@@ -28,7 +28,7 @@ public class Config {
     public static final boolean ENABLE_PLAY_STREAMING_USING_EXTERNAL_PLAYER = false;
 
     //display category name in the channel list
-    public static final boolean ENABLE_CHANNEL_LIST_CATEGORY_NAME = true;
+    public static final boolean ENABLE_CHANNEL_LIST_CATEGORY_NAME = false;
 
     //set true to allow app usage over VPN/proxy networks
     public static final boolean ENABLE_VPN_ACCESS = true;
@@ -56,7 +56,7 @@ public class Config {
 
     //Enable it with true value if want to the app will force to display open ads first before start the main menu
     //Longer duration to start the app may occur depending on internet connection or open ad response time itself
-    // Hero live preview on Design 2 home (disable if device/player unstable)
-    public static final boolean ENABLE_HERO_LIVE_PREVIEW = true;
+    // Hero live preview on Design 2 home — off by default (competes with playback / silent stalls)
+    public static final boolean ENABLE_HERO_LIVE_PREVIEW = false;
 
 }

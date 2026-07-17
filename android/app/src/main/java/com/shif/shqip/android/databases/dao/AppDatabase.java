@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase;
 
 import com.shif.shqip.android.BuildConfig;
 
-@Database(entities = {ChannelEntity.class}, version = 1, exportSchema = false)
+@Database(entities = {ChannelEntity.class}, version = 2, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
 
     public abstract DAO get();

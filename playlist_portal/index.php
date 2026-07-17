@@ -130,10 +130,22 @@ if ($path['channel'] === 'r' && $path['stream'] !== '') {
     if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
         PortalService::deny('invalid_entry');
     }
-    $finalUrl = PortalService::resolveToDirectCdnUrl($portal, $entryUrl);
-    if ($finalUrl === '') {
+    $clientIpv4 = '';
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        $clientIpv4 = $_SERVER['HTTP_CF_CONNECTING_IP'];
+    } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $xff = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+        if (preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $xff)) {
+            $clientIpv4 = $xff;
+        }
+    } elseif (!empty($_SERVER['REMOTE_ADDR']) && preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $_SERVER['REMOTE_ADDR'])) {
+        $clientIpv4 = $_SERVER['REMOTE_ADDR'];
+    }
+    $resolved = PortalService::resolveSealedEntryForApp($portal, $entryUrl, $accessKey, $clientIpv4);
+    if (!is_array($resolved) || empty($resolved['url'])) {
         PortalService::deny('resolve_failed');
     }
+    $finalUrl = (string) $resolved['url'];
     if (PortalService::wantsDirectResolve($headers) || !PortalService::isBrowserClient($headers)) {
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
@@ -143,11 +155,22 @@ if ($path['channel'] === 'r' && $path['stream'] !== '') {
             echo json_encode(array('ok' => false, 'error' => 'resolve_not_direct'));
             exit;
         }
-        echo json_encode(array(
+        $payload = array(
             'ok' => true,
             'mode' => $isDirect ? 'direct' : 'proxy',
-            'url' => $finalUrl
-        ), JSON_UNESCAPED_SLASHES);
+            'url' => $finalUrl,
+            'direct_url' => !empty($resolved['direct_url']) ? $resolved['direct_url'] : $finalUrl
+        );
+        if (!empty($resolved['headers']) && is_array($resolved['headers'])) {
+            $payload['headers'] = $resolved['headers'];
+        }
+        if (!empty($resolved['user_agent'])) {
+            $payload['user_agent'] = $resolved['user_agent'];
+        }
+        if (!empty($resolved['a3_cdn'])) {
+            $payload['a3_cdn'] = $resolved['a3_cdn'];
+        }
+        echo json_encode($payload, JSON_UNESCAPED_SLASHES);
         exit;
     }
     if (!PortalService::redirectToStreamUrl($finalUrl)) {

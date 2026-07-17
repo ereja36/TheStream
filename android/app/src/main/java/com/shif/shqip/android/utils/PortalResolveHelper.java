@@ -31,6 +31,10 @@ public final class PortalResolveHelper {
     private PortalResolveHelper() {
     }
 
+    public static void invalidateCache() {
+        URL_CACHE.evictAll();
+    }
+
     private static final class CacheEntry {
         final String url;
         final long expiresAt;
@@ -46,6 +50,8 @@ public final class PortalResolveHelper {
             return "";
         }
         String trimmed = sourceUrl.trim();
+        // Apply playlist EXTVLCOPT headers for this source (host-scoped).
+        StreamHeaderSession.applySourceIfPresent(trimmed);
         // Sealed portal URLs must always be resolved — never returned as-is.
         if (PlaylistPortalHelper.isPortalResolveUrl(trimmed)) {
             return resolvePortalEntry(sharedPref, trimmed);

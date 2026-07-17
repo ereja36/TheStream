@@ -632,6 +632,8 @@ public final class DeviceApiHelper {
         String[] lines = content.split("\\r?\\n");
         String extInfoLine = "";
         String userAgent = "default";
+        String streamReferer = "";
+        String streamOrigin = "";
         String epgUrl = extractGlobalEpgUrl(content);
         int index = 0;
 
@@ -659,6 +661,26 @@ public final class DeviceApiHelper {
                 continue;
             }
 
+            if (line.startsWith("#EXTVLCOPT:http-referrer=")
+                    || line.startsWith("#EXTVLCOPT:http-referer=")) {
+                int eq = line.indexOf('=');
+                if (eq > 0) {
+                    String value = line.substring(eq + 1).trim();
+                    if (!TextUtils.isEmpty(value)) {
+                        streamReferer = value;
+                    }
+                }
+                continue;
+            }
+
+            if (line.startsWith("#EXTVLCOPT:http-origin=")) {
+                String value = line.substring("#EXTVLCOPT:http-origin=".length()).trim();
+                if (!TextUtils.isEmpty(value)) {
+                    streamOrigin = value;
+                }
+                continue;
+            }
+
             if (line.startsWith("#")) {
                 continue;
             }
@@ -669,9 +691,17 @@ public final class DeviceApiHelper {
 
             index++;
             Channel channel = buildChannel(extInfoLine, line, userAgent, index, playlistName, epgUrl);
+            channel.stream_referer = streamReferer;
+            channel.stream_origin = streamOrigin;
+            if (!TextUtils.isEmpty(streamReferer) || !TextUtils.isEmpty(streamOrigin)
+                    || (!TextUtils.isEmpty(userAgent) && !"default".equalsIgnoreCase(userAgent))) {
+                StreamHeaderSession.rememberForSource(line, userAgent, streamReferer, streamOrigin);
+            }
             channels.add(channel);
             extInfoLine = "";
             userAgent = "default";
+            streamReferer = "";
+            streamOrigin = "";
         }
 
         return channels;

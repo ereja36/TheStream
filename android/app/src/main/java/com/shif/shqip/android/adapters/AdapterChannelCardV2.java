@@ -21,6 +21,7 @@ import com.shif.shqip.android.databases.dao.ChannelEntity;
 import com.shif.shqip.android.databases.dao.DAO;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import java.util.ArrayList;
@@ -67,16 +68,24 @@ public class AdapterChannelCardV2 extends RecyclerView.Adapter<AdapterChannelCar
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Channel channel = items.get(position);
         holder.channelLabel.setText(channel.channel_name);
-        holder.channelNameInline.setText(channel.channel_name);
+        if (holder.channelNameInline != null) {
+            holder.channelNameInline.setVisibility(View.GONE);
+            holder.channelNameInline.setText("");
+        }
 
-        String imageUrl = resolveImageUrl(channel.channel_image);
+        Glide.with(activity).clear(holder.channelLogo);
+        String imageUrl = ChannelLogoHelper.resolve(
+                channel.channel_image, sharedPref.getBaseUrl(), channel.channel_name);
         if (!TextUtils.isEmpty(imageUrl)) {
             Glide.with(activity)
                     .load(imageUrl)
-                    .apply(new RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                    .apply(new RequestOptions().fitCenter().diskCacheStrategy(DiskCacheStrategy.ALL))
+                    .placeholder(R.drawable.ic_thumbnail)
+                    .error(R.drawable.ic_thumbnail)
+                    .dontAnimate()
                     .into(holder.channelLogo);
         } else {
-            holder.channelLogo.setImageResource(R.mipmap.ic_launcher);
+            holder.channelLogo.setImageResource(R.drawable.ic_thumbnail);
         }
 
         boolean favorite = dao.getChannel(channel.channel_id) != null;
@@ -99,14 +108,9 @@ public class AdapterChannelCardV2 extends RecyclerView.Adapter<AdapterChannelCar
     }
 
     private String resolveImageUrl(String image) {
-        if (TextUtils.isEmpty(image)) {
-            return "";
-        }
-        if (image.startsWith("http")) {
-            return image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(image, sharedPref.getBaseUrl(), "");
     }
+
 
     @Override
     public int getItemCount() {

@@ -43,6 +43,7 @@ import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.Constant;
 import com.shif.shqip.android.utils.Tools;
 import com.facebook.shimmer.ShimmerFrameLayout;
@@ -85,7 +86,7 @@ public class ActivitySearch extends AppCompatActivity {
 
         adsManager = new AdsManager(this);
         adsManager.loadBannerAd(BANNER_SEARCH);
-        adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, adsPref.getInterstitialAdInterval());
+        adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
 
         parent_view = findViewById(R.id.parent_view);
         edtSearch = findViewById(R.id.et_search);
@@ -143,7 +144,7 @@ public class ActivitySearch extends AppCompatActivity {
             Intent intent = new Intent(getApplicationContext(), ActivityChannelDetail.class);
             intent.putExtra(Constant.EXTRA_OBJC, obj);
             startActivity(intent);
-            adsManager.showInterstitialAd();
+            showInterstitialAd();
             adsManager.destroyBannerAd();
         });
 
@@ -156,6 +157,15 @@ public class ActivitySearch extends AppCompatActivity {
         showEmptySearch();
         handleOnBackPressed();
 
+    }
+
+    public void showInterstitialAd() {
+        if (adsManager != null) {
+            adsManager.showInterstitialAd();
+            adsManager.loadInterstitialAd(
+                    INTERSTITIAL_AD_CHANNEL_LIST,
+                    AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
+        }
     }
 
     public void handleOnBackPressed() {

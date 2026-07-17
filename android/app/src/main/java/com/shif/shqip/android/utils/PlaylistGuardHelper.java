@@ -216,28 +216,21 @@ public final class PlaylistGuardHelper {
         if (TextUtils.isEmpty(urlString)) {
             return urlString;
         }
-        // Sealed portal URLs: resolve or fail empty (caller shows error).
-        if (PlaylistPortalHelper.isPortalResolveUrl(urlString)) {
-            String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, urlString);
-            return TextUtils.isEmpty(direct) ? "" : direct;
-        }
-        // Normal IPTV / raw streams always pass through.
-        if (StreamPlaybackHelper.isRawPlaylistStreamUrl(urlString)) {
-            return urlString;
-        }
         if (sharedPref != null && sharedPref.isPortalSessionActive()) {
+            if (PlaylistPortalHelper.isPortalResolveUrl(urlString)) {
+                return PortalResolveHelper.resolveToDirectUrl(sharedPref, urlString);
+            }
             if (PlaylistPortalHelper.isUpstreamStreamUrl(urlString)
                     || K1PlaybackHelper.isK1ProxyUrl(urlString)) {
                 String direct = PortalResolveHelper.resolveToDirectUrl(sharedPref, urlString);
                 return TextUtils.isEmpty(direct) ? urlString : direct;
             }
-            if (PortalResolveHelper.isPlayableStreamUrl(urlString)) {
+            if (PortalResolveHelper.isDirectCdnUrl(urlString)) {
                 return urlString;
             }
         }
         try {
-            String resolved = resolvePlaybackUrl(sharedPref, urlString);
-            return TextUtils.isEmpty(resolved) ? urlString : resolved;
+            return resolvePlaybackUrl(sharedPref, urlString);
         } catch (Exception ignored) {
             return urlString;
         }
@@ -363,6 +356,14 @@ public final class PlaylistGuardHelper {
         Map<String, String> headers = buildRequestHeaders(rule);
         headers.put("X-Shif-App", "1");
         headers.put("X-Requested-With", BuildConfig.APPLICATION_ID);
+        Map<String, String> resolvedHeaders = StreamHeaderSession.headersFor(requestUrl);
+        if (resolvedHeaders != null && !resolvedHeaders.isEmpty()) {
+            headers.putAll(resolvedHeaders);
+        }
+        String sessionUa = StreamHeaderSession.resolveUserAgent(requestUrl, channelUserAgent);
+        if (!TextUtils.isEmpty(sessionUa)) {
+            userAgent = sessionUa;
+        }
 
         DefaultHttpDataSource.Factory httpFactory = StreamPlaybackHelper.configureHttpFactory(
                 new DefaultHttpDataSource.Factory().setUserAgent(userAgent));
@@ -532,7 +533,7 @@ public final class PlaylistGuardHelper {
     }
 
     private static boolean isFinalChannelUrl(String url) {
-        return PortalResolveHelper.isPlayableStreamUrl(url);
+        return PortalResolveHelper.isDirectCdnUrl(url);
     }
 
     private static boolean isDirectStreamUrl(String url) {

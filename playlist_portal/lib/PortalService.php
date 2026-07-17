@@ -644,7 +644,18 @@ final class PortalService
     public static function isPlayableAll2Url($url)
     {
         $url = strtolower(trim((string) $url));
-        if ($url === '' || strpos($url, 'shifshqip.com') === false) {
+        if ($url === '') {
+            return false;
+        }
+        // phinemi origin proxy / CF worker — playable rewritten HLS for the app.
+        if (strpos($url, 'phinemi.live') !== false) {
+            return strpos($url, '/a3proxy') !== false
+                || strpos($url, '/a3relay') !== false
+                || strpos($url, '/a3hls') !== false
+                || strpos($url, 'a3.phinemi.live') !== false
+                || strpos($url, '?u=') !== false;
+        }
+        if (strpos($url, 'shifshqip.com') === false) {
             return false;
         }
         // Match /k1/a3hls?id=... (no trailing slash) as well as /k1/a3hls/...
@@ -656,6 +667,61 @@ final class PortalService
             || strpos($url, '/k1/a3relay') !== false
             || strpos($url, '/k1/a3hls') !== false
             || strpos($url, '/app-measurement/') !== false;
+    }
+
+    /**
+     * Extract alb_/albvod_/channel slug from sealed upstream or proxy URLs.
+     */
+    public static function extractK1SlugFromUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        if (preg_match('#/api/channel-url/([a-z0-9_.-]+)#i', $url, $m)) {
+            return rawurldecode($m[1]);
+        }
+        if (preg_match('#/(?:channel-proxy|channel|playlist)/([a-z0-9_.-]+)#i', $url, $m)) {
+            return rawurldecode($m[1]);
+        }
+        if (preg_match('#/(albvod?_[a-z0-9_-]+)#i', $url, $m)) {
+            return $m[1];
+        }
+        return '';
+    }
+
+    /**
+     * Resolve a sealed /r entry for the app: prefer channel-url (headers+UA+cip)
+     * when a K1 slug is present; otherwise unwrap to direct CDN.
+     */
+    public static function resolveSealedEntryForApp($portal, $entryUrl, $accessKey = '', $clientIpv4 = '')
+    {
+        $entryUrl = trim((string) $entryUrl);
+        if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
+            return null;
+        }
+        $slug = self::extractK1SlugFromUrl($entryUrl);
+        if ($slug !== '' && preg_match('/^(alb_|albvod_|api_|kool_|custom_|open_|nimi_)/i', $slug)) {
+            $resolved = self::resolveK1ChannelPortalUrl($portal, '', $slug, $accessKey, $clientIpv4);
+            if (is_array($resolved) && !empty($resolved['url'])) {
+                return $resolved;
+            }
+        }
+        $finalUrl = self::resolveToDirectCdnUrl($portal, $entryUrl);
+        if ($finalUrl === '') {
+            if (self::isDirectCdnUrl($entryUrl) || self::isPlayableAll2Url($entryUrl)) {
+                $finalUrl = $entryUrl;
+            } else {
+                return null;
+            }
+        }
+        return array(
+            'url' => $finalUrl,
+            'headers' => array(),
+            'user_agent' => '',
+            'a3_cdn' => '',
+            'direct_url' => $finalUrl
+        );
     }
 
     /**
@@ -725,8 +791,6 @@ final class PortalService
         if (strpos($fetchUrl, 'http://127.0.0.1:3000/') === 0) {
             $headers[] = 'Host: shifshqip.com';
             $headers[] = 'X-Forwarded-Proto: https';
-            $headers[] = 'CF-Connecting-IP: 1.1.1.1';
-            $headers[] = 'X-Forwarded-For: 1.1.1.1';
         }
         if (!empty($portal['outbound_user_agent'])) {
             curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
@@ -835,8 +899,8 @@ final class PortalService
         if (strpos($url, 'http://127.0.0.1:3000/') === 0) {
             $headers[] = 'Host: shifshqip.com';
             $headers[] = 'X-Forwarded-Proto: https';
-            $headers[] = 'CF-Connecting-IP: 1.1.1.1';
-            $headers[] = 'X-Forwarded-For: 1.1.1.1';
+            // Do NOT forge CF-Connecting-IP to 1.1.1.1 — A3 cip= signing must use
+            // the real viewer IP (set by fetchChannelUrlApi / callers).
         }
         if (!empty($portal['outbound_user_agent'])) {
             curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
