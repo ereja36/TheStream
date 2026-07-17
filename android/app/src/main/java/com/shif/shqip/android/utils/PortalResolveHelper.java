@@ -11,7 +11,9 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * One-shot portal resolve: sealed playlist URLs → direct CDN stream URL (+ headers).
@@ -125,7 +127,15 @@ public final class PortalResolveHelper {
             int code = connection.getResponseCode();
             String finalUrl = connection.getURL().toString();
             if (code >= 200 && code < 400 && isPlayableStreamUrl(finalUrl)) {
-                URL_CACHE.put(cacheKey, new CacheEntry(finalUrl, "", null, System.currentTimeMillis() + CACHE_TTL_MS));
+                Map<String, String> hopHeaders = new HashMap<>();
+                hopHeaders.put("Referer", PlaylistPortalHelper.UPSTREAM_STREAM_REFERER);
+                StreamHeaderSession.rememberResolved(
+                        finalUrl, PlaylistPortalHelper.UPSTREAM_STREAM_UA, hopHeaders);
+                URL_CACHE.put(cacheKey, new CacheEntry(
+                        finalUrl,
+                        PlaylistPortalHelper.UPSTREAM_STREAM_UA,
+                        null,
+                        System.currentTimeMillis() + CACHE_TTL_MS));
                 return finalUrl;
             }
             if (code >= 200 && code < 300) {

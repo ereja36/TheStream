@@ -34,10 +34,10 @@ public final class ChannelLogoHelper {
         RELATIVE_ALIASES.put("supersport2.png", CDN + "supersport-2-al.png");
         RELATIVE_ALIASES.put("supersport3.png", CDN + "supersport-3-al.png");
         RELATIVE_ALIASES.put("supersport4.png", CDN + "supersport-4-al.png");
-        RELATIVE_ALIASES.put("arena1.png", CDN + "arena-1-premium-al.png");
-        RELATIVE_ALIASES.put("arena2.png", CDN + "arena-2-premium-al.png");
-        RELATIVE_ALIASES.put("arenapremium1.png", CDN + "arena-1-premium-al.png");
-        RELATIVE_ALIASES.put("arenapremium2.png", CDN + "arena-2-premium-al.png");
+        RELATIVE_ALIASES.put("arena1.png", CDN + "arena-1-premium-sq-al.png");
+        RELATIVE_ALIASES.put("arena2.png", CDN + "arena-2-premium-sq-al.png");
+        RELATIVE_ALIASES.put("arenapremium1.png", CDN + "arena-1-premium-sq-al.png");
+        RELATIVE_ALIASES.put("arenapremium2.png", CDN + "arena-2-premium-sq-al.png");
     }
 
     /** Resolve by channel name when image path is empty or broken. */
@@ -66,10 +66,10 @@ public final class ChannelLogoHelper {
         if (key.contains("supersport6") || key.equals("ss6")) return CDN + "supersport-6-al.png";
         if (key.contains("supersport7") || key.equals("ss7")) return CDN + "supersport-7-al.png";
         if (key.contains("arenapremium1") || key.contains("arenapremiumhd1") || key.equals("arena1")) {
-            return CDN + "arena-1-premium-al.png";
+            return CDN + "arena-1-premium-sq-al.png";
         }
         if (key.contains("arenapremium2") || key.contains("arenapremiumhd2") || key.equals("arena2")) {
-            return CDN + "arena-2-premium-al.png";
+            return CDN + "arena-2-premium-sq-al.png";
         }
         if (key.contains("tringsport1") || key.contains("tringsports1")) return CDN + "tring-sport-1-al.png";
         if (key.contains("tringsport2") || key.contains("tringsports2")) return CDN + "tring-sport-2-al.png";

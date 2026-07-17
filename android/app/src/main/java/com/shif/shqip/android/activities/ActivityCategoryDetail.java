@@ -74,6 +74,7 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     private List<Channel> playlistSource = new ArrayList<>();
     private int playlistPagesLoaded = 0;
     private final ExecutorService playlistExecutor = Executors.newSingleThreadExecutor();
+    private int shimmerGeneration = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -374,13 +375,25 @@ public class ActivityCategoryDetail extends AppCompatActivity {
 
     private void swipeProgress(final boolean show) {
         if (!show) {
-            swipeRefreshLayout.setRefreshing(show);
-            lyt_shimmer.setVisibility(View.GONE);
+            shimmerGeneration++;
+            swipeRefreshLayout.setRefreshing(false);
             lyt_shimmer.stopShimmer();
+            lyt_shimmer.setVisibility(View.GONE);
+            if (recyclerView != null) {
+                recyclerView.setVisibility(View.VISIBLE);
+            }
             return;
         }
+        final int gen = ++shimmerGeneration;
+        if (recyclerView != null) {
+            recyclerView.setVisibility(View.INVISIBLE);
+        }
         swipeRefreshLayout.post(() -> {
-            swipeRefreshLayout.setRefreshing(show);
+            // Guard against race: hide can run before this post executes and re-show shimmer over loaded rows.
+            if (gen != shimmerGeneration || isFinishing()) {
+                return;
+            }
+            swipeRefreshLayout.setRefreshing(true);
             lyt_shimmer.setVisibility(View.VISIBLE);
             lyt_shimmer.startShimmer();
         });

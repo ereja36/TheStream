@@ -28,7 +28,7 @@ public class Config {
     public static final boolean ENABLE_PLAY_STREAMING_USING_EXTERNAL_PLAYER = false;
 
     //display category name in the channel list
-    public static final boolean ENABLE_CHANNEL_LIST_CATEGORY_NAME = true;
+    public static final boolean ENABLE_CHANNEL_LIST_CATEGORY_NAME = false;
 
     //set true to allow app usage over VPN/proxy networks
     public static final boolean ENABLE_VPN_ACCESS = true;

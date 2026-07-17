@@ -152,7 +152,12 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        this.getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        // Keep system bars for device compatibility (not immersive fullscreen by default).
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            getWindow().setDecorFitsSystemWindows(true);
+        } else {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        }
         setContentView(R.layout.activity_player_video);
         Tools.setPlayerNavigation(this);
         sharedPref = new SharedPref(this);
@@ -254,6 +259,8 @@ public class ActivityPlayerVideo extends AppCompatActivity {
             channel.epg_id = epgChannelId;
             channel.epg_url = epgUrl;
             channel.channel_name = channelName;
+            channel.stream_referer = nextReferer == null ? "" : nextReferer;
+            channel.stream_origin = nextOrigin == null ? "" : nextOrigin;
             switchToChannel(channel, false);
         }
     }
@@ -571,10 +578,9 @@ public class ActivityPlayerVideo extends AppCompatActivity {
     }
 
     private void setLandscape() {
+        // Landscape without immersive sticky — keeps nav/status usable on varied devices.
         updateFullscreenIcon(R.drawable.ic_exo_fullscreen_close);
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
         if (getSupportActionBar() != null) {
             getSupportActionBar().hide();
         }
@@ -1222,6 +1228,13 @@ public class ActivityPlayerVideo extends AppCompatActivity {
         channelName = channel.channel_name == null ? "" : channel.channel_name;
         epgLoadScheduled = false;
         autoRetryCount = 0;
+        StreamHeaderSession.clearActive();
+        StreamHeaderSession.rememberForSource(
+                sourceStreamUrl,
+                user_agent,
+                channel.stream_referer,
+                channel.stream_origin);
+        StreamHeaderSession.applySourceIfPresent(sourceStreamUrl);
         if (channelToast != null) {
             channelToast.cancel();
         }

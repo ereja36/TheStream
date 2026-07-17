@@ -116,8 +116,19 @@ public final class StreamPlaybackHelper {
             if (!TextUtils.isEmpty(direct)) {
                 return direct;
             }
+            // Keep original proxy URL playable when unwrap fails.
+            if (K1PlaybackHelper.isK1ProxyUrl(trimmed)) {
+                return trimmed;
+            }
         }
 
+        // Never block unknown http(s)/rtsp stream URLs (Prod API / A3 / direct CDN).
+        String lower = trimmed.toLowerCase(Locale.US);
+        if (lower.startsWith("http://") || lower.startsWith("https://")
+                || lower.startsWith("rtsp://") || lower.startsWith("rtmp://")
+                || lower.startsWith("udp://") || lower.startsWith("mms://")) {
+            return trimmed;
+        }
         return "";
     }
 

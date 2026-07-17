@@ -85,8 +85,8 @@ public final class StreamHeaderSession {
             return;
         }
         synchronized (LOCK) {
-            if (TextUtils.isEmpty(activeHost) && sticky.headers.isEmpty() && TextUtils.isEmpty(sticky.userAgent)) {
-                return;
+            if (TextUtils.isEmpty(activeHost)) {
+                activeHost = hostOf(sourceUrl);
             }
             // Prefer already-resolved portal headers; fill gaps from M3U sticky.
             if (TextUtils.isEmpty(activeUserAgent) && !TextUtils.isEmpty(sticky.userAgent)
@@ -96,14 +96,23 @@ public final class StreamHeaderSession {
             if (activeHeaders.isEmpty() && !sticky.headers.isEmpty()) {
                 activeHeaders = sticky.headers;
             }
+            if (TextUtils.isEmpty(activeHost) && !activeHeaders.isEmpty()) {
+                String referer = activeHeaders.get("Referer");
+                if (TextUtils.isEmpty(referer)) {
+                    referer = activeHeaders.get("referer");
+                }
+                if (!TextUtils.isEmpty(referer)) {
+                    activeHost = hostOf(referer);
+                }
+            }
         }
     }
 
     public static String resolveUserAgent(String requestUrl, String fallback) {
         synchronized (LOCK) {
             if (!TextUtils.isEmpty(activeUserAgent)
-                    && !"default".equalsIgnoreCase(activeUserAgent)
-                    && hostMatches(requestUrl, activeHost)) {
+                    && !"default".equalsIgnoreCase(activeUserAgent)) {
+                // Session-scoped: keep UA across proxy→CDN hops.
                 return activeUserAgent;
             }
         }
@@ -115,9 +124,10 @@ public final class StreamHeaderSession {
 
     public static Map<String, String> headersFor(String requestUrl) {
         synchronized (LOCK) {
-            if (activeHeaders.isEmpty() || !hostMatches(requestUrl, activeHost)) {
+            if (activeHeaders.isEmpty()) {
                 return Collections.emptyMap();
             }
+            // Session-scoped headers for the whole playback (proxy + CDN redirects).
             return new HashMap<>(activeHeaders);
         }
     }
