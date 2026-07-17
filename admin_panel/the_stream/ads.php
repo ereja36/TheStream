@@ -359,6 +359,14 @@
                                                 <option value="0" selected="selected">OFF</option>
                                                 <?php } ?>
                                             </select>
+                                            <div class="help-info pull-left" style="margin-top:8px;">
+                                                <font color="#c62828"><b>Rëndësishme:</b> Lëre <b>OFF</b> për production.
+                                                Nëse reklamët shfaqen vetëm në telefonin tënd “Test device” dhe jo te përdoruesit,
+                                                problemi zakonisht është në <b>AdMob Console → Policy center</b>
+                                                (Limited ad serving / App not ready), jo në dizajn V1–V4.
+                                                Mos kliko reklamat e veta; shto telefonin tënd si Test device në AdMob.
+                                                App nuk është në Play Store — AdMob shpesh jep fill vetëm te test devices derisa app/account të jetë i miratuar.</font>
+                                            </div>
                                         </div>
                                     </div>
 

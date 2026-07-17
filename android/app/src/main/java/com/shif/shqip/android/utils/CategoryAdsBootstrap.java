@@ -37,14 +37,41 @@ public final class CategoryAdsBootstrap {
         if (activity.isFinishing()) {
             return;
         }
-        try {
-            adsManager.initializeAd();
-            adsManager.updateConsentStatus();
-            adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
-            adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, AdPlacementHelper.resolveInterstitialInterval(adsPref));
-            AdPlacementHelper.preloadNativeAds(activity, adsManager, 3);
-        } catch (Exception e) {
-            Log.e(TAG, "Category ads init failed", e);
+        if (!adsPref.getAdStatus() || !AdPlacementHelper.hasValidAdNetwork(adsPref)) {
+            return;
+        }
+        Runnable load = () -> {
+            if (activity.isFinishing()) {
+                return;
+            }
+            try {
+                adsManager.initializeAd();
+                adsManager.updateConsentStatus();
+                adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
+                adsManager.loadInterstitialAd(INTERSTITIAL_AD_CHANNEL_LIST, AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
+                View bannerSlot = activity.findViewById(R.id.bannerAdView);
+                if (bannerSlot == null) {
+                    bannerSlot = activity.findViewById(R.id.banner_strip);
+                }
+                if (bannerSlot != null) {
+                    bannerSlot.postDelayed(() -> {
+                        if (!activity.isFinishing()) {
+                            adsManager.loadBannerAd(BANNER_CATEGORY_DETAIL);
+                        }
+                    }, 2_500L);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Category ads init failed", e);
+            }
+        };
+        View bannerSlot = activity.findViewById(R.id.admob_banner_host);
+        if (bannerSlot == null) {
+            bannerSlot = activity.findViewById(R.id.bannerAdView);
+        }
+        if (bannerSlot != null) {
+            bannerSlot.post(load);
+        } else {
+            load.run();
         }
     }
 }

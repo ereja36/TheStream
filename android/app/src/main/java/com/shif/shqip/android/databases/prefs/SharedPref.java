@@ -47,6 +47,10 @@ public class SharedPref {
     private static final String KEY_PORTAL_STREAM_REFERER = "portal_stream_referer";
     private static final String KEY_PORTAL_STREAM_ORIGIN = "portal_stream_origin";
     private static final String KEY_PORTAL_STREAM_COOKIE = "portal_stream_cookie";
+    private static final String KEY_PORTAL_CONTENT_VERSION = "portal_content_version";
+    private static final String KEY_QUICK_GESTURES_TIP_SHOWN = "quick_gestures_tip_shown";
+    private static final String KEY_GESTURE_DEMO_COUNT = "gesture_demo_shown_count";
+    private static final String KEY_CATEGORY_LOGOS = "category_logos_json";
 
     Context context;
     SharedPreferences sharedPreferences;
@@ -66,7 +70,8 @@ public class SharedPref {
     public void ensureDefaultTheme() {
         if (!sharedPreferences.contains("theme")) {
             String designId = getDesignId();
-            boolean defaultDark = "v2".equals(designId) || "v3".equals(designId) || Config.SET_DARK_MODE_AS_DEFAULT_THEME;
+            boolean defaultDark = "v2".equals(designId) || "v3".equals(designId) || "v4".equals(designId)
+                    || Config.SET_DARK_MODE_AS_DEFAULT_THEME;
             editor.putBoolean("theme", defaultDark);
             editor.apply();
         }
@@ -74,7 +79,7 @@ public class SharedPref {
 
     public void saveDesignId(String designId) {
         String normalized = designId == null ? "v1" : designId.trim().toLowerCase();
-        if (!"v2".equals(normalized) && !"v3".equals(normalized)) {
+        if (!"v2".equals(normalized) && !"v3".equals(normalized) && !"v4".equals(normalized)) {
             normalized = "v1";
         }
         editor.putString(KEY_DESIGN_ID, normalized);
@@ -82,8 +87,11 @@ public class SharedPref {
     }
 
     public String getDesignId() {
+        if (BuildConfig.FORCE_DESIGN_V4) {
+            return "v4";
+        }
         String designId = sharedPreferences.getString(KEY_DESIGN_ID, "v1");
-        if ("v2".equals(designId) || "v3".equals(designId)) {
+        if ("v2".equals(designId) || "v3".equals(designId) || "v4".equals(designId)) {
             return designId;
         }
         return "v1";
@@ -141,7 +149,7 @@ public class SharedPref {
 
     public Boolean getIsDarkTheme() {
         if (!sharedPreferences.contains("theme")) {
-            if ("v2".equals(getDesignId()) || "v3".equals(getDesignId())) {
+            if ("v2".equals(getDesignId()) || "v3".equals(getDesignId()) || "v4".equals(getDesignId())) {
                 return true;
             }
             return Config.SET_DARK_MODE_AS_DEFAULT_THEME;
@@ -369,6 +377,7 @@ public class SharedPref {
     public List<Category> getPlaylistCategories() {
         List<Channel> channels = getPlaylistChannels();
         LinkedHashMap<String, Category> categoryMap = new LinkedHashMap<>();
+        LinkedHashMap<String, String> logos = getCategoryLogoMap();
         int index = 1;
         for (Channel channel : channels) {
             String categoryName = sanitizeCategoryName(channel.category_name);
@@ -376,11 +385,57 @@ public class SharedPref {
                 Category category = new Category();
                 category.cid = index++;
                 category.category_name = categoryName;
-                category.category_image = "";
+                category.category_image = resolveCategoryLogo(logos, categoryName);
                 categoryMap.put(categoryName, category);
             }
         }
         return new ArrayList<>(categoryMap.values());
+    }
+
+    public void saveCategoryLogoMap(LinkedHashMap<String, String> logos) {
+        if (logos == null || logos.isEmpty()) {
+            editor.putString(KEY_CATEGORY_LOGOS, "");
+        } else {
+            editor.putString(KEY_CATEGORY_LOGOS, new Gson().toJson(logos));
+        }
+        editor.apply();
+    }
+
+    public LinkedHashMap<String, String> getCategoryLogoMap() {
+        String json = sharedPreferences.getString(KEY_CATEGORY_LOGOS, "");
+        LinkedHashMap<String, String> logos = new LinkedHashMap<>();
+        if (TextUtils.isEmpty(json)) {
+            return logos;
+        }
+        try {
+            Type type = new TypeToken<LinkedHashMap<String, String>>() {}.getType();
+            LinkedHashMap<String, String> parsed = new Gson().fromJson(json, type);
+            if (parsed != null) {
+                logos.putAll(parsed);
+            }
+        } catch (Exception ignored) {
+        }
+        return logos;
+    }
+
+    public String getCategoryLogo(String categoryName) {
+        return resolveCategoryLogo(getCategoryLogoMap(), sanitizeCategoryName(categoryName));
+    }
+
+    private String resolveCategoryLogo(LinkedHashMap<String, String> logos, String categoryName) {
+        if (logos == null || logos.isEmpty() || TextUtils.isEmpty(categoryName)) {
+            return "";
+        }
+        String direct = logos.get(categoryName);
+        if (!TextUtils.isEmpty(direct)) {
+            return direct;
+        }
+        for (java.util.Map.Entry<String, String> entry : logos.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(categoryName)) {
+                return entry.getValue() == null ? "" : entry.getValue();
+            }
+        }
+        return "";
     }
 
     public List<Channel> getPlaylistChannelsByCategory(String categoryName) {
@@ -449,6 +504,40 @@ public class SharedPref {
 
     public String getPortalSessionToken() {
         return sharedPreferences.getString(KEY_PORTAL_SESSION_TOKEN, "");
+    }
+
+    public void savePortalContentVersion(String version) {
+        editor.putString(KEY_PORTAL_CONTENT_VERSION, version == null ? "" : version.trim());
+        editor.apply();
+    }
+
+    public String getPortalContentVersion() {
+        return sharedPreferences.getString(KEY_PORTAL_CONTENT_VERSION, "");
+    }
+
+    public boolean isQuickGesturesTipShown() {
+        return getGestureDemoShownCount() >= 3;
+    }
+
+    public void setQuickGesturesTipShown(boolean shown) {
+        if (shown) {
+            int count = getGestureDemoShownCount();
+            editor.putInt(KEY_GESTURE_DEMO_COUNT, Math.min(3, count + 1));
+        } else {
+            editor.putInt(KEY_GESTURE_DEMO_COUNT, 0);
+        }
+        editor.apply();
+    }
+
+    public int getGestureDemoShownCount() {
+        // Migrate old boolean tip flag into count.
+        if (sharedPreferences.contains(KEY_QUICK_GESTURES_TIP_SHOWN)
+                && sharedPreferences.getBoolean(KEY_QUICK_GESTURES_TIP_SHOWN, false)
+                && !sharedPreferences.contains(KEY_GESTURE_DEMO_COUNT)) {
+            editor.putInt(KEY_GESTURE_DEMO_COUNT, 3);
+            editor.apply();
+        }
+        return sharedPreferences.getInt(KEY_GESTURE_DEMO_COUNT, 0);
     }
 
     public boolean isPortalSessionActive() {

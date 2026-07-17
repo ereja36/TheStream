@@ -10,9 +10,11 @@ android {
         applicationId = "com.shif.shqip.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 85
-        versionName = "6.9.65"
+        versionCode = 118
+        versionName = "6.9.98"
         multiDexEnabled = true
+        // Main Shif Shqip: design comes from admin panel (v1/v2/v3/v4), not forced.
+        buildConfigField "boolean", "FORCE_DESIGN_V4", "false"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -90,6 +92,7 @@ dependencies {
 
     //Ad Network Sdk options
     implementation 'com.github.solodroid-dev.ads:admob-ads-sdk:1.+'
+    implementation 'com.google.android.gms:play-services-ads:24.9.0'
 
     //Push notification
     implementation 'com.github.solodroid-dev.push:notification-sdk:1.+'

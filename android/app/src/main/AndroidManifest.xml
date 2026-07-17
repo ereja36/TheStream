@@ -61,6 +61,10 @@
             android:configChanges="orientation|keyboardHidden|screenSize" />
 
         <activity
+            android:name=".activities.ActivityMainV4"
+            android:configChanges="orientation|keyboardHidden|screenSize" />
+
+        <activity
             android:name=".activities.ActivityChannelDetail"
             android:configChanges="orientation|keyboardHidden|screenSize" />
 
@@ -73,12 +77,17 @@
             android:configChanges="orientation|keyboardHidden|screenSize" />
 
         <activity
+            android:name=".activities.ActivityPlaylistBrowser"
+            android:configChanges="orientation|keyboardHidden|screenSize" />
+
+        <activity
             android:name=".activities.ActivitySearch"
             android:configChanges="orientation|keyboardHidden|screenSize" />
 
         <activity
             android:name=".activities.ActivityPlayerVideo"
-            android:configChanges="orientation|keyboardHidden|screenSize" />
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:launchMode="singleTop" />
 
         <activity
             android:name=".activities.ActivityPlayerYoutube"

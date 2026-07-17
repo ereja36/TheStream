@@ -137,7 +137,7 @@ public class MainActivity extends AppCompatActivity {
         adsManager.showInterstitialAd();
         adsManager.loadInterstitialAd(
                 Constant.INTERSTITIAL_AD_CHANNEL_LIST,
-                AdPlacementHelper.resolveInterstitialInterval(adsPref));
+                AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
     }
 
     public void initComponent() {

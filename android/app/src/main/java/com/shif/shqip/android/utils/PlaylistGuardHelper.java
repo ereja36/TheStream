@@ -356,6 +356,14 @@ public final class PlaylistGuardHelper {
         Map<String, String> headers = buildRequestHeaders(rule);
         headers.put("X-Shif-App", "1");
         headers.put("X-Requested-With", BuildConfig.APPLICATION_ID);
+        Map<String, String> resolvedHeaders = StreamHeaderSession.headersFor(requestUrl);
+        if (resolvedHeaders != null && !resolvedHeaders.isEmpty()) {
+            headers.putAll(resolvedHeaders);
+        }
+        String sessionUa = StreamHeaderSession.resolveUserAgent(requestUrl, channelUserAgent);
+        if (!TextUtils.isEmpty(sessionUa)) {
+            userAgent = sessionUa;
+        }
 
         DefaultHttpDataSource.Factory httpFactory = StreamPlaybackHelper.configureHttpFactory(
                 new DefaultHttpDataSource.Factory().setUserAgent(userAgent));

@@ -139,6 +139,8 @@ public class Tools {
         String designId = sharedPref.getDesignId();
         if ("v3".equals(designId)) {
             bgColor = ContextCompat.getColor(activity, R.color.v3_surface);
+        } else if ("v4".equals(designId)) {
+            bgColor = ContextCompat.getColor(activity, R.color.v4_bg);
         } else {
             bgColor = ContextCompat.getColor(activity, R.color.v2_bg);
         }
@@ -570,11 +572,24 @@ public class Tools {
                 intent = new Intent(activity, ActivityPlayerVideo.class);
                 intent.putExtra("url", channel.channel_url);
                 intent.putExtra("user_agent", channel.user_agent);
+                intent.putExtra("stream_referer", channel.stream_referer);
+                intent.putExtra("stream_origin", channel.stream_origin);
                 intent.putExtra("epg_channel_id", channel.epg_id);
                 intent.putExtra("epg_url", channel.epg_url);
                 intent.putExtra("channel_name", channel.channel_name);
+                if (!TextUtils.isEmpty(channel.stream_referer)
+                        || !TextUtils.isEmpty(channel.stream_origin)
+                        || (!TextUtils.isEmpty(channel.user_agent) && !"default".equalsIgnoreCase(channel.user_agent))) {
+                    StreamHeaderSession.rememberForSource(
+                            channel.channel_url,
+                            channel.user_agent,
+                            channel.stream_referer,
+                            channel.stream_origin
+                    );
+                }
             }
             intent.putExtra("channel_id", channel.channel_id);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             activity.startActivity(intent);
             View anchor = activity.getWindow() != null ? activity.getWindow().getDecorView() : view;
             if (anchor != null) {
@@ -654,8 +669,19 @@ public class Tools {
     }
 
 
+    /**
+     * Persist remote ads config. Google sample unit IDs are only applied in debug builds
+     * when the admin panel has Ad Test Mode ON. Release builds always use server unit IDs
+     * so production phones are never stuck on sample/test creatives (or empty fills after
+     * flipping test_mode off while a device still has cached sample prefs from an old build).
+     */
     public static void saveAds(AdsPref adsPref, Ads ads) {
-        if (ads.test_mode == 1) {
+        // Sample IDs only on debug + server test_mode. Never in release/production APKs.
+        boolean useGoogleSampleUnits = ads.test_mode == 1 && BuildConfig.DEBUG;
+        if (ads.test_mode == 1 && !BuildConfig.DEBUG) {
+            Log.w("AdNetwork", "Admin test_mode=1 ignored in release; using server AdMob unit IDs");
+        }
+        if (useGoogleSampleUnits) {
             adsPref.saveAds(
                     ads.ad_status.equals("on"),
                     ads.ad_type,
@@ -703,7 +729,7 @@ public class Tools {
                     ads.app_open_on_start == 0 ? false : true,
                     ads.app_open_on_resume == 0 ? false : true
             );
-            Log.d("AdNetwork", "Ad Test Mode ON");
+            Log.d("AdNetwork", "Ad Test Mode ON (debug sample units)");
         } else {
             adsPref.saveAds(
                     ads.ad_status.equals("on"),
@@ -752,8 +778,39 @@ public class Tools {
                     ads.app_open_on_start == 0 ? false : true,
                     ads.app_open_on_resume == 0 ? false : true
             );
-            Log.d("AdNetwork", "Ad Test Mode OFF");
+            Log.d("AdNetwork", "Ad Test Mode OFF (server unit ids)"
+                    + " banner=" + safeAdUnitLog(ads.admob_banner_unit_id)
+                    + " interstitial=" + safeAdUnitLog(ads.admob_interstitial_unit_id)
+                    + " native=" + safeAdUnitLog(ads.admob_native_unit_id)
+                    + " status=" + ads.ad_status
+                    + " type=" + ads.ad_type);
+            if (isGoogleSampleAdUnit(ads.admob_banner_unit_id)
+                    || isGoogleSampleAdUnit(ads.admob_interstitial_unit_id)
+                    || isGoogleSampleAdUnit(ads.admob_native_unit_id)) {
+                Log.w("AdNetwork", "Server AdMob unit IDs still look like Google SAMPLE ids"
+                        + " (ca-app-pub-3940256099942544/...). Update admin Manage Ads with real units"
+                        + " and set Ad Test Mode OFF.");
+            }
         }
+        adsPref.refreshEffectiveAdStatus();
+    }
+
+    private static boolean isGoogleSampleAdUnit(String unitId) {
+        return unitId != null && unitId.contains("3940256099942544");
+    }
+
+    private static String safeAdUnitLog(String unitId) {
+        if (TextUtils.isEmpty(unitId) || "0".equals(unitId)) {
+            return "(empty)";
+        }
+        if (isGoogleSampleAdUnit(unitId)) {
+            return "SAMPLE";
+        }
+        int slash = unitId.lastIndexOf('/');
+        if (slash > 0 && slash < unitId.length() - 4) {
+            return "…" + unitId.substring(slash);
+        }
+        return "(set)";
     }
 
     public static String decode(String code) {
@@ -934,7 +991,7 @@ public class Tools {
                 intent.putExtra(Constant.EXTRA_OBJC, channel);
                 activity.startActivity(intent);
                 if (isFragment) {
-                    ((MainActivity) activity).showInterstitialAd();
+                    AdPlacementHelper.showInterstitialBeforeAction(activity);
                     ((MainActivity) activity).destroyBannerAd();
                 }
             }
@@ -1054,14 +1111,10 @@ public class Tools {
     }
 
     private String resolveChannelImage(Channel channel) {
-        if (channel == null || TextUtils.isEmpty(channel.channel_image)) {
+        if (channel == null) {
             return "";
         }
-        String image = channel.channel_image.trim();
-        if (image.startsWith("http://") || image.startsWith("https://")) {
-            return image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(channel.channel_image, sharedPref.getBaseUrl());
     }
 
     public static String getApplicationId() {

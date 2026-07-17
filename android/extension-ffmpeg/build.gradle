@@ -1,0 +1,34 @@
+plugins {
+    id 'com.android.library'
+}
+
+// FFmpeg audio extension for ExoPlayer 2.19.1 — adds software decoders for
+// MP2/MP1/MP3, AC-3/E-AC-3 and AAC so channels whose TS segments use MPEG audio
+// (e.g. api_/sport_ Super Sport) play WITH sound. The native libffmpegJNI.so
+// binaries are prebuilt (FFmpeg 4.2, NDK r21) and bundled via jniLibs.
+android {
+    namespace = 'com.google.android.exoplayer2.ext.ffmpeg'
+    compileSdk = 36
+
+    defaultConfig {
+        minSdk = 23
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig = false
+    }
+}
+
+dependencies {
+    implementation 'com.google.android.exoplayer:exoplayer-core:2.19.1'
+    implementation 'androidx.annotation:annotation:1.7.0'
+    compileOnly 'org.checkerframework:checker-qual:3.13.0'
+}

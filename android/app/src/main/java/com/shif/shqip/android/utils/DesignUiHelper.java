@@ -102,16 +102,10 @@ public final class DesignUiHelper {
     }
 
     public static void bindAppLogo(Activity activity, ImageView target, SharedPref sharedPref) {
-        if (target == null) {
-            return;
-        }
-        String logoUrl = sharedPref.getAppLogoUrl();
-        if (TextUtils.isEmpty(logoUrl)) {
+        // Home chrome no longer shows a floating brand logo — splash owns branding.
+        if (target != null) {
             target.setVisibility(View.GONE);
-            return;
         }
-        target.setVisibility(View.VISIBLE);
-        com.bumptech.glide.Glide.with(activity).load(logoUrl).into(target);
     }
 
     public static void refreshRemoteConfig(AppCompatActivity activity, SharedPref sharedPref, Runnable onSameDesign) {
@@ -146,7 +140,7 @@ public final class DesignUiHelper {
                         }
                         String remoteDesign = normalizeDesignId(resp.app.design_id);
                         String localDesign = sharedPref.getDesignId();
-                        if (resp.app.app_logo_url != null) {
+                        if (!TextUtils.isEmpty(resp.app.app_logo_url)) {
                             sharedPref.saveAppLogoUrl(resp.app.app_logo_url);
                         }
                         if (!remoteDesign.equals(localDesign)) {
@@ -168,7 +162,7 @@ public final class DesignUiHelper {
 
     private static String normalizeDesignId(String designId) {
         String normalized = designId == null ? "v1" : designId.trim().toLowerCase();
-        if ("v2".equals(normalized) || "v3".equals(normalized)) {
+        if ("v2".equals(normalized) || "v3".equals(normalized) || "v4".equals(normalized)) {
             return normalized;
         }
         return "v1";

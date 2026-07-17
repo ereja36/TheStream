@@ -38,6 +38,7 @@ import com.shif.shqip.android.models.Channel;
 import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
+import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.CategoryAdsBootstrap;
 import com.shif.shqip.android.utils.CategoryDisplayHelper;
 import com.shif.shqip.android.utils.Constant;
@@ -72,7 +73,9 @@ public class ActivityCategoryDetail extends AppCompatActivity {
     Tools tools;
     OnBackPressedDispatcher onBackPressedDispatcher;
     private List<Channel> playlistSource = new ArrayList<>();
+    private int playlistPagesLoaded = 0;
     private final ExecutorService playlistExecutor = Executors.newSingleThreadExecutor();
+    private int shimmerGeneration = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -133,12 +136,19 @@ public class ActivityCategoryDetail extends AppCompatActivity {
             });
         });
 
-        adapterChannel.setOnLoadMoreListener(this::setLoadMore);
+        adapterChannel.setOnLoadMoreListener(page -> {
+            if (sharedPref.hasPlaylistChannels()) {
+                loadNextPlaylistPage();
+            } else {
+                setLoadMore(page);
+            }
+        });
 
         swipeRefreshLayout.setOnRefreshListener(() -> {
             if (callbackCall != null && callbackCall.isExecuted()) callbackCall.cancel();
             adapterChannel.resetListData();
             playlistSource.clear();
+            playlistPagesLoaded = 0;
             requestAction(1);
         });
 
@@ -156,6 +166,15 @@ public class ActivityCategoryDetail extends AppCompatActivity {
 
         setupToolbar();
         handleOnBackPressed();
+    }
+
+    public void showInterstitialAd() {
+        if (adsManager != null) {
+            adsManager.showInterstitialAd();
+            adsManager.loadInterstitialAd(
+                    INTERSTITIAL_AD_CHANNEL_LIST,
+                    AdPlacementHelper.SOLODROID_SHOW_EVERY_CALL);
+        }
     }
 
     public void handleOnBackPressed() {
@@ -265,47 +284,63 @@ public class ActivityCategoryDetail extends AppCompatActivity {
         new Handler().postDelayed(() -> requestPostApi(page_no), Constant.DELAY_TIME);
     }
 
+    private void loadNextPlaylistPage() {
+        if (!PlaylistListHelper.hasMorePages(playlistSource, playlistPagesLoaded)) {
+            adapterChannel.setLoaded();
+            return;
+        }
+        requestPlaylistChannels(playlistPagesLoaded + 1);
+    }
+
     private void requestPlaylistChannels(final int page_no) {
         showFailedView(false, "");
         showNoItemView(false);
         if (page_no == 1) {
             swipeProgress(true);
-            if (playlistSource.isEmpty()) {
-                playlistExecutor.execute(() -> {
-                    List<Channel> loaded;
-                    if (PlaylistNavigationHelper.isAllChannelsCategory(category)) {
-                        loaded = sharedPref.getPlaylistChannels();
-                    } else {
-                        loaded = sharedPref.getPlaylistChannelsByCategory(category.category_name);
+            playlistPagesLoaded = 0;
+            playlistExecutor.execute(() -> {
+                List<Channel> loaded;
+                if (PlaylistNavigationHelper.isAllChannelsCategory(category)) {
+                    loaded = sharedPref.getPlaylistChannels();
+                } else {
+                    loaded = sharedPref.getPlaylistChannelsByCategory(category.category_name);
+                }
+                List<Channel> snapshot = loaded == null ? new ArrayList<>() : new ArrayList<>(loaded);
+                runOnUiThread(() -> {
+                    if (isFinishing()) {
+                        return;
                     }
-                    List<Channel> snapshot = loaded == null ? new ArrayList<>() : new ArrayList<>(loaded);
-                    runOnUiThread(() -> {
-                        if (isFinishing()) {
-                            return;
-                        }
-                        playlistSource = snapshot;
-                        post_total = playlistSource.size();
-                        if (playlistSource.isEmpty()) {
-                            adapterChannel.setLoaded();
-                            swipeProgress(false);
-                            showNoItemView(true);
-                            return;
-                        }
-                        deliverPlaylistPage(1);
-                        if (PlaylistListHelper.hasMorePages(playlistSource, 1)) {
-                            recyclerView.post(() -> deliverPlaylistPage(2));
-                        }
-                    });
+                    playlistSource = snapshot;
+                    post_total = playlistSource.size();
+                    if (playlistSource.isEmpty()) {
+                        adapterChannel.setLoaded();
+                        swipeProgress(false);
+                        showNoItemView(true);
+                        return;
+                    }
+                    deliverPlaylistPage(1);
+                    // Prefetch a couple of pages so scroll starts with more than ~40 items.
+                    if (PlaylistListHelper.hasMorePages(playlistSource, 1)) {
+                        recyclerView.post(() -> deliverPlaylistPage(2));
+                    }
+                    if (PlaylistListHelper.hasMorePages(playlistSource, 2)) {
+                        recyclerView.post(() -> deliverPlaylistPage(3));
+                    }
                 });
-                return;
-            }
-        } else if (page_no > 1) {
+            });
+            return;
+        }
+        if (page_no > 1) {
             adapterChannel.setLoading();
         }
         deliverPlaylistPage(page_no);
     }
 
     private void deliverPlaylistPage(int pageNo) {
+        if (pageNo <= playlistPagesLoaded) {
+            adapterChannel.setLoaded();
+            return;
+        }
         List<Channel> pageChannels = PlaylistListHelper.slicePage(playlistSource, pageNo);
         if (pageChannels.isEmpty()) {
             adapterChannel.setLoaded();
@@ -315,7 +350,9 @@ public class ActivityCategoryDetail extends AppCompatActivity {
             }
             return;
         }
+        // Native ads every 3 channels via AdapterChannel.insertDataWithNativeAd.
         displayApiResult(pageChannels);
+        playlistPagesLoaded = Math.max(playlistPagesLoaded, pageNo);
         if (!PlaylistListHelper.hasMorePages(playlistSource, pageNo)) {
             adapterChannel.setLoaded();
         }
@@ -348,13 +385,25 @@ public class ActivityCategoryDetail extends AppCompatActivity {
 
     private void swipeProgress(final boolean show) {
         if (!show) {
-            swipeRefreshLayout.setRefreshing(show);
-            lyt_shimmer.setVisibility(View.GONE);
+            shimmerGeneration++;
+            swipeRefreshLayout.setRefreshing(false);
             lyt_shimmer.stopShimmer();
+            lyt_shimmer.setVisibility(View.GONE);
+            if (recyclerView != null) {
+                recyclerView.setVisibility(View.VISIBLE);
+            }
             return;
         }
+        final int gen = ++shimmerGeneration;
+        if (recyclerView != null) {
+            recyclerView.setVisibility(View.INVISIBLE);
+        }
         swipeRefreshLayout.post(() -> {
-            swipeRefreshLayout.setRefreshing(show);
+            // Guard against race: hide can run before this post executes and re-show shimmer over loaded rows.
+            if (gen != shimmerGeneration || isFinishing()) {
+                return;
+            }
+            swipeRefreshLayout.setRefreshing(true);
             lyt_shimmer.setVisibility(View.VISIBLE);
             lyt_shimmer.startShimmer();
         });
