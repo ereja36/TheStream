@@ -3,7 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/_legal_common.php';
 ss_legal_header(
     'Privacy Policy — Shif Shqip',
-    'Si i trajton Shif Shqip të dhënat personale në aplikacionin Android dhe web player /k1.',
+    'How Shif Shqip handles personal data in the Android app and web player /k1.',
     '/privacy.php'
 );
 $updated = '18 July 2026';
@@ -12,38 +12,37 @@ $updated = '18 July 2026';
   <h1>Privacy Policy</h1>
   <p class="lead">Last updated: <?= ss_h($updated) ?></p>
 
-  <h2>1. Kush jemi</h2>
-  <p><strong>Shif Shqip</strong> ofron një <em>media player</em> (aplikacion Android dhe web në <code>/k1</code>) që luan burime që i jep përdoruesi. Ne <strong>nuk hostojmë kanale TV</strong> dhe nuk jemi ofrues përmbajtjeje audiovizive.</p>
+  <h2>1. Who we are</h2>
+  <p><strong>Shif Shqip</strong> provides a <em>media player</em> (Android app and web at <code>/k1</code>) that plays sources you supply. We <strong>do not host TV channels</strong> and we are not an audiovisual content provider.</p>
 
-  <h2>2. Çfarë të dhënash mbledhim</h2>
+  <h2>2. Data we may process</h2>
   <ul>
-    <li><strong>Teknike:</strong> IP, lloji i pajisjes, versioni i app/OS, identifikues lokal pajisjeje (për licencë / anti-abuse), loge serveri.</li>
-    <li><strong>Playlist / URL:</strong> nëse i ruan në pajisje ose i dërgon te serverët tanë për portal të mbrojtur, trajtohen si të dhëna shërbimi.</li>
-    <li><strong>Ads:</strong> AdMob / partnerë reklamash mund të përdorin Advertising ID, cookies / SDK sipas politikave të tyre (shiko edhe GDPR consent në app).</li>
-    <li><strong>Analitikë:</strong> matje të kufizuara përdorimi për stabilitet (crash, performancë), jo shitje të dhënash.</li>
+    <li><strong>Technical:</strong> IP address and basic device type needed to deliver the service.</li>
+    <li><strong>Ads:</strong> AdMob / advertising partners may use Advertising ID, cookies, or SDKs under their own policies (see also in-app GDPR consent where shown).</li>
+    <li><strong>Analytics:</strong> limited usage metrics for stability (crashes, performance) — we do not sell personal data.</li>
   </ul>
 
-  <h2>3. Pse i përdorim</h2>
+  <h2>3. Why we use data</h2>
   <ul>
-    <li>Të ofrojmë playerin dhe portalin e playlist-it.</li>
-    <li>Siguri, anti-abuse, diagnostikë.</li>
-    <li>Reklama (kur janë aktive) sipas zgjedhjes së rrjetit ads.</li>
-    <li>Përmbushje ligjore (p.sh. DMCA notices).</li>
+    <li>To provide the player and related services.</li>
+    <li>Security and service diagnostics.</li>
+    <li>Advertising (when enabled) via the configured ad network.</li>
+    <li>Legal compliance (for example, DMCA notices).</li>
   </ul>
 
-  <h2>4. Ruajtja &amp; transferet</h2>
-  <p>Serverët mund të jenë në BE / vende të tjera. Përdorim masa teknike të arsyeshme. Nuk shesim të dhëna personale.</p>
+  <h2>4. Storage &amp; transfers</h2>
+  <p>Servers may be located in the EU or other regions. We use reasonable technical safeguards. We do not sell personal data.</p>
 
-  <h2>5. Të drejtat e tua (GDPR / e ngjashme)</h2>
-  <p>Nëse je në BE/UK: akses, korrigjim, fshirje, kufizim, kundërshtim, portueshmëri — kontakto <a href="mailto:legal@shifshqip.com">legal@shifshqip.com</a>. Mund të të kërkojmë verifikim.</p>
+  <h2>5. Your rights (GDPR and similar)</h2>
+  <p>If you are in the EU/UK you may request access, correction, deletion, restriction, objection, or portability — contact <a href="mailto:legal@shifshqip.com">legal@shifshqip.com</a>. We may ask for verification.</p>
 
-  <h2>6. Fëmijët</h2>
-  <p>Shërbimi nuk synon fëmijë nën 16 vjeç. Nëse mëson se një fëmijë na ka dhënë të dhëna, na shkruaj për fshirje.</p>
+  <h2>6. Children</h2>
+  <p>The service is not directed at children under 16. If you believe a child has provided us data, contact us for deletion.</p>
 
-  <h2>7. Ndryshime</h2>
-  <p>Mund ta përditësojmë këtë faqe. Data “Last updated” tregon versionin aktiv.</p>
+  <h2>7. Changes</h2>
+  <p>We may update this page. The “Last updated” date shows the current version.</p>
 
-  <h2>8. Kontakt</h2>
+  <h2>8. Contact</h2>
   <p>Email: <a href="mailto:legal@shifshqip.com">legal@shifshqip.com</a></p>
 </article>
 <?php ss_legal_footer(); ?>

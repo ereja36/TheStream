@@ -16,7 +16,7 @@ function ss_legal_header(string $title, string $description, string $canonicalPa
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: strict-origin-when-cross-origin');
     header('Cache-Control: public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
-    echo '<!DOCTYPE html><html lang="sq"><head>';
+    echo '<!DOCTYPE html><html lang="en"><head>';
     echo '<meta charset="utf-8">';
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . $titleEsc . '</title>';
@@ -51,6 +51,7 @@ nav{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content
 .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:18px}
 .btn{display:inline-block;margin:6px 8px 6px 0;padding:12px 18px;border-radius:999px;font-weight:700;text-decoration:none!important}
 .btn-primary{background:var(--accent);color:#fff}.btn-ghost{border:1px solid var(--line);color:#fff}
+.btn-soon{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--muted);cursor:default;pointer-events:none}
 .badge{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(61,214,140,.12);color:var(--ok);font-size:.78rem;font-weight:700;margin-bottom:10px}
 footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.88rem}
 footer a{color:var(--muted);margin-right:12px}
@@ -70,7 +71,6 @@ function ss_legal_footer(): void {
     echo '<a href="/dmca.php">DMCA</a>';
     echo '<a href="/acceptable-use.php">Acceptable Use</a>';
     echo '<a href="https://playlist.shifshqip.com/">Playlist Portal</a>';
-    echo '<a href="https://api.shifshqip.com/shif-shqip-latest.apk">Download APK</a>';
     echo '<p style="margin-top:14px">© ' . date('Y') . ' Shif Shqip. Media player / playlist client — we do not host or broadcast TV channels.</p>';
     echo '</footer></div></body></html>';
 }

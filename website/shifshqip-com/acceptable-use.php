@@ -3,7 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/_legal_common.php';
 ss_legal_header(
     'Acceptable Use Policy — Shif Shqip',
-    'Rregullat e përdorimit të lejuar për app dhe /k1. Ndalohen burimet pirate dhe abuzimi.',
+    'Allowed use of the Shif Shqip app and /k1. Pirate sources and brand misuse are prohibited.',
     '/acceptable-use.php'
 );
 ?>
@@ -11,25 +11,23 @@ ss_legal_header(
   <h1>Acceptable Use Policy (AUP)</h1>
   <p class="lead">Last updated: 18 July 2026</p>
 
-  <h2>Lejohet</h2>
+  <h2>Allowed</h2>
   <ul>
-    <li>Përdorimi i playerit me playlist / stream që ke të drejtë t’i përdorësh.</li>
-    <li>Testim privat i softuerit.</li>
-    <li>Raportimi i problemeve dhe i shkeljeve copyright te <a href="mailto:legal@shifshqip.com">legal@shifshqip.com</a>.</li>
+    <li>Using the player with playlists / streams you have the right to use.</li>
+    <li>Private testing of the software.</li>
+    <li>Reporting problems and copyright issues to <a href="mailto:legal@shifshqip.com">legal@shifshqip.com</a>.</li>
   </ul>
 
-  <h2>Nuk lejohet</h2>
+  <h2>Not allowed</h2>
   <ul>
-    <li>Ngarkimi, promovimi ose shpërndarja e listave pirate / “free premium TV” të paligjshme.</li>
-    <li>Sulme DDoS, scraping agresiv, bypass i mbrojtjes së portalit.</li>
-    <li>Klikime false të reklamave, trafik invalid.</li>
-    <li>Përdorimi i markës Shif Shqip për të reklamuar shërbime piraterie.</li>
+    <li>Uploading, promoting, or distributing pirate lists or unlawful “free premium TV” sources.</li>
+    <li>Using the Shif Shqip brand to advertise piracy services.</li>
   </ul>
 
   <h2>Web /k1</h2>
-  <p>I njëjti AUP vlen për <a href="/k1/">shifshqip.com/k1</a>. Playeri në shfletues është mjet luajtjeje; përdoruesi pranon <a href="/terms.php">Terms</a> dhe këtë AUP.</p>
+  <p>The same AUP applies to <a href="/k1/">shifshqip.com/k1</a>. The browser player is a playback tool; by using it you accept the <a href="/terms.php">Terms</a> and this AUP.</p>
 
-  <h2>Pasojat</h2>
-  <p>Mund të limitojmë IP/pajisje, të heqim portal entries, ose të bashkëpunojmë me autoritetet kur kërkohet ligjërisht.</p>
+  <h2>Consequences</h2>
+  <p>We may limit access or remove portal entries, and cooperate with authorities when legally required.</p>
 </article>
 <?php ss_legal_footer(); ?>

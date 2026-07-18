@@ -1,14 +1,13 @@
 <?php
 /**
  * Shif Shqip — public homepage (static-first, CDN-cacheable).
- * Replaces the previous ESPN sports scraper homepage.
  */
 declare(strict_types=1);
 require __DIR__ . '/_legal_common.php';
 
 ss_legal_header(
-    'Shif Shqip — IPTV Player & Web TV (pa hosting kanalesh)',
-    'Shif Shqip është aplikacion dhe web player IPTV. Nuk hoston kanale TV: përdoruesi shton playlist-in e vet. Privacy, Terms, DMCA dhe AUP.',
+    'Shif Shqip — IPTV Player & Web TV (no channel hosting)',
+    'Shif Shqip is an IPTV media player app and web player. We do not host TV channels — users provide their own playlists. Privacy, Terms, DMCA, and AUP.',
     '/'
 );
 
@@ -30,11 +29,7 @@ $jsonLd = [
             'name' => 'Shif Shqip',
             'url' => 'https://shifshqip.com/',
             'description' => 'IPTV media player app and browser player. Users bring their own playlist URLs; Shif Shqip does not host channel streams.',
-            'inLanguage' => ['sq', 'en'],
-            'potentialAction' => [
-                '@type' => 'DownloadAction',
-                'target' => 'https://api.shifshqip.com/shif-shqip-latest.apk',
-            ],
+            'inLanguage' => 'en',
         ],
         [
             '@type' => 'SoftwareApplication',
@@ -52,50 +47,42 @@ $jsonLd = [
 echo '<script type="application/ld+json">' . json_encode($jsonLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>';
 ?>
 <section class="hero">
-  <div class="badge">MEDIA PLAYER · JO STREAMING HOST</div>
-  <h1>Shiko TV me playlist-in tënd — pa hosting kanalesh nga ne</h1>
+  <div class="badge">MEDIA PLAYER · NOT A STREAMING HOST</div>
+  <h1>Watch with your own playlist — we do not host TV channels</h1>
   <p class="lead">
-    Shif Shqip është <strong>IPTV player</strong> (Android + web <code>/k1</code>).
-    Aplikacioni dhe webi <strong>nuk hostojnë, nuk riprodhojnë dhe nuk shpërndajnë kanale TV</strong>.
-    Ti (ose operatori yt i autorizuar) jep URL playlist / stream; ne ofrojmë vetëm softuerin e luajtjes.
+    Shif Shqip is an <strong>IPTV media player</strong> (Android + web <code>/k1</code>).
+    The app and website <strong>do not host, rebroadcast, or distribute TV channels</strong>.
+    You (or your authorized provider) supply playlist / stream URLs; we provide playback software only.
   </p>
   <div style="margin-top:18px">
-    <a class="btn btn-primary" href="https://api.shifshqip.com/shif-shqip-latest.apk">Shkarko APK</a>
-    <a class="btn btn-ghost" href="/k1/">Hap Web TV /k1</a>
-    <a class="btn btn-ghost" href="https://playlist.shifshqip.com/">Si funksionon playlist</a>
+    <span class="btn btn-soon" aria-disabled="true">Android APK — Coming soon</span>
+    <span class="btn btn-soon" aria-disabled="true">Google Play — Coming soon</span>
+    <a class="btn btn-ghost" href="/k1/">Open Web TV /k1</a>
+    <a class="btn btn-ghost" href="https://playlist.shifshqip.com/">Playlist portal</a>
   </div>
 </section>
 
 <div class="grid">
   <div class="card">
-    <h2>Çfarë është aplikacioni</h2>
-    <p>Android media player për playlist M3U / portal Xtream-style. Përdoruesi shton burimin e vet. Nuk është shërbim TV me abonim nga Shif Shqip.</p>
+    <h2>What the app is</h2>
+    <p>An Android media player for M3U / Xtream-style portals. You add your own source. It is not a TV subscription service operated by Shif Shqip.</p>
   </div>
   <div class="card">
-    <h2>Çfarë është /k1</h2>
-    <p>Web player në shfletues për të njëjtin model: luajtje stream-esh që i jep përdoruesi. Ka faqe legale (Privacy, Terms, DMCA, AUP) që shpjegojnë kufijtë e përdorimit.</p>
+    <h2>What /k1 is</h2>
+    <p>A browser-based player with the same model: it plays streams you provide. Legal pages (Privacy, Terms, DMCA, AUP) explain the boundaries of use.</p>
   </div>
   <div class="card">
-    <h2>Përputhshmëria</h2>
-    <p>Përdoruesit duhet të kenë të drejtë ligjore për çdo burim që luajnë. Ne heqim lidhje të raportuara sipas DMCA / notice-and-takedown. Shiko <a href="/dmca.php">DMCA</a> dhe <a href="/acceptable-use.php">Acceptable Use</a>.</p>
+    <h2>Compliance</h2>
+    <p>Users must have legal rights to any source they play. We remove reported links under DMCA / notice-and-takedown. See <a href="/dmca.php">DMCA</a> and <a href="/acceptable-use.php">Acceptable Use</a>.</p>
   </div>
 </div>
 
 <div class="card">
-  <h2>Si të fillosh</h2>
+  <h2>Getting started</h2>
   <ul>
-    <li>Instalo APK-në ose hap <a href="/k1/">/k1</a> në shfletues.</li>
-    <li>Shto playlist / portal të autorizuar (jo linke pirate).</li>
-    <li>Luaj kanalet brenda playerit — pa full-screen të detyruar në browse UI të app-it.</li>
+    <li>Open <a href="/k1/">/k1</a> in your browser (app download coming soon).</li>
+    <li>Add an authorized playlist / portal (no pirate sources).</li>
+    <li>Play channels inside the player.</li>
   </ul>
-</div>
-
-<div class="card">
-  <h2>Stabilitet &amp; DDoS</h2>
-  <p>
-    Faqja kryesore është e lehtë dhe cache-able nëpër CDN (Cloudflare).
-    Stream-et dhe proxy-t janë të ndara nga marketing/legal pages që të mos bie site-i kur ka trafik të lartë.
-    Rekomandojmë: Cloudflare “Under Attack” / WAF, rate-limit te origin, cache HTML statik.
-  </p>
 </div>
 <?php ss_legal_footer(); ?>
