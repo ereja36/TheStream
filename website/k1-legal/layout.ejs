@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sq">
 <head>
 <%- baseStyle %>
 <title><%= title %></title>
@@ -9,20 +9,82 @@
 .ss-legal-bar a{color:#7dd3fc;text-decoration:none;font-weight:600}
 .ss-legal-bar a:hover{text-decoration:underline}
 .ss-legal-note{max-width:70ch;line-height:1.45}
+.ss-terms-overlay{position:fixed;inset:0;z-index:99999;background:rgba(2,6,14,.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:18px}
+.ss-terms-modal{width:min(520px,100%);background:linear-gradient(180deg,#121a2c,#0d1424);border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:22px 20px 18px;box-shadow:0 24px 80px rgba(0,0,0,.5);color:#e8eaf0}
+.ss-terms-modal h2{margin:0 0 10px;font-size:1.25rem;letter-spacing:-.02em}
+.ss-terms-modal p{margin:0 0 12px;color:#9aa8c0;font-size:.92rem;line-height:1.55}
+.ss-terms-modal ul{margin:0 0 14px;padding-left:1.15rem;color:#b8c3d9;font-size:.88rem;line-height:1.55}
+.ss-terms-modal a{color:#7dd3fc}
+.ss-terms-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.ss-terms-btn{appearance:none;border:0;border-radius:999px;padding:12px 18px;font-weight:800;cursor:pointer;font-size:.92rem}
+.ss-terms-btn.accept{background:#e11d48;color:#fff}
+.ss-terms-btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.18);color:#fff;text-decoration:none;display:inline-flex;align-items:center}
+body.ss-terms-locked{overflow:hidden}
+body.ss-terms-locked .page,body.ss-terms-locked nav,body.ss-terms-locked .main-hero,body.ss-terms-locked #playerModal{pointer-events:none!important;user-filter:grayscale(.15) brightness(.72)}
 </style>
 </head>
-<body class="<%= bodyClass || 'theme-classic' %>">
+<body class="<%= bodyClass || 'theme-classic' %> ss-terms-locked">
 <%- navPublicHtml %>
 <%- playerModalHtml %>
 <%- pageContentHtml %>
 <%- playerScriptHtml %>
-<div class="ss-legal-bar" role="contentinfo">
-  <div class="ss-legal-note">By using <b>/k1</b> you accept our <a href="https://shifshqip.com/terms.php" target="_blank" rel="noopener">Terms</a> &amp; <a href="https://shifshqip.com/acceptable-use.php" target="_blank" rel="noopener">AUP</a>. Shif Shqip is a <b>player</b> — we do not host TV channels. Use only lawful sources.</div>
-  <div>
-    <a href="https://shifshqip.com/privacy.php" target="_blank" rel="noopener">Privacy</a> ·
-    <a href="https://shifshqip.com/dmca.php" target="_blank" rel="noopener">DMCA</a> ·
-    <a href="https://shifshqip.com/" target="_blank" rel="noopener">Home</a>
+
+<div id="ssTermsOverlay" class="ss-terms-overlay" role="dialog" aria-modal="true" aria-labelledby="ssTermsTitle">
+  <div class="ss-terms-modal">
+    <h2 id="ssTermsTitle">Prano Kushtet për të vazhduar</h2>
+    <p>ShifShqip portal është <b>media player</b> — nuk hoston kanale TV. Ti sjell burimet e tua dhe duhet të kesh të drejtë ligjore për to.</p>
+    <ul>
+      <li>Lexo dhe prano <a href="https://shifshqip.com/terms.php" target="_blank" rel="noopener">Kushtet e Përdorimit</a>.</li>
+      <li>Respekto <a href="https://shifshqip.com/acceptable-use.php" target="_blank" rel="noopener">Përdorimin e Lejuar (AUP)</a>.</li>
+      <li>Shiko edhe <a href="https://shifshqip.com/privacy.php" target="_blank" rel="noopener">Privatësinë</a> dhe <a href="https://shifshqip.com/dmca.php" target="_blank" rel="noopener">DMCA</a>.</li>
+    </ul>
+    <div class="ss-terms-actions">
+      <button type="button" class="ss-terms-btn accept" id="ssTermsAccept">Pranoj Kushtet</button>
+      <a class="ss-terms-btn ghost" href="https://shifshqip.com/terms.php" target="_blank" rel="noopener">Lexo Kushtet</a>
+    </div>
   </div>
 </div>
+
+<div class="ss-legal-bar" role="contentinfo">
+  <div class="ss-legal-note">Duke përdorur <b>ShifShqip portal</b> pranon <a href="https://shifshqip.com/terms.php" target="_blank" rel="noopener">Kushtet</a> &amp; <a href="https://shifshqip.com/acceptable-use.php" target="_blank" rel="noopener">AUP</a>. Jemi <b>player</b> — nuk hostojmë kanale TV.</div>
+  <div>
+    <a href="https://shifshqip.com/privacy.php" target="_blank" rel="noopener">Privatësia</a> ·
+    <a href="https://shifshqip.com/dmca.php" target="_blank" rel="noopener">DMCA</a> ·
+    <a href="https://shifshqip.com/" target="_blank" rel="noopener">Kryefaqja</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  var KEY = 'ss_k1_terms_accepted_v1';
+  var overlay = document.getElementById('ssTermsOverlay');
+  var acceptBtn = document.getElementById('ssTermsAccept');
+  if (!overlay || !acceptBtn) return;
+
+  function accepted() {
+    try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function unlock() {
+    document.body.classList.remove('ss-terms-locked');
+    overlay.style.display = 'none';
+    try {
+      localStorage.setItem(KEY, '1');
+      document.cookie = 'ss_k1_terms=1;path=/;max-age=' + (60 * 60 * 24 * 365) + ';SameSite=Lax';
+    } catch (e) {}
+  }
+
+  if (accepted()) {
+    unlock();
+  } else {
+    document.body.classList.add('ss-terms-locked');
+    overlay.style.display = 'flex';
+  }
+
+  acceptBtn.addEventListener('click', function () {
+    unlock();
+  });
+})();
+</script>
 </body>
 </html>

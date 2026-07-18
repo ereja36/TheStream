@@ -1,34 +1,44 @@
 <?php
-/** Shared chrome for Shif Shqip legal / marketing pages. */
+/** Shared chrome for Shif Shqip legal / marketing pages (Albanian + SEO). */
 declare(strict_types=1);
 
 function ss_h(string $s): string {
     return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function ss_legal_header(string $title, string $description, string $canonicalPath = '/'): void {
+function ss_legal_header(string $title, string $description, string $canonicalPath = '/', array $extra = []): void {
     $host = 'https://shifshqip.com';
     $canonical = $host . $canonicalPath;
     $titleEsc = ss_h($title);
     $descEsc = ss_h($description);
     $canonEsc = ss_h($canonical);
+    $keywords = ss_h($extra['keywords'] ?? 'Shif Shqip, IPTV player, portal TV, player Android, M3U, playlist, web TV Shqipëri, media player');
     header('Content-Type: text/html; charset=utf-8');
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: strict-origin-when-cross-origin');
-    header('Cache-Control: public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
-    echo '<!DOCTYPE html><html lang="en"><head>';
+    header('Cache-Control: public, max-age=600, s-maxage=3600, stale-while-revalidate=86400');
+    echo '<!DOCTYPE html><html lang="sq"><head>';
     echo '<meta charset="utf-8">';
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . $titleEsc . '</title>';
     echo '<meta name="description" content="' . $descEsc . '">';
-    echo '<meta name="robots" content="index,follow,max-image-preview:large">';
+    echo '<meta name="keywords" content="' . $keywords . '">';
+    echo '<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1">';
+    echo '<meta name="author" content="Shif Shqip">';
+    echo '<meta name="language" content="Albanian">';
     echo '<link rel="canonical" href="' . $canonEsc . '">';
+    echo '<link rel="alternate" hreflang="sq" href="' . $canonEsc . '">';
+    echo '<link rel="alternate" hreflang="x-default" href="' . $canonEsc . '">';
+    echo '<meta property="og:locale" content="sq_AL">';
     echo '<meta property="og:type" content="website">';
     echo '<meta property="og:site_name" content="Shif Shqip">';
     echo '<meta property="og:title" content="' . $titleEsc . '">';
     echo '<meta property="og:description" content="' . $descEsc . '">';
     echo '<meta property="og:url" content="' . $canonEsc . '">';
+    echo '<meta property="og:image" content="https://shifshqip.com/logo.webp">';
     echo '<meta name="twitter:card" content="summary_large_image">';
+    echo '<meta name="twitter:title" content="' . $titleEsc . '">';
+    echo '<meta name="twitter:description" content="' . $descEsc . '">';
     echo '<meta name="theme-color" content="#0b1220">';
     // Ad network + Analytics (same as previous homepage)
     echo '<meta name="profiton-domain-verification" content="3ac22be6709443fe7b40175013d9ac4cdd84ab7f2a652280eab8d690f7840a83">';
@@ -58,27 +68,28 @@ nav{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content
 .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:18px}
 .btn{display:inline-block;margin:6px 8px 6px 0;padding:12px 18px;border-radius:999px;font-weight:700;text-decoration:none!important}
 .btn-primary{background:var(--accent);color:#fff}.btn-ghost{border:1px solid var(--line);color:#fff}
-.btn-soon{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--muted);cursor:default;pointer-events:none}
 .ad-slot{margin:18px 0;min-height:90px;display:flex;justify-content:center;align-items:center}
 .badge{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(61,214,140,.12);color:var(--ok);font-size:.78rem;font-weight:700;margin-bottom:10px}
 footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.88rem}
 footer a{color:var(--muted);margin-right:12px}
-.legal h2{margin-top:1.6em}.legal p{color:var(--muted)}
+.legal h2{margin-top:1.6em}.legal p,.legal li{color:var(--muted)}
+.faq details{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:rgba(255,255,255,.02)}
+.faq summary{cursor:pointer;font-weight:700;color:#fff}
 @media (max-width:640px){.nav-links{width:100%}}
 </style>';
     echo '</head><body><div class="wrap"><nav>';
     echo '<a class="brand" href="/">Shif Shqip</a><div class="nav-links">';
-    echo '<a href="/">Home</a><a href="/k1/">ShifShqip portal</a><a href="/privacy.php">Privacy</a><a href="/terms.php">Terms</a><a href="/dmca.php">DMCA</a><a href="/acceptable-use.php">AUP</a>';
+    echo '<a href="/">Kryefaqja</a><a href="/k1/">ShifShqip portal</a><a href="/privacy.php">Privatësia</a><a href="/terms.php">Kushtet</a><a href="/dmca.php">DMCA</a><a href="/acceptable-use.php">Përdorimi</a>';
     echo '</div></nav>';
 }
 
 function ss_legal_footer(): void {
     echo '<footer>';
-    echo '<a href="/privacy.php">Privacy Policy</a>';
-    echo '<a href="/terms.php">Terms of Use</a>';
+    echo '<a href="/privacy.php">Politika e Privatësisë</a>';
+    echo '<a href="/terms.php">Kushtet e Përdorimit</a>';
     echo '<a href="/dmca.php">DMCA</a>';
-    echo '<a href="/acceptable-use.php">Acceptable Use</a>';
-    echo '<a href="https://playlist.shifshqip.com/">Playlist Portal</a>';
-    echo '<p style="margin-top:14px">© ' . date('Y') . ' Shif Shqip. Media player / playlist client — we do not host or broadcast TV channels.</p>';
+    echo '<a href="/acceptable-use.php">Përdorimi i Lejuar</a>';
+    echo '<a href="https://playlist.shifshqip.com/">Portal Playlist</a>';
+    echo '<p style="margin-top:14px">© ' . date('Y') . ' Shif Shqip. Media player / klient playlist — nuk hostojmë dhe nuk transmetojmë kanale TV.</p>';
     echo '</footer></div></body></html>';
 }

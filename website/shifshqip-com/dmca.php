@@ -3,39 +3,39 @@ declare(strict_types=1);
 require __DIR__ . '/_legal_common.php';
 ss_legal_header(
     'DMCA / Copyright — Shif Shqip',
-    'DMCA and notice-and-takedown policy for Shif Shqip. We are a player; we do not host channels. Report copyright issues.',
+    'Politika DMCA dhe notice-and-takedown për Shif Shqip. Jemi player; nuk hostojmë kanale. Raporto shkelje copyright.',
     '/dmca.php'
 );
 ?>
 <article class="legal">
-  <h1>DMCA &amp; Copyright Policy</h1>
-  <p class="lead">Last updated: 18 July 2026</p>
+  <h1>Politika DMCA &amp; Copyright</h1>
+  <p class="lead">Përditësuar: 18 korrik 2026</p>
 
-  <h2>1. Our position</h2>
-  <p>Shif Shqip provides <strong>player software</strong> and related tools. <strong>We do not host channel video files</strong> and we do not operate a TV library. If a reported URL or playlist is tied to our services (proxy, portal, site pages), we act under notice-and-takedown.</p>
+  <h2>1. Pozicioni ynë</h2>
+  <p>Shif Shqip ofron <strong>softuer player</strong> dhe mjete të lidhura. <strong>Nuk hostojmë skedarë video të kanaleve</strong> dhe nuk operojmë bibliotekë TV. Nëse një URL / playlist i raportuar lidhet me shërbimet tona, veprojmë sipas notice-and-takedown.</p>
 
-  <h2>2. How to send a notice</h2>
-  <p>Email <a href="mailto:legal@shifshqip.com">legal@shifshqip.com</a> with:</p>
+  <h2>2. Si të dërgosh njoftim</h2>
+  <p>Dërgo email te <a href="mailto:legal@shifshqip.com">legal@shifshqip.com</a> me:</p>
   <ul>
-    <li>Identity and contact of the rights holder / agent.</li>
-    <li>Description of the copyrighted work.</li>
-    <li>Exact URLs / identifiers on our domains (<code>shifshqip.com</code>, <code>playlist.shifshqip.com</code>, <code>api.shifshqip.com</code>, <code>/k1</code>).</li>
-    <li>A good-faith statement that use is not authorized.</li>
-    <li>A statement under penalty of perjury that the information is accurate.</li>
-    <li>Physical or electronic signature.</li>
+    <li>Identitetin dhe kontaktin e titullarit / agjentit.</li>
+    <li>Përshkrimin e veprës së mbrojtur.</li>
+    <li>URL-të / identifikuesit e saktë në domain-et tona (<code>shifshqip.com</code>, <code>playlist.shifshqip.com</code>, <code>api.shifshqip.com</code>, ShifShqip portal).</li>
+    <li>Deklaratë të mirëbesimit se përdorimi nuk është i autorizuar.</li>
+    <li>Deklaratë nën dënim për rrejshëm se informacioni është i saktë.</li>
+    <li>Nënshkrim fizik ose elektronik.</li>
   </ul>
 
-  <h2>3. What we do</h2>
+  <h2>3. Çfarë bëjmë</h2>
   <ul>
-    <li>Review the notice.</li>
-    <li>Remove or block links / paths under our control when appropriate.</li>
-    <li>We cannot remove a channel from the wider internet — only from our infrastructure.</li>
+    <li>Shqyrtojmë njoftimin.</li>
+    <li>Heqim ose bllokojmë lidhje / rrugë në kontrollin tonë kur është e arsyeshme.</li>
+    <li>Nuk mund të heqim një kanal nga interneti i gjerë — vetëm nga infrastruktura jonë.</li>
   </ul>
 
   <h2>4. Counter-notice</h2>
-  <p>If you believe a removal was a mistake, send a counter-notice with the information required by the DMCA process.</p>
+  <p>Nëse beson se heqja ishte gabim, dërgo counter-notice me të dhënat e kërkuara nga procedura DMCA.</p>
 
-  <h2>5. Users</h2>
-  <p>Users are responsible for the sources they play. Repeated violations may lead to access restrictions under the <a href="/acceptable-use.php">AUP</a>.</p>
+  <h2>5. Përdoruesit</h2>
+  <p>Përdoruesit janë përgjegjës për burimet që luajnë. Shkeljet e përsëritura mund të çojnë në kufizim aksesi sipas <a href="/acceptable-use.php">AUP</a>.</p>
 </article>
 <?php ss_legal_footer(); ?>
