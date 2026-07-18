@@ -13,19 +13,20 @@
 
 ## Applied on VPS
 - Updated `/home/xui/bin/maxmind/GeoLite2-City.mmdb`
-- Rebuilt `/home/xui/bin/maxmind/GeoIP2-ISP.mmdb` (ASN → ISP fields)
+- Rebuilt `/home/xui/bin/maxmind/GeoIP2-ISP.mmdb` (ASN → ISP fields `isp`/`organization`)
 - `UPDATE servers SET enable_geoip=1, enable_isp=1`
 - Cron: `/usr/local/bin/xui-geo-backfill.php` (`/etc/cron.d/xui-geo-backfill`)
-- Cron: `/usr/local/bin/xui-stream-guard.php` (`/etc/cron.d/xui-stream-guard`)
+- Daemon: `/usr/local/bin/xui-signal-hook-daemon.sh` — on stop signals, also kills monitor
+- Guard: `/usr/local/bin/xui-stream-guard.php` (`/etc/cron.d/xui-stream-guard`)
 - Helper: `/usr/local/bin/xui-stream-ctl start|stop|restart <stream_id>`
 - Removed `streams_options` proxy (`argument_id=2`) for `shifshqip.com` sources
+- Trigger `signals_ai_hook` → table `signal_hooks`
 
 ## Verify
 ```bash
-# Geo backfill
 /home/xui/bin/php/bin/php /usr/local/bin/xui-geo-backfill.php
 mysql xui -e "SELECT user_ip,geoip_country_code,isp FROM lines_activity ORDER BY activity_id DESC LIMIT 5;"
 
-# Stream control
 /usr/local/bin/xui-stream-ctl restart 121
+# Live Connections should show flag + ISP within ~1 minute for new viewers
 ```
