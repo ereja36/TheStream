@@ -1375,26 +1375,54 @@ final class PortalService
     {
         http_response_code(200);
         header('Content-Type: text/html; charset=utf-8');
-        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Cache-Control: public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+        header('X-Content-Type-Options: nosniff');
         $apkUrlEsc = htmlspecialchars($apkUrl, ENT_QUOTES, 'UTF-8');
         $playStoreEsc = htmlspecialchars($playStoreUrl, ENT_QUOTES, 'UTF-8');
         $publicUrlEsc = htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8');
-        echo '<!DOCTYPE html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            . '<title>Shif Shqip — Playlist i mbrojtur</title><style>'
-            . 'body{margin:0;font-family:Arial,sans-serif;background:#0f1216;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}'
-            . '.card{max-width:560px;background:#1a1f26;border-radius:20px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.35)}'
-            . 'h1{margin:0 0 12px;font-size:30px;text-align:center}.sub{color:#a8b0bc;line-height:1.7;margin-bottom:20px;text-align:center}'
-            . 'ol{color:#d5dbe3;line-height:1.8;padding-left:20px;margin:0 0 24px}'
-            . '.actions{text-align:center}a.btn{display:inline-block;margin:8px;padding:14px 22px;border-radius:999px;text-decoration:none;font-weight:700}'
-            . '.primary{background:#8db04b;color:#fff}.ghost{border:1px solid #3a4350;color:#fff}'
-            . '.note{margin-top:18px;padding:12px 14px;border-radius:12px;background:#12161c;color:#97a0ad;font-size:14px;line-height:1.6}'
-            . '</style></head><body><div class="card">'
-            . '<h1>Shif Shqip</h1>'
-            . '<p class="sub">Ky playlist është i mbrojtur. Nuk hapet në shfletues apo playerë të tjerë IPTV — vetëm në aplikacionin zyrtar Shif Shqip.</p>'
-            . '<ol><li>Shkarko dhe instalo aplikacionin Shif Shqip.</li><li>Hap app-in në telefonin ose TV Android.</li><li>Playlist ngarkohet automatikisht nga serveri — nuk ke nevojë ta shtosh manualisht.</li></ol>'
-            . '<div class="actions"><a class="btn primary" href="' . $apkUrlEsc . '">Shkarko APK</a>'
-            . '<a class="btn ghost" href="' . $playStoreEsc . '">Google Play</a></div>'
-            . ($publicUrlEsc !== '' ? '<div class="note">Përdor aplikacionin Shif Shqip për të parë kanalet.</div>' : '')
+        echo '<!DOCTYPE html><html lang="sq"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            . '<title>Shif Shqip — Si funksionon playlist &amp; app</title>'
+            . '<meta name="description" content="Si përdoret Shif Shqip: app IPTV player, playlist i mbrojtur, pa hosting kanalesh. Shkarko APK dhe hap kanalet vetëm në aplikacion.">'
+            . '<meta name="robots" content="index,follow">'
+            . '<link rel="canonical" href="https://playlist.shifshqip.com/">'
+            . '<style>'
+            . 'body{margin:0;font-family:DM Sans,Arial,sans-serif;background:#0b1220;color:#f3f6fb;min-height:100vh}'
+            . '.wrap{max-width:720px;margin:0 auto;padding:32px 18px 56px}'
+            . 'h1{font-size:clamp(1.6rem,4vw,2.2rem);margin:0 0 10px;letter-spacing:-.02em}'
+            . '.sub{color:#9aa8c0;line-height:1.7;margin:0 0 22px}'
+            . '.card{background:#121a2c;border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:22px;margin:0 0 16px}'
+            . 'ol,ul{color:#c5d0e2;line-height:1.85;padding-left:1.25rem;margin:8px 0}'
+            . 'a.btn{display:inline-block;margin:8px 8px 0 0;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:700}'
+            . '.primary{background:#e11d48;color:#fff}.ghost{border:1px solid #3a4350;color:#fff}'
+            . '.note{font-size:.9rem;color:#97a0ad;margin-top:14px}'
+            . '.links a{color:#7dd3fc;margin-right:12px;font-size:.9rem}'
+            . '</style></head><body><div class="wrap">'
+            . '<h1>Shif Shqip — Playlist i mbrojtur</h1>'
+            . '<p class="sub">Ky domain jep playlist vetëm për aplikacionin zyrtar. Nuk është faqe “free TV” dhe <strong>nuk hoston kanale</strong> — është ura e sigurt midis burimit të autorizuar dhe app-it player.</p>'
+            . '<div class="card"><h2 style="margin:0 0 8px;font-size:1.1rem">Si funksionon app-i</h2>'
+            . '<ol>'
+            . '<li>Instalo <b>Shif Shqip</b> në Android (telefon / TV Box).</li>'
+            . '<li>Hape app-in — playlist mund të ngarkohet automatikisht nga serveri (ose e shton ti).</li>'
+            . '<li>Zgjidh kanalin; luhet brenda playerit të app-it.</li>'
+            . '<li>Në home, kanali i parë mund të bëjë auto-preview; kur hap kanal tjetër, preview ndalet.</li>'
+            . '</ol></div>'
+            . '<div class="card"><h2 style="margin:0 0 8px;font-size:1.1rem">Pse nuk hapet në VLC / shfletues</h2>'
+            . '<p class="sub" style="margin:0">Playlist është i mbrojtur: kërkon klientin Shif Shqip. Kjo redukton abuzimin dhe kopjimin e linkeve.</p></div>'
+            . '<div class="card"><h2 style="margin:0 0 8px;font-size:1.1rem">Përputhshmëria</h2>'
+            . '<ul>'
+            . '<li>Përdor vetëm burime për të cilat ke të drejtë.</li>'
+            . '<li>Shif Shqip = player softuer, jo shërbim TV me kanale të hostuara nga ne.</li>'
+            . '<li>Shiko <a href="https://shifshqip.com/terms.php">Terms</a>, <a href="https://shifshqip.com/privacy.php">Privacy</a>, <a href="https://shifshqip.com/dmca.php">DMCA</a>.</li>'
+            . '</ul></div>'
+            . '<div>'
+            . '<a class="btn primary" href="' . $apkUrlEsc . '">Shkarko APK</a>'
+            . '<a class="btn ghost" href="' . $playStoreEsc . '">Google Play</a>'
+            . '<a class="btn ghost" href="https://shifshqip.com/">shifshqip.com</a>'
+            . '<a class="btn ghost" href="https://shifshqip.com/k1/">Web /k1</a>'
+            . '</div>'
+            . ($publicUrlEsc !== '' ? '<p class="note">Hape app-in Shif Shqip për të parë kanalet e këtij portali.</p>' : '')
+            . '<p class="links" style="margin-top:28px"><a href="https://shifshqip.com/privacy.php">Privacy</a><a href="https://shifshqip.com/terms.php">Terms</a><a href="https://shifshqip.com/dmca.php">DMCA</a><a href="https://shifshqip.com/acceptable-use.php">AUP</a></p>'
             . '</div></body></html>';
         exit;
     }

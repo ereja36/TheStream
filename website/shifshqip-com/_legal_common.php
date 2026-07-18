@@ -1,0 +1,76 @@
+<?php
+/** Shared chrome for Shif Shqip legal / marketing pages. */
+declare(strict_types=1);
+
+function ss_h(string $s): string {
+    return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+function ss_legal_header(string $title, string $description, string $canonicalPath = '/'): void {
+    $host = 'https://shifshqip.com';
+    $canonical = $host . $canonicalPath;
+    $titleEsc = ss_h($title);
+    $descEsc = ss_h($description);
+    $canonEsc = ss_h($canonical);
+    header('Content-Type: text/html; charset=utf-8');
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Cache-Control: public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800');
+    echo '<!DOCTYPE html><html lang="sq"><head>';
+    echo '<meta charset="utf-8">';
+    echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo '<title>' . $titleEsc . '</title>';
+    echo '<meta name="description" content="' . $descEsc . '">';
+    echo '<meta name="robots" content="index,follow,max-image-preview:large">';
+    echo '<link rel="canonical" href="' . $canonEsc . '">';
+    echo '<meta property="og:type" content="website">';
+    echo '<meta property="og:site_name" content="Shif Shqip">';
+    echo '<meta property="og:title" content="' . $titleEsc . '">';
+    echo '<meta property="og:description" content="' . $descEsc . '">';
+    echo '<meta property="og:url" content="' . $canonEsc . '">';
+    echo '<meta name="twitter:card" content="summary_large_image">';
+    echo '<meta name="theme-color" content="#0b1220">';
+    echo '<link rel="preconnect" href="https://fonts.googleapis.com">';
+    echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
+    echo '<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">';
+    echo '<style>
+:root{--bg:#070b14;--bg2:#0d1424;--card:#121a2c;--text:#f3f6fb;--muted:#9aa8c0;--line:rgba(255,255,255,.1);--accent:#e11d48;--ok:#3dd68c}
+*{box-sizing:border-box}body{margin:0;font-family:"DM Sans",system-ui,sans-serif;background:radial-gradient(900px 420px at 12% -10%,rgba(225,29,72,.18),transparent 55%),radial-gradient(700px 380px at 90% 0%,rgba(61,214,140,.12),transparent 50%),linear-gradient(180deg,var(--bg),var(--bg2));color:var(--text);line-height:1.65;min-height:100vh}
+a{color:#7dd3fc;text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:920px;margin:0 auto;padding:28px 18px 64px}
+nav{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin-bottom:28px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.brand{font-family:Syne,sans-serif;font-weight:800;font-size:1.25rem;color:#fff;letter-spacing:-.02em}
+.nav-links{display:flex;flex-wrap:wrap;gap:12px;font-size:.92rem}
+.nav-links a{color:var(--muted)}
+.hero{padding:28px 0 8px}h1{font-family:Syne,sans-serif;font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.15;margin:0 0 12px;letter-spacing:-.03em}
+.lead{color:var(--muted);font-size:1.05rem;max-width:62ch;margin:0}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015));border:1px solid var(--line);border-radius:18px;padding:22px 20px;margin:18px 0}
+.card h2{font-family:Syne,sans-serif;font-size:1.2rem;margin:0 0 10px}
+.card p,.card li{color:var(--muted)}
+.card ul{padding-left:1.2rem;margin:8px 0}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:18px}
+.btn{display:inline-block;margin:6px 8px 6px 0;padding:12px 18px;border-radius:999px;font-weight:700;text-decoration:none!important}
+.btn-primary{background:var(--accent);color:#fff}.btn-ghost{border:1px solid var(--line);color:#fff}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(61,214,140,.12);color:var(--ok);font-size:.78rem;font-weight:700;margin-bottom:10px}
+footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.88rem}
+footer a{color:var(--muted);margin-right:12px}
+.legal h2{margin-top:1.6em}.legal p{color:var(--muted)}
+@media (max-width:640px){.nav-links{width:100%}}
+</style>';
+    echo '</head><body><div class="wrap"><nav>';
+    echo '<a class="brand" href="/">Shif Shqip</a><div class="nav-links">';
+    echo '<a href="/">Home</a><a href="/k1/">Web TV /k1</a><a href="/privacy.php">Privacy</a><a href="/terms.php">Terms</a><a href="/dmca.php">DMCA</a><a href="/acceptable-use.php">AUP</a>';
+    echo '</div></nav>';
+}
+
+function ss_legal_footer(): void {
+    echo '<footer>';
+    echo '<a href="/privacy.php">Privacy Policy</a>';
+    echo '<a href="/terms.php">Terms of Use</a>';
+    echo '<a href="/dmca.php">DMCA</a>';
+    echo '<a href="/acceptable-use.php">Acceptable Use</a>';
+    echo '<a href="https://playlist.shifshqip.com/">Playlist Portal</a>';
+    echo '<a href="https://api.shifshqip.com/shif-shqip-latest.apk">Download APK</a>';
+    echo '<p style="margin-top:14px">© ' . date('Y') . ' Shif Shqip. Media player / playlist client — we do not host or broadcast TV channels.</p>';
+    echo '</footer></div></body></html>';
+}
