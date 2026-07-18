@@ -222,6 +222,7 @@ public class ActivityMainV2 extends AppCompatActivity {
     }
 
     private void showFavoritesOverlay() {
+        stopHeroForPlayback();
         overlayContainer.setVisibility(View.VISIBLE);
         overlayContainer.setClickable(true);
         scrollHome.setVisibility(View.GONE);
@@ -295,12 +296,18 @@ public class ActivityMainV2 extends AppCompatActivity {
         heroSubtitle.setText(CategoryDisplayHelper.displayName(channel.category_name));
         heroEpg.setVisibility(View.GONE);
 
+        // Logo: fit inside hero (not centerCrop/fullscreen) so it stays letterboxed on all devices.
+        heroImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
         String imageUrl = resolveImageUrl(channel.channel_image);
         if (!TextUtils.isEmpty(imageUrl)) {
             Glide.with(this)
                     .load(imageUrl)
-                    .apply(new RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                    .apply(new RequestOptions()
+                            .fitCenter()
+                            .diskCacheStrategy(DiskCacheStrategy.ALL))
                     .into(heroImage);
+        } else {
+            heroImage.setImageResource(R.mipmap.ic_launcher);
         }
 
         watchButton.setOnClickListener(v -> openChannel(channel));
@@ -350,7 +357,7 @@ public class ActivityMainV2 extends AppCompatActivity {
         final long token = ++heroPreviewToken;
         heroExecutor.execute(() -> {
             try {
-                Thread.sleep(2500);
+                Thread.sleep(600);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
@@ -383,6 +390,8 @@ public class ActivityMainV2 extends AppCompatActivity {
             heroPreview.setClickable(false);
             heroPreview.setFocusable(false);
             heroPreview.setUseController(false);
+            // Keep stream letterboxed in the hero box — not zoomed/fullscreen crop.
+            heroPreview.setResizeMode(com.google.android.exoplayer2.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT);
             container.addView(heroPreview);
         } catch (Exception ignored) {
             heroPreview = null;
