@@ -27,7 +27,8 @@
                     android:id="@+id/hero_image"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
+                    android:padding="40dp"
+                    android:scaleType="fitCenter"
                     android:src="@mipmap/ic_launcher" />
 
                 <FrameLayout
