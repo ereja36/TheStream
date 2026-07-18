@@ -43,7 +43,7 @@ if (isset($_POST['submit'])) {
     if (validateResourceAccess($inputToken)) {
         $designId = isset($_POST['design_id']) ? strtolower(clean($_POST['design_id'])) : 'v1';
         $logoUrl = isset($_POST['app_logo_url']) ? clean($_POST['app_logo_url']) : '';
-        if ($designId !== 'v2' && $designId !== 'v3') {
+        if ($designId !== 'v2' && $designId !== 'v3' && $designId !== 'v4') {
             $designId = 'v1';
         }
 
@@ -84,6 +84,11 @@ $designs = array(
         'title' => 'Design V3 — Premium Glass',
         'desc' => 'Gradient purple/cyan, grid 3 kolona, featured row dhe stil premium.',
         'color' => '#00E5FF'
+    ),
+    'v4' => array(
+        'title' => 'Design V4 — Liquid Glass',
+        'desc' => 'Stil Triangolo: dark liquid glass, karta transparente, logo + emra të bardhë.',
+        'color' => '#FF3B45'
     )
 );
 
@@ -116,7 +121,7 @@ $designs = array(
 
                             <div class="row">
                                 <?php foreach ($designs as $id => $meta) { ?>
-                                <div class="col-lg-4 col-md-4 col-sm-12 col-xs-12">
+                                <div class="col-lg-3 col-md-6 col-sm-12 col-xs-12">
                                     <label style="display:block;cursor:pointer;">
                                         <div class="card corner-radius" style="border:3px solid <?php echo ($currentDesign === $id) ? $meta['color'] : '#ddd'; ?>;min-height:220px;">
                                             <div class="body">
@@ -139,7 +144,7 @@ $designs = array(
                             <div class="form-group" style="margin-top:20px;">
                                 <label>App Logo URL (opsionale)</label>
                                 <input type="url" class="form-control" name="app_logo_url" value="<?php echo htmlspecialchars($currentLogoUrl); ?>" placeholder="https://example.com/logo.png" />
-                                <small class="text-muted">Shfaqet në V2/V3 pa update APK. Lëre bosh për logo default.</small>
+                                <small class="text-muted">Shfaqet në V2/V3/V4 pa update APK. Lëre bosh për logo default.</small>
                             </div>
 
                             <button type="submit" name="submit" class="button button-rounded waves-effect waves-float btn-block">SAVE DESIGN</button>

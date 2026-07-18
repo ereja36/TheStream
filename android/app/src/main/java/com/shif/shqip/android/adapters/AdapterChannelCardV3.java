@@ -17,6 +17,7 @@ import com.bumptech.glide.request.RequestOptions;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Channel;
+import com.shif.shqip.android.utils.ChannelLogoHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import java.util.ArrayList;
@@ -62,14 +63,19 @@ public class AdapterChannelCardV3 extends RecyclerView.Adapter<AdapterChannelCar
         Channel channel = items.get(position);
         holder.channelName.setText(channel.channel_name);
 
-        String imageUrl = resolveImageUrl(channel.channel_image);
+        Glide.with(activity).clear(holder.channelLogo);
+        String imageUrl = ChannelLogoHelper.resolve(
+                channel.channel_image, sharedPref.getBaseUrl(), channel.channel_name);
         if (!TextUtils.isEmpty(imageUrl)) {
             Glide.with(activity)
                     .load(imageUrl)
-                    .apply(new RequestOptions().diskCacheStrategy(DiskCacheStrategy.ALL))
+                    .apply(new RequestOptions().fitCenter().diskCacheStrategy(DiskCacheStrategy.ALL))
+                    .placeholder(R.drawable.ic_thumbnail)
+                    .error(R.drawable.ic_thumbnail)
+                    .dontAnimate()
                     .into(holder.channelLogo);
         } else {
-            holder.channelLogo.setImageResource(R.mipmap.ic_launcher);
+            holder.channelLogo.setImageResource(R.drawable.ic_thumbnail);
         }
 
         holder.itemView.setOnClickListener(v -> {
@@ -80,14 +86,9 @@ public class AdapterChannelCardV3 extends RecyclerView.Adapter<AdapterChannelCar
     }
 
     private String resolveImageUrl(String image) {
-        if (TextUtils.isEmpty(image)) {
-            return "";
-        }
-        if (image.startsWith("http")) {
-            return image;
-        }
-        return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
+        return ChannelLogoHelper.resolve(image, sharedPref.getBaseUrl(), "");
     }
+
 
     @Override
     public int getItemCount() {

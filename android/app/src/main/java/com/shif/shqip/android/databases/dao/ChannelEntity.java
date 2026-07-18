@@ -48,6 +48,14 @@ public class ChannelEntity {
     public String user_agent = "";
 
     @Expose
+    @ColumnInfo(name = "stream_referer")
+    public String stream_referer = "";
+
+    @Expose
+    @ColumnInfo(name = "stream_origin")
+    public String stream_origin = "";
+
+    @Expose
     @ColumnInfo(name = "saved_date")
     public long saved_date = System.currentTimeMillis();
 
@@ -65,6 +73,8 @@ public class ChannelEntity {
         entity.video_id = radio.video_id;
         entity.category_name = radio.category_name;
         entity.user_agent = radio.user_agent;
+        entity.stream_referer = radio.stream_referer;
+        entity.stream_origin = radio.stream_origin;
         return entity;
     }
 
@@ -79,6 +89,8 @@ public class ChannelEntity {
         channel.video_id = video_id;
         channel.category_name = category_name;
         channel.user_agent = user_agent;
+        channel.stream_referer = stream_referer;
+        channel.stream_origin = stream_origin;
         return channel;
     }
 }

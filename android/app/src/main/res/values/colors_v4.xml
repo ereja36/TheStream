@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Triangolo / liquid-glass inspired palette -->
+    <color name="v4_bg">#05070D</color>
+    <color name="v4_bg2">#070B14</color>
+    <color name="v4_surface">#0E1117</color>
+    <color name="v4_card">#99121824</color>
+    <color name="v4_card_solid">#1A2233</color>
+    <color name="v4_text_primary">#F7F8FF</color>
+    <color name="v4_text_secondary">#9EA8C0</color>
+    <color name="v4_accent">#FF3B45</color>
+    <color name="v4_live">#FF3B45</color>
+    <color name="v4_nav_pill">#CC121828</color>
+    <color name="v4_glass">#6B121822</color>
+    <color name="v4_glass_border">#4DFFFFFF</color>
+    <color name="v4_glass_highlight">#33FFFFFF</color>
+</resources>

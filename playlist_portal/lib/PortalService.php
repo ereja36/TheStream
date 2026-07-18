@@ -204,11 +204,18 @@ final class PortalService
     }
 
     /**
-     * Keep upstream URLs unchanged — video must not be forced through channel-proxy.
+     * Normalize XUI /play/…/m3u8 for sealing (stay server-side). Do not unwrap to /auth/.
      */
     public static function optimizeK1PlaybackUrl($url)
     {
-        return trim((string) $url);
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        if (self::isXuiPlayUrl($url) || preg_match('#k1\.shifshqip\.com(?::\d+)?/play/#i', $url)) {
+            return self::normalizeXuiPlayEntryUrl($url);
+        }
+        return $url;
     }
 
     public static function isOurInfrastructureUrl($url)
@@ -230,6 +237,156 @@ final class PortalService
             || strpos($lower, '/app-measurement/collect/') !== false;
     }
 
+    /**
+     * XUI /play/… — permanent stream key. Keep server-side only (never return to app).
+     */
+    public static function isXuiPlayUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '' || !preg_match('#^https?://#i', $url)) {
+            return false;
+        }
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($host !== 'k1.shifshqip.com' && !preg_match('#\.k1\.shifshqip\.com$#', $host)) {
+            return false;
+        }
+        $path = strtolower((string) parse_url($url, PHP_URL_PATH));
+        return (bool) preg_match('#^/play(/|$)#', $path);
+    }
+
+    /**
+     * XUI client CDN: /auth/… token + /hls/… segments — no portal proxy after resolve.
+     */
+    public static function isXuiClientCdnUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '' || !preg_match('#^https?://#i', $url)) {
+            return false;
+        }
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($host !== 'k1.shifshqip.com' && !preg_match('#\.k1\.shifshqip\.com$#', $host)) {
+            return false;
+        }
+        $path = strtolower((string) parse_url($url, PHP_URL_PATH));
+        return (bool) preg_match('#^/(auth|hls)(/|$)#', $path);
+    }
+
+    /** @deprecated use isXuiPlayUrl / isXuiClientCdnUrl */
+    public static function isXuiDirectUrl($url)
+    {
+        return self::isXuiPlayUrl($url) || self::isXuiClientCdnUrl($url);
+    }
+
+    /**
+     * Prefer HLS channel URLs for XUI playlists (…/m3u8 not …/ts MPEG-TS).
+     */
+    public static function preferHlsSourceUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        if (!preg_match('#k1\.shifshqip\.com(?::\d+)?/.*/?playlist/#i', $url)) {
+            return $url;
+        }
+        if (preg_match('#(?:\?|&)output=#i', $url)) {
+            return $url;
+        }
+        return $url . (strpos($url, '?') === false ? '?' : '&') . 'output=hls';
+    }
+
+    /**
+     * Normalize sealed /play/ entry (server-side only): strip :443, /ts→/m3u8.
+     */
+    public static function normalizeXuiPlayEntryUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        $url = preg_replace('#^(https?://[^/]+):443(/)#i', '$1$2', $url);
+        if (!is_string($url) || $url === '') {
+            return '';
+        }
+        $url = preg_replace('#(/play/[^/\\?\\s]+)/ts(\\?|$)#i', '$1/m3u8$2', $url);
+        return is_string($url) ? $url : '';
+    }
+
+    /**
+     * Client-facing CDN URL (/auth or /hls): strip :443; ?.m3u8 for older APKs.
+     * Never returns /play/.
+     */
+    public static function normalizeDirectPlaybackUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        $url = preg_replace('#^(https?://[^/]+):443(/)#i', '$1$2', $url);
+        if (!is_string($url) || $url === '') {
+            return '';
+        }
+        // If a /play/ URL slips through, do not hand it to the client.
+        if (self::isXuiPlayUrl($url)) {
+            return '';
+        }
+        if (self::isXuiClientCdnUrl($url) && stripos($url, '.m3u8') === false) {
+            $url .= (strpos($url, '?') === false ? '?' : '&') . '.m3u8';
+        }
+        return $url;
+    }
+
+    /**
+     * Server-side /play/ → Location /auth/… (client then streams auth+hls on CDN).
+     */
+    public static function unwrapXuiPlayToAuthUrl($portal, $playUrl)
+    {
+        $playUrl = self::normalizeXuiPlayEntryUrl($playUrl);
+        if ($playUrl === '' || !self::isXuiPlayUrl($playUrl)) {
+            return '';
+        }
+        $fetchUrl = self::rewriteLocalUpstreamUrl($playUrl);
+        $redirectLocation = '';
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $fetchUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_HEADERFUNCTION, function ($handle, $headerLine) use (&$redirectLocation) {
+            if (preg_match('/^Location:\s*(.+)$/i', trim($headerLine), $matches)) {
+                $redirectLocation = trim($matches[1]);
+            }
+            return strlen($headerLine);
+        });
+        $headers = array('Accept: */*');
+        if (strpos($fetchUrl, 'http://127.0.0.1:81/') === 0) {
+            $headers[] = 'Host: k1.shifshqip.com';
+            $headers[] = 'X-Forwarded-Proto: https';
+        }
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_USERAGENT, !empty($portal['outbound_user_agent'])
+            ? $portal['outbound_user_agent']
+            : 'Ooew');
+        $body = curl_exec($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $next = $redirectLocation;
+        if ($next === '' && is_string($body) && preg_match('#Redirecting to\s+(/[^\s"\'<>]+)#i', $body, $matches)) {
+            $next = $matches[1];
+        }
+        if ($status >= 300 && $status < 400 && $next !== '') {
+            $auth = self::resolveRelativeUrl($next, $playUrl);
+            $auth = preg_replace('#^(https?://[^/]+):443(/)#i', '$1$2', $auth);
+            if (is_string($auth) && self::isXuiClientCdnUrl($auth)) {
+                return $auth;
+            }
+        }
+        return '';
+    }
+
     public static function isDirectCdnUrl($url)
     {
         $url = trim((string) $url);
@@ -239,18 +396,39 @@ final class PortalService
         if (self::isOurInfrastructureUrl($url)) {
             return false;
         }
+        // /play/ is not client-direct — must unwrap to /auth/ server-side first.
+        if (self::isXuiPlayUrl($url)) {
+            return false;
+        }
+        if (self::isXuiClientCdnUrl($url)) {
+            return true;
+        }
         $lower = strtolower($url);
-        if (strpos($lower, '.m3u8') !== false || strpos($lower, '.mpd') !== false || strpos($lower, '.m3u') !== false) {
+        // Media-Colony A3 + common CDN hosts (including .js gate URLs).
+        if (strpos($lower, 'fastlycache.com') !== false
+            || strpos($lower, 'anytools.eu.org') !== false
+            || strpos($lower, 'unique-user-id=') !== false
+            || strpos($lower, 'gcore-cdn.org') !== false
+            || strpos($lower, 'gjirafa.net') !== false
+            || strpos($lower, 'gjirafa.com') !== false
+            || strpos($lower, 'ngolpdkyoctjcddxshli469r.org') !== false) {
+            return true;
+        }
+        // XUI-style path "/m3u8" (no dot) and normal playlist extensions.
+        if (strpos($lower, '.m3u8') !== false || strpos($lower, '.mpd') !== false || strpos($lower, '.m3u') !== false
+            || preg_match('#/m3u8(\?|$)#', $lower)) {
             return true;
         }
         if (preg_match('#^https?://[^/]+:\d+/.+#i', $url)) {
             return true;
         }
-        return strpos($lower, '/live/') !== false || strpos($lower, '/hls/') !== false;
+        return strpos($lower, '/live/') !== false || strpos($lower, '/hls/') !== false
+            || strpos($lower, '/auth/') !== false;
     }
 
     /**
-     * Resolve once on the portal server; client streams directly from the CDN afterward.
+     * Resolve once on the portal server; client streams from CDN (/auth+/hls) afterward.
+     * /play/ is unwrapped server-side and never returned to the app.
      */
     public static function resolveToDirectCdnUrl($portal, $url, $depth = 0)
     {
@@ -258,14 +436,18 @@ final class PortalService
         if ($url === '' || $depth > 10) {
             return '';
         }
-        if (self::isDirectCdnUrl($url)) {
-            return $url;
+        if (self::isXuiPlayUrl($url)) {
+            $auth = self::unwrapXuiPlayToAuthUrl($portal, $url);
+            return $auth !== '' ? self::normalizeDirectPlaybackUrl($auth) : '';
+        }
+        if (self::isXuiClientCdnUrl($url) || self::isDirectCdnUrl($url)) {
+            return self::normalizeDirectPlaybackUrl($url);
         }
         if (self::isK1ChannelProxyUrl($url)
             || (strpos(strtolower($url), '/k1/channel/') !== false && strpos(strtolower($url), 'shifshqip.com') !== false)) {
             $direct = self::unwrapProxyManifest($portal, $url);
             if ($direct !== '') {
-                return $direct;
+                return self::resolveToDirectCdnUrl($portal, $direct, $depth + 1);
             }
         }
         if (self::isK1PlaylistEntryUrl($url) || strpos(strtolower($url), '/k1/channel/') !== false) {
@@ -281,7 +463,14 @@ final class PortalService
         if ($resolved !== '' && strcasecmp($resolved, $url) !== 0) {
             return self::resolveToDirectCdnUrl($portal, $resolved, $depth + 1);
         }
-        return self::isDirectCdnUrl($url) ? $url : '';
+        if (self::isDirectCdnUrl($url)) {
+            return self::normalizeDirectPlaybackUrl($url);
+        }
+        // Private all2 streams no longer unwrap to raw CDN; allow proxy URLs for app playback.
+        if (self::isPlayableAll2Url($url)) {
+            return $url;
+        }
+        return '';
     }
 
     public static function unwrapProxyManifest($portal, $proxyUrl)
@@ -329,22 +518,27 @@ final class PortalService
      * Server-side k1 channel-url lookup — resolves to channel-proxy on the
      * portal only; client streams directly from shifshqip.com afterward.
      */
-    public static function resolveK1ChannelPortalUrl($portal, $host, $slug, $accessKey)
+    public static function resolveK1ChannelPortalUrl($portal, $host, $slug, $accessKey, $clientIpv4 = '')
     {
         $slug = trim((string) $slug);
         if ($slug === '') {
-            return '';
+            return null;
         }
         $apiUrl = 'https://shifshqip.com/k1/api/channel-url/' . rawurlencode($slug);
-        $upstream = self::fetchUpstream($portal, $apiUrl);
+        $clientIpv4 = trim((string) $clientIpv4);
+        if ($clientIpv4 !== '' && preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $clientIpv4)) {
+            $apiUrl .= (strpos($apiUrl, '?') === false ? '?' : '&') . 'ipv4=' . rawurlencode($clientIpv4);
+        }
+        $upstream = self::fetchChannelUrlApi($portal, $apiUrl, $clientIpv4);
         if (!$upstream['ok']) {
-            return '';
+            return null;
         }
         $json = json_decode($upstream['body'], true);
         if (!is_array($json) || empty($json['ok'])) {
-            return '';
+            return null;
         }
         $url = '';
+        // Prefer direct CDN for app (fastly/gcore). Avoid Worker URLs that DC-block.
         foreach (array('direct_url', 'upstream_url', 'cdn_url', 'url', 'proxy_url') as $key) {
             if (!empty($json[$key])) {
                 $url = trim((string) $json[$key]);
@@ -352,13 +546,83 @@ final class PortalService
             }
         }
         if ($url === '') {
-            return '';
+            return null;
         }
         if ($url[0] === '/') {
             $url = 'https://shifshqip.com' . $url;
         }
         $direct = self::resolveToDirectCdnUrl($portal, $url);
-        return ($direct !== '' && self::isDirectCdnUrl($direct)) ? $direct : '';
+        if ($direct === '' || (!self::isDirectCdnUrl($direct) && !self::isPlayableAll2Url($direct))) {
+            // Still accept known A3 hosts / all2 proxy URLs even if unwrap failed.
+            if (self::isDirectCdnUrl($url) || self::isPlayableAll2Url($url)) {
+                $direct = $url;
+            } else {
+                return null;
+            }
+        }
+        $headers = array();
+        if (!empty($json['headers']) && is_array($json['headers'])) {
+            $headers = $json['headers'];
+        }
+        $userAgent = isset($json['user_agent']) ? trim((string) $json['user_agent']) : '';
+        return array(
+            'url' => $direct,
+            'headers' => $headers,
+            'user_agent' => $userAgent,
+            'a3_cdn' => isset($json['a3_cdn']) ? (string) $json['a3_cdn'] : '',
+            'direct_url' => !empty($json['direct_url']) ? trim((string) $json['direct_url']) : $direct
+        );
+    }
+
+    /**
+     * Fetch channel-url API as the app would: forward device IP + app markers so
+     * A3 preferDirect + cip rewrite use the phone's residential IPv4.
+     */
+    public static function fetchChannelUrlApi($portal, $apiUrl, $clientIpv4 = '')
+    {
+        $apiUrl = trim((string) $apiUrl);
+        if ($apiUrl === '') {
+            return array('ok' => false, 'body' => '', 'http_code' => 0);
+        }
+        $ch = curl_init($apiUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'ShifShqip/Portal (Android)');
+        $headers = array(
+            'Accept: application/json',
+            'X-Shif-App: 1',
+            'X-Requested-With: com.shif.shqip.android',
+            'X-Shif-Portal-Resolve: 1'
+        );
+        $clientIpv4 = trim((string) $clientIpv4);
+        if ($clientIpv4 !== '' && preg_match('/^\d{1,3}(\.\d{1,3}){3}$/', $clientIpv4)) {
+            $headers[] = 'X-Forwarded-For: ' . $clientIpv4;
+            $headers[] = 'CF-Connecting-IP: ' . $clientIpv4;
+            $headers[] = 'X-Real-IP: ' . $clientIpv4;
+        }
+        if (!empty($portal['outbound_extra_headers'])) {
+            $extra = json_decode($portal['outbound_extra_headers'], true);
+            if (is_array($extra)) {
+                foreach ($extra as $key => $value) {
+                    if ($key !== '' && $value !== '') {
+                        $headers[] = $key . ': ' . $value;
+                    }
+                }
+            }
+        }
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        return array(
+            'ok' => $body !== false && $code >= 200 && $code < 400,
+            'body' => $body === false ? '' : $body,
+            'http_code' => $code
+        );
     }
 
     public static function isK1ChannelProxyUrl($url)
@@ -371,6 +635,93 @@ final class PortalService
     {
         $url = strtolower((string) $url);
         return strpos($url, '/k1/playlist/') !== false;
+    }
+
+    /**
+     * all2 private delivery serves streams via /k1/playlist|/channel-proxy|/proxy.
+     * These are playable by the app even when no raw Fastly/Gcore URL is exposed.
+     */
+    public static function isPlayableAll2Url($url)
+    {
+        $url = strtolower(trim((string) $url));
+        if ($url === '') {
+            return false;
+        }
+        // phinemi origin proxy / CF worker — playable rewritten HLS for the app.
+        if (strpos($url, 'phinemi.live') !== false) {
+            return strpos($url, '/a3proxy') !== false
+                || strpos($url, '/a3relay') !== false
+                || strpos($url, '/a3hls') !== false
+                || strpos($url, 'a3.phinemi.live') !== false
+                || strpos($url, '?u=') !== false;
+        }
+        if (strpos($url, 'shifshqip.com') === false) {
+            return false;
+        }
+        // Match /k1/a3hls?id=... (no trailing slash) as well as /k1/a3hls/...
+        return strpos($url, '/k1/playlist/') !== false
+            || strpos($url, '/k1/channel-proxy/') !== false
+            || strpos($url, '/k1/channel/') !== false
+            || strpos($url, '/k1/proxy/') !== false
+            || strpos($url, '/k1/a3proxy') !== false
+            || strpos($url, '/k1/a3relay') !== false
+            || strpos($url, '/k1/a3hls') !== false
+            || strpos($url, '/app-measurement/') !== false;
+    }
+
+    /**
+     * Extract alb_/albvod_/channel slug from sealed upstream or proxy URLs.
+     */
+    public static function extractK1SlugFromUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return '';
+        }
+        if (preg_match('#/api/channel-url/([a-z0-9_.-]+)#i', $url, $m)) {
+            return rawurldecode($m[1]);
+        }
+        if (preg_match('#/(?:channel-proxy|channel|playlist)/([a-z0-9_.-]+)#i', $url, $m)) {
+            return rawurldecode($m[1]);
+        }
+        if (preg_match('#/(albvod?_[a-z0-9_-]+)#i', $url, $m)) {
+            return $m[1];
+        }
+        return '';
+    }
+
+    /**
+     * Resolve a sealed /r entry for the app: prefer channel-url (headers+UA+cip)
+     * when a K1 slug is present; otherwise unwrap to direct CDN.
+     */
+    public static function resolveSealedEntryForApp($portal, $entryUrl, $accessKey = '', $clientIpv4 = '')
+    {
+        $entryUrl = trim((string) $entryUrl);
+        if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
+            return null;
+        }
+        $slug = self::extractK1SlugFromUrl($entryUrl);
+        if ($slug !== '' && preg_match('/^(alb_|albvod_|api_|kool_|custom_|open_|nimi_)/i', $slug)) {
+            $resolved = self::resolveK1ChannelPortalUrl($portal, '', $slug, $accessKey, $clientIpv4);
+            if (is_array($resolved) && !empty($resolved['url'])) {
+                return $resolved;
+            }
+        }
+        $finalUrl = self::resolveToDirectCdnUrl($portal, $entryUrl);
+        if ($finalUrl === '') {
+            if (self::isDirectCdnUrl($entryUrl) || self::isPlayableAll2Url($entryUrl)) {
+                $finalUrl = $entryUrl;
+            } else {
+                return null;
+            }
+        }
+        return array(
+            'url' => $finalUrl,
+            'headers' => array(),
+            'user_agent' => '',
+            'a3_cdn' => '',
+            'direct_url' => $finalUrl
+        );
     }
 
     /**
@@ -406,6 +757,7 @@ final class PortalService
         if ($entryUrl === '' || !preg_match('#^https?://#i', $entryUrl)) {
             return '';
         }
+        $fetchUrl = self::rewriteLocalUpstreamUrl($entryUrl);
         $referer = !empty($portal['outbound_referer']) ? $portal['outbound_referer'] : '';
         if ($referer === '' && !empty($portal['source_url'])) {
             $referer = $portal['source_url'];
@@ -413,7 +765,7 @@ final class PortalService
 
         $redirectLocation = '';
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $entryUrl);
+        curl_setopt($ch, CURLOPT_URL, $fetchUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
@@ -426,7 +778,20 @@ final class PortalService
             return strlen($headerLine);
         });
 
-        $headers = array('Accept: */*');
+        $headers = array(
+            'Accept: */*',
+            // Prefer app/direct A3 paths (fastly) over datacenter a3hls remux.
+            'X-Shif-App: 1',
+            'X-Requested-With: com.shif.shqip.android'
+        );
+        if (strpos($fetchUrl, 'http://127.0.0.1:81/') === 0) {
+            $headers[] = 'Host: k1.shifshqip.com';
+            $headers[] = 'X-Forwarded-Proto: https';
+        }
+        if (strpos($fetchUrl, 'http://127.0.0.1:3000/') === 0) {
+            $headers[] = 'Host: shifshqip.com';
+            $headers[] = 'X-Forwarded-Proto: https';
+        }
         if (!empty($portal['outbound_user_agent'])) {
             curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
         } else {
@@ -470,11 +835,41 @@ final class PortalService
         return '';
     }
 
+    /**
+     * Same-VPS fetch: avoid Cloudflare + never hit blocked 127.0.0.1 client path via public loop.
+     * XUI (k1) → nginx upstream :81; all2 /k1 → node :3000.
+     */
+    public static function rewriteLocalUpstreamUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return $url;
+        }
+        $xui = preg_replace(
+            '#^https?://(?:[^/]+\.)?k1\.shifshqip\.com(?::\d+)?(/.*)$#i',
+            'http://127.0.0.1:81$1',
+            $url,
+            1
+        );
+        if (is_string($xui) && $xui !== '' && strpos($xui, 'http://127.0.0.1:81/') === 0) {
+            return $xui;
+        }
+        $rewritten = preg_replace(
+            '#^https?://(?:www\.)?shifshqip\.com(?::\d+)?(/k1/.*)$#i',
+            'http://127.0.0.1:3000$1',
+            $url,
+            1
+        );
+        return is_string($rewritten) && $rewritten !== '' ? $rewritten : $url;
+    }
+
     public static function fetchUpstream($portal, $url, $depth = 0)
     {
         if ($depth > 5) {
             return array('ok' => false, 'status' => 0, 'error' => 'redirect_limit');
         }
+        $originalUrl = self::preferHlsSourceUrl(trim((string) $url));
+        $url = self::rewriteLocalUpstreamUrl($originalUrl);
 
         $referer = !empty($portal['outbound_referer']) ? $portal['outbound_referer'] : '';
         if ($referer === '' && !empty($portal['source_url'])) {
@@ -497,6 +892,16 @@ final class PortalService
         });
 
         $headers = array('Accept: */*');
+        if (strpos($url, 'http://127.0.0.1:81/') === 0) {
+            $headers[] = 'Host: k1.shifshqip.com';
+            $headers[] = 'X-Forwarded-Proto: https';
+        }
+        if (strpos($url, 'http://127.0.0.1:3000/') === 0) {
+            $headers[] = 'Host: shifshqip.com';
+            $headers[] = 'X-Forwarded-Proto: https';
+            // Do NOT forge CF-Connecting-IP to 1.1.1.1 — A3 cip= signing must use
+            // the real viewer IP (set by fetchChannelUrlApi / callers).
+        }
         if (!empty($portal['outbound_user_agent'])) {
             curl_setopt($ch, CURLOPT_USERAGENT, $portal['outbound_user_agent']);
         } else {
@@ -541,7 +946,8 @@ final class PortalService
                 $nextUrl = $matches[1];
             }
             if ($nextUrl !== '') {
-                $nextUrl = self::resolveRelativeUrl($nextUrl, $url);
+                $baseForRelative = $originalUrl !== '' ? $originalUrl : $url;
+                $nextUrl = self::resolveRelativeUrl($nextUrl, $baseForRelative);
                 return self::fetchUpstream($portal, $nextUrl, $depth + 1);
             }
             return array('ok' => false, 'status' => $status, 'error' => 'redirect_missing');
@@ -552,7 +958,8 @@ final class PortalService
         }
 
         if (preg_match('#Redirecting to\s+(/[^\s"\'<>]+)#i', (string) $body, $matches)) {
-            $nextUrl = self::resolveRelativeUrl($matches[1], $url);
+            $baseForRelative = $originalUrl !== '' ? $originalUrl : $url;
+            $nextUrl = self::resolveRelativeUrl($matches[1], $baseForRelative);
             if ($nextUrl !== '') {
                 return self::fetchUpstream($portal, $nextUrl, $depth + 1);
             }
@@ -937,11 +1344,12 @@ final class PortalService
             }
             $target = self::resolveRelativeUrl($trimmed, $sourceUrl);
             if ($target !== '' && preg_match('#^https?://#i', $target) && $accessKey !== '') {
+                // Seal only the play/m3u8 entry — /auth and /hls stay client↔CDN.
                 $target = self::optimizeK1PlaybackUrl($target);
                 $sealed = self::sealUrl($target, $accessKey);
                 $output[] = $sealed !== '' ? $base . '/r/' . $sealed : $target;
             } else {
-                $output[] = $target;
+                $output[] = $target !== '' ? self::optimizeK1PlaybackUrl($target) : $target;
             }
         }
         return implode("\n", $output);
@@ -967,26 +1375,50 @@ final class PortalService
     {
         http_response_code(200);
         header('Content-Type: text/html; charset=utf-8');
-        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-        $apkUrlEsc = htmlspecialchars($apkUrl, ENT_QUOTES, 'UTF-8');
-        $playStoreEsc = htmlspecialchars($playStoreUrl, ENT_QUOTES, 'UTF-8');
+        header('Cache-Control: public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+        header('X-Content-Type-Options: nosniff');
         $publicUrlEsc = htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8');
-        echo '<!DOCTYPE html><html lang="sq"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            . '<title>Shif Shqip — Playlist i mbrojtur</title><style>'
-            . 'body{margin:0;font-family:Arial,sans-serif;background:#0f1216;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}'
-            . '.card{max-width:560px;background:#1a1f26;border-radius:20px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.35)}'
-            . 'h1{margin:0 0 12px;font-size:30px;text-align:center}.sub{color:#a8b0bc;line-height:1.7;margin-bottom:20px;text-align:center}'
-            . 'ol{color:#d5dbe3;line-height:1.8;padding-left:20px;margin:0 0 24px}'
-            . '.actions{text-align:center}a.btn{display:inline-block;margin:8px;padding:14px 22px;border-radius:999px;text-decoration:none;font-weight:700}'
-            . '.primary{background:#8db04b;color:#fff}.ghost{border:1px solid #3a4350;color:#fff}'
-            . '.note{margin-top:18px;padding:12px 14px;border-radius:12px;background:#12161c;color:#97a0ad;font-size:14px;line-height:1.6}'
-            . '</style></head><body><div class="card">'
-            . '<h1>Shif Shqip</h1>'
-            . '<p class="sub">Ky playlist është i mbrojtur. Nuk hapet në shfletues apo playerë të tjerë IPTV — vetëm në aplikacionin zyrtar Shif Shqip.</p>'
-            . '<ol><li>Shkarko dhe instalo aplikacionin Shif Shqip.</li><li>Hap app-in në telefonin ose TV Android.</li><li>Playlist ngarkohet automatikisht nga serveri — nuk ke nevojë ta shtosh manualisht.</li></ol>'
-            . '<div class="actions"><a class="btn primary" href="' . $apkUrlEsc . '">Shkarko APK</a>'
-            . '<a class="btn ghost" href="' . $playStoreEsc . '">Google Play</a></div>'
-            . ($publicUrlEsc !== '' ? '<div class="note">Përdor aplikacionin Shif Shqip për të parë kanalet.</div>' : '')
+        echo '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            . '<title>Shif Shqip — How the playlist &amp; app work</title>'
+            . '<meta name="description" content="How Shif Shqip works: IPTV media player app, playlist portal, no channel hosting. Use only authorized sources.">'
+            . '<meta name="robots" content="index,follow">'
+            . '<link rel="canonical" href="https://playlist.shifshqip.com/">'
+            . '<style>'
+            . 'body{margin:0;font-family:DM Sans,Arial,sans-serif;background:#0b1220;color:#f3f6fb;min-height:100vh}'
+            . '.wrap{max-width:720px;margin:0 auto;padding:32px 18px 56px}'
+            . 'h1{font-size:clamp(1.6rem,4vw,2.2rem);margin:0 0 10px;letter-spacing:-.02em}'
+            . '.sub{color:#9aa8c0;line-height:1.7;margin:0 0 22px}'
+            . '.card{background:#121a2c;border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:22px;margin:0 0 16px}'
+            . 'ol,ul{color:#c5d0e2;line-height:1.85;padding-left:1.25rem;margin:8px 0}'
+            . 'a.btn,.btn{display:inline-block;margin:8px 8px 0 0;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:700}'
+            . '.primary{background:#e11d48;color:#fff}.ghost{border:1px solid #3a4350;color:#fff}'
+            . '.soon{background:rgba(255,255,255,.06);border:1px solid #3a4350;color:#97a0ad;cursor:default;pointer-events:none}'
+            . '.note{font-size:.9rem;color:#97a0ad;margin-top:14px}'
+            . '.links a{color:#7dd3fc;margin-right:12px;font-size:.9rem}'
+            . '</style></head><body><div class="wrap">'
+            . '<h1>Shif Shqip — Playlist portal</h1>'
+            . '<p class="sub">This domain serves playlist access for the official Shif Shqip player. It is <strong>not</strong> a “free TV” site and <strong>does not host channels</strong> — it connects an authorized source to the player app.</p>'
+            . '<div class="card"><h2 style="margin:0 0 8px;font-size:1.1rem">How the app works</h2>'
+            . '<ol>'
+            . '<li>Install <b>Shif Shqip</b> on Android (phone / TV box) when available.</li>'
+            . '<li>Open the app — a playlist may load from the server, or you can add your own.</li>'
+            . '<li>Pick a channel; it plays inside the app player.</li>'
+            . '</ol></div>'
+            . '<div class="card"><h2 style="margin:0 0 8px;font-size:1.1rem">Compliance</h2>'
+            . '<ul>'
+            . '<li>Use only sources you have the right to use.</li>'
+            . '<li>Shif Shqip = player software, not a TV service that hosts channels.</li>'
+            . '<li>See <a href="https://shifshqip.com/terms.php">Terms</a>, <a href="https://shifshqip.com/privacy.php">Privacy</a>, <a href="https://shifshqip.com/dmca.php">DMCA</a>.</li>'
+            . '</ul></div>'
+            . '<div>'
+            . '<span class="btn soon" aria-disabled="true">Android APK — Coming soon</span>'
+            . '<span class="btn soon" aria-disabled="true">Google Play — Coming soon</span>'
+            . '<a class="btn ghost" href="https://shifshqip.com/">shifshqip.com</a>'
+            . '<a class="btn ghost" href="https://shifshqip.com/k1/">Web /k1</a>'
+            . '</div>'
+            . ($publicUrlEsc !== '' ? '<p class="note">Open the Shif Shqip app to watch channels from this portal.</p>' : '')
+            . '<p class="links" style="margin-top:28px"><a href="https://shifshqip.com/privacy.php">Privacy</a><a href="https://shifshqip.com/terms.php">Terms</a><a href="https://shifshqip.com/dmca.php">DMCA</a><a href="https://shifshqip.com/acceptable-use.php">AUP</a></p>'
             . '</div></body></html>';
         exit;
     }

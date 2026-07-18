@@ -58,7 +58,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private OnItemClickListener mOnItemClickListener;
     private OnItemOverflowClickListener mOnItemOverflowClickListener;
     boolean scrolling = false;
-    private static final Object NATIVE_AD_BOUND_TAG = new Object();
+    private static final int NATIVE_AD_BOUND_TAG_KEY = R.id.recyclerView;
     SharedPref sharedPref;
     AdsPref adsPref;
     AdsManager adsManager;
@@ -166,8 +166,9 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
             vItem.channel_name.setText(p.channel_name);
 
-            vItem.channel_category.setText(CategoryDisplayHelper.displayName(p.category_name));
-            if (Config.ENABLE_CHANNEL_LIST_CATEGORY_NAME) {
+            String categoryLabel = CategoryDisplayHelper.displayName(p.category_name);
+            vItem.channel_category.setText(categoryLabel);
+            if (Config.ENABLE_CHANNEL_LIST_CATEGORY_NAME && !TextUtils.isEmpty(categoryLabel)) {
                 vItem.channel_category.setVisibility(View.VISIBLE);
             } else {
                 vItem.channel_category.setVisibility(View.GONE);
@@ -203,14 +204,32 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
             });
 
         } else if (holder instanceof NativeAdViewHolder) {
-            try {
-                adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
-            } catch (Exception e) {
-                Log.e("AdapterChannel", "native bind failed", e);
+            Object bound = holder.itemView.getTag(NATIVE_AD_BOUND_TAG_KEY);
+            if (bound == null) {
+                try {
+                    holder.itemView.setVisibility(View.VISIBLE);
+                    adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
+                    holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, Boolean.TRUE);
+                } catch (Exception e) {
+                    Log.e("AdapterChannel", "native bind failed", e);
+                    // Keep slot for a later rebind attempt instead of permanently collapsing.
+                    holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, null);
+                    holder.itemView.postDelayed(() -> {
+                        try {
+                            if (holder.getBindingAdapterPosition() == RecyclerView.NO_POSITION) {
+                                return;
+                            }
+                            adsManager.bindNativeAdViewHolder(context, (NativeAdViewHolder) holder);
+                            holder.itemView.setTag(NATIVE_AD_BOUND_TAG_KEY, Boolean.TRUE);
+                            holder.itemView.setVisibility(View.VISIBLE);
+                        } catch (Exception retryError) {
+                            Log.e("AdapterChannel", "native rebind failed", retryError);
+                            holder.itemView.setVisibility(View.GONE);
+                        }
+                    }, 1500L);
+                }
             }
-        }
-
-        else {
+        } else {
             ((ProgressViewHolder) holder).progressBar.setIndeterminate(true);
         }
 
@@ -260,7 +279,7 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     public void insertDataWithNativeAd(List<Channel> items) {
         setLoaded();
         int positionStart = getItemCount();
-        if (!adsPref.getAdStatus() || !AdPlacementHelper.shouldInsertNativeAds()) {
+        if (!AdPlacementHelper.shouldInsertNativeAds(adsPref)) {
             this.items.addAll(items);
             notifyItemRangeInserted(positionStart, items.size());
             return;
@@ -363,14 +382,26 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     private void loadChannelImage(ImageView imageView, String imageUrl) {
+        if (imageView == null) {
+            return;
+        }
+        if (TextUtils.isEmpty(imageUrl)) {
+            Glide.with(context).clear(imageView);
+            imageView.setImageResource(R.drawable.ic_thumbnail);
+            return;
+        }
         Glide.with(context)
                 .load(imageUrl)
-                .apply(new RequestOptions().override(Constant.list_image_width, Constant.list_image_height))
+                .apply(new RequestOptions()
+                        .override(Constant.list_image_width, Constant.list_image_height)
+                        .fitCenter())
                 .placeholder(R.drawable.ic_thumbnail)
+                .error(R.drawable.ic_thumbnail)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
                 .dontAnimate()
                 .into(imageView);
     }
+
 
     private String resolveChannelImage(Channel channel) {
         if (channel == null || TextUtils.isEmpty(channel.channel_image)) {
@@ -382,5 +413,6 @@ public class AdapterChannel extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
         return sharedPref.getBaseUrl() + "/upload/" + image.replace(" ", "%20");
     }
+
 
 }

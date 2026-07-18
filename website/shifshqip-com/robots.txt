@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Allow: /privacy.php
+Allow: /terms.php
+Allow: /dmca.php
+Allow: /acceptable-use.php
+Allow: /k1/
+Disallow: /k1/proxy/
+Disallow: /cache_sports/
+Sitemap: https://shifshqip.com/sitemap.xml
