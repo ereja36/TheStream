@@ -1,6 +1,7 @@
 <?php
 /**
  * Shif Shqip — public homepage (static-first, CDN-cacheable).
+ * Keeps AdSense / Monetag / Profiton / GA tags from the previous homepage.
  */
 declare(strict_types=1);
 require __DIR__ . '/_legal_common.php';
@@ -50,17 +51,25 @@ echo '<script type="application/ld+json">' . json_encode($jsonLd, JSON_UNESCAPED
   <div class="badge">MEDIA PLAYER · NOT A STREAMING HOST</div>
   <h1>Watch with your own playlist — we do not host TV channels</h1>
   <p class="lead">
-    Shif Shqip is an <strong>IPTV media player</strong> (Android + web <code>/k1</code>).
+    Shif Shqip is an <strong>IPTV media player</strong> (Android + ShifShqip portal).
     The app and website <strong>do not host, rebroadcast, or distribute TV channels</strong>.
     You (or your authorized provider) supply playlist / stream URLs; we provide playback software only.
   </p>
   <div style="margin-top:18px">
-    <span class="btn btn-soon" aria-disabled="true">Android APK — Coming soon</span>
-    <span class="btn btn-soon" aria-disabled="true">Google Play — Coming soon</span>
-    <a class="btn btn-ghost" href="/k1/">Open Web TV /k1</a>
+    <a class="btn btn-primary" href="/k1/">ShifShqip portal</a>
     <a class="btn btn-ghost" href="https://playlist.shifshqip.com/">Playlist portal</a>
   </div>
 </section>
+
+<div class="ad-slot">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-2519356856965635"
+       data-ad-slot="auto"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
 
 <div class="grid">
   <div class="card">
@@ -68,7 +77,7 @@ echo '<script type="application/ld+json">' . json_encode($jsonLd, JSON_UNESCAPED
     <p>An Android media player for M3U / Xtream-style portals. You add your own source. It is not a TV subscription service operated by Shif Shqip.</p>
   </div>
   <div class="card">
-    <h2>What /k1 is</h2>
+    <h2>What ShifShqip portal is</h2>
     <p>A browser-based player with the same model: it plays streams you provide. Legal pages (Privacy, Terms, DMCA, AUP) explain the boundaries of use.</p>
   </div>
   <div class="card">
@@ -77,10 +86,20 @@ echo '<script type="application/ld+json">' . json_encode($jsonLd, JSON_UNESCAPED
   </div>
 </div>
 
+<div class="ad-slot">
+  <ins class="adsbygoogle"
+       style="display:block"
+       data-ad-client="ca-pub-2519356856965635"
+       data-ad-slot="auto"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+
 <div class="card">
   <h2>Getting started</h2>
   <ul>
-    <li>Open <a href="/k1/">/k1</a> in your browser (app download coming soon).</li>
+    <li>Open <a href="/k1/">ShifShqip portal</a> in your browser.</li>
     <li>Add an authorized playlist / portal (no pirate sources).</li>
     <li>Play channels inside the player.</li>
   </ul>

@@ -30,6 +30,13 @@ function ss_legal_header(string $title, string $description, string $canonicalPa
     echo '<meta property="og:url" content="' . $canonEsc . '">';
     echo '<meta name="twitter:card" content="summary_large_image">';
     echo '<meta name="theme-color" content="#0b1220">';
+    // Ad network + Analytics (same as previous homepage)
+    echo '<meta name="profiton-domain-verification" content="3ac22be6709443fe7b40175013d9ac4cdd84ab7f2a652280eab8d690f7840a83">';
+    echo '<meta name="monetag" content="9d4c3909ebe45292254d838ef1f5f1dd">';
+    echo '<meta name="google-adsense-account" content="ca-pub-2519356856965635">';
+    echo '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2519356856965635" crossorigin="anonymous"></script>';
+    echo '<script async src="https://www.googletagmanager.com/gtag/js?id=G-NZW2V12T95"></script>';
+    echo '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config","G-NZW2V12T95");</script>';
     echo '<link rel="preconnect" href="https://fonts.googleapis.com">';
     echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     echo '<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">';
@@ -52,6 +59,7 @@ nav{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content
 .btn{display:inline-block;margin:6px 8px 6px 0;padding:12px 18px;border-radius:999px;font-weight:700;text-decoration:none!important}
 .btn-primary{background:var(--accent);color:#fff}.btn-ghost{border:1px solid var(--line);color:#fff}
 .btn-soon{background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--muted);cursor:default;pointer-events:none}
+.ad-slot{margin:18px 0;min-height:90px;display:flex;justify-content:center;align-items:center}
 .badge{display:inline-block;padding:4px 10px;border-radius:999px;background:rgba(61,214,140,.12);color:var(--ok);font-size:.78rem;font-weight:700;margin-bottom:10px}
 footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:.88rem}
 footer a{color:var(--muted);margin-right:12px}
@@ -60,7 +68,7 @@ footer a{color:var(--muted);margin-right:12px}
 </style>';
     echo '</head><body><div class="wrap"><nav>';
     echo '<a class="brand" href="/">Shif Shqip</a><div class="nav-links">';
-    echo '<a href="/">Home</a><a href="/k1/">Web TV /k1</a><a href="/privacy.php">Privacy</a><a href="/terms.php">Terms</a><a href="/dmca.php">DMCA</a><a href="/acceptable-use.php">AUP</a>';
+    echo '<a href="/">Home</a><a href="/k1/">ShifShqip portal</a><a href="/privacy.php">Privacy</a><a href="/terms.php">Terms</a><a href="/dmca.php">DMCA</a><a href="/acceptable-use.php">AUP</a>';
     echo '</div></nav>';
 }
 
