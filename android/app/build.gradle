@@ -21,9 +21,11 @@ android {
     buildFeatures {
         buildConfig = true
     }
+    // Play requires archiving for TV-targeted AABs (LEANBACK_LAUNCHER).
+    // Do not set storeArchive.enable = false — upload will be rejected.
     bundle {
         storeArchive {
-            enable = false
+            enable = true
         }
     }
     lint {
