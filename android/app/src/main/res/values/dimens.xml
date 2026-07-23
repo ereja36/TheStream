@@ -4,14 +4,45 @@
 
     <dimen name="grid_space_channel">6dp</dimen>
     <dimen name="grid_space_category">6dp</dimen>
+    <dimen name="spacing_small">6dp</dimen>
     <dimen name="spacing_middle">10dp</dimen>
     <dimen name="spacing_large">13dp</dimen>
+    <dimen name="spacing_xlarge">20dp</dimen>
     <dimen name="spacing_xxlarge">40dp</dimen>
+
+    <dimen name="screen_padding_horizontal">16dp</dimen>
+    <dimen name="screen_padding_vertical">12dp</dimen>
+    <dimen name="content_max_width">720dp</dimen>
+
+    <!-- Hero: prefer aspect ratio; these are fallbacks / min height hints -->
+    <dimen name="hero_min_height">180dp</dimen>
+
+    <dimen name="scroll_bottom_chrome_inset">120dp</dimen>
+    <dimen name="scroll_bottom_chrome_inset_with_ads">160dp</dimen>
+
+    <dimen name="nav_icon_size">44dp</dimen>
+    <dimen name="nav_fab_size">56dp</dimen>
+    <dimen name="top_action_icon_size">36dp</dimen>
+    <dimen name="logo_size_small">32dp</dimen>
+    <dimen name="logo_size_medium">48dp</dimen>
+    <dimen name="logo_size_large">72dp</dimen>
+    <dimen name="logo_size_xlarge">80dp</dimen>
+
+    <dimen name="channel_card_width">140dp</dimen>
+    <dimen name="channel_card_media_min_height">96dp</dimen>
+    <dimen name="channel_card_logo_size">64dp</dimen>
+    <dimen name="channel_card_fav_size">28dp</dimen>
+
+    <dimen name="list_thumb_size">72dp</dimen>
+    <dimen name="list_icon_size">48dp</dimen>
+    <dimen name="settings_icon_size">28dp</dimen>
 
     <dimen name="text_title_size">15sp</dimen>
     <dimen name="text_sub_title_size">13sp</dimen>
     <dimen name="text_content_title_size">18sp</dimen>
     <dimen name="text_content_sub_title_size">14sp</dimen>
+    <dimen name="text_hero_title_size">28sp</dimen>
+    <dimen name="text_screen_title_size">26sp</dimen>
 
     <dimen name="corner_radius_medium">20dp</dimen>
     <dimen name="corner_radius_large">30dp</dimen>
@@ -20,5 +51,8 @@
     <dimen name="toolbar_elevation">0dp</dimen>
     <dimen name="no_margin">0dp</dimen>
     <dimen name="native_ad_stroke_width">0dp</dimen>
+
+    <integer name="grid_span_compact">2</integer>
+    <integer name="grid_span_default">3</integer>
 
 </resources>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="screen_padding_horizontal">24dp</dimen>
+    <dimen name="screen_padding_vertical">16dp</dimen>
+    <dimen name="content_max_width">840dp</dimen>
+
+    <dimen name="hero_min_height">240dp</dimen>
+    <dimen name="scroll_bottom_chrome_inset">132dp</dimen>
+    <dimen name="scroll_bottom_chrome_inset_with_ads">180dp</dimen>
+
+    <dimen name="channel_card_width">180dp</dimen>
+    <dimen name="channel_card_media_min_height">120dp</dimen>
+    <dimen name="channel_card_logo_size">80dp</dimen>
+
+    <dimen name="list_thumb_size">88dp</dimen>
+    <dimen name="logo_size_large">88dp</dimen>
+    <dimen name="logo_size_xlarge">96dp</dimen>
+
+    <dimen name="text_hero_title_size">34sp</dimen>
+    <dimen name="text_screen_title_size">30sp</dimen>
+    <dimen name="text_content_title_size">20sp</dimen>
+
+    <integer name="grid_span_compact">3</integer>
+    <integer name="grid_span_default">4</integer>
+</resources>

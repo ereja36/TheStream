@@ -16,6 +16,7 @@ import com.shif.shqip.android.adapters.AdapterPlaylistCategory;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 import com.shif.shqip.android.models.Category;
 import com.shif.shqip.android.utils.PlaylistNavigationHelper;
+import com.shif.shqip.android.utils.ResponsiveLayoutHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import java.util.ArrayList;
@@ -38,7 +39,8 @@ public class ActivityPlaylistCategories extends AppCompatActivity {
 
         RecyclerView recyclerView = findViewById(R.id.recycler_view);
         TextView emptyMessage = findViewById(R.id.empty_message);
-        recyclerView.setLayoutManager(new GridLayoutManager(this, 2));
+        recyclerView.setLayoutManager(new GridLayoutManager(this,
+                ResponsiveLayoutHelper.gridSpanCount(this, 2)));
         recyclerView.setHasFixedSize(true);
 
         List<Category> categories = sharedPref.getPlaylistCategories();

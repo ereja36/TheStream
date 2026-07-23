@@ -11,139 +11,150 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
-        android:paddingBottom="180dp">
+        android:paddingBottom="@dimen/scroll_bottom_chrome_inset_with_ads">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <FrameLayout
-                android:id="@+id/hero_container"
+            <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"
-                android:layout_height="300dp">
-
-                <ImageView
-                    android:id="@+id/hero_image"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:padding="40dp"
-                    android:scaleType="fitCenter"
-                    android:src="@mipmap/ic_launcher" />
+                android:layout_height="wrap_content">
 
                 <FrameLayout
-                    android:id="@+id/hero_preview_container"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:clickable="false"
-                    android:focusable="false"
-                    android:visibility="gone" />
+                    android:id="@+id/hero_container"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:minHeight="@dimen/hero_min_height"
+                    app:layout_constraintDimensionRatio="H,16:9"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent">
 
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/bg_v2_hero_gradient"
-                    android:clickable="false"
-                    android:focusable="false" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="bottom"
-                    android:orientation="vertical"
-                    android:padding="20dp">
-
-                    <TextView
-                        android:id="@+id/live_badge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/bg_v2_live_badge"
-                        android:paddingStart="10dp"
-                        android:paddingTop="4dp"
-                        android:paddingEnd="10dp"
-                        android:paddingBottom="4dp"
-                        android:text="● LIVE"
-                        android:textColor="@color/color_white"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/hero_title"
+                    <ImageView
+                        android:id="@+id/hero_image"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="Shif Shqip"
-                        android:textColor="@color/v2_text_primary"
-                        android:textSize="28sp"
-                        android:textStyle="bold" />
+                        android:layout_height="match_parent"
+                        android:padding="@dimen/spacing_xxlarge"
+                        android:scaleType="fitCenter"
+                        android:src="@mipmap/ic_launcher" />
 
-                    <TextView
-                        android:id="@+id/hero_subtitle"
+                    <FrameLayout
+                        android:id="@+id/hero_preview_container"
                         android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="TV"
-                        android:textColor="@color/v2_text_secondary"
-                        android:textSize="14sp" />
-
-                    <TextView
-                        android:id="@+id/hero_epg"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:ellipsize="end"
-                        android:maxLines="1"
-                        android:textColor="@color/v2_accent"
-                        android:textSize="12sp"
+                        android:layout_height="match_parent"
+                        android:clickable="false"
+                        android:focusable="false"
                         android:visibility="gone" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/bg_v2_hero_gradient"
+                        android:clickable="false"
+                        android:focusable="false" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="-48dp"
-                        android:gravity="end|center_vertical"
-                        android:orientation="horizontal">
+                        android:layout_gravity="bottom"
+                        android:orientation="vertical"
+                        android:padding="@dimen/spacing_xlarge">
 
-                        <ImageButton
-                            android:id="@+id/btn_hero_mute"
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:layout_marginEnd="10dp"
-                            android:background="@drawable/bg_v2_glass_nav_pill"
-                            android:contentDescription="@string/player_mute"
-                            android:padding="8dp"
-                            android:src="@android:drawable/ic_lock_silent_mode"
-                            android:tint="@color/color_white"
+                        <TextView
+                            android:id="@+id/live_badge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_v2_live_badge"
+                            android:paddingStart="@dimen/spacing_middle"
+                            android:paddingTop="4dp"
+                            android:paddingEnd="@dimen/spacing_middle"
+                            android:paddingBottom="4dp"
+                            android:text="● LIVE"
+                            android:textColor="@color/color_white"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/hero_title"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/spacing_small"
+                            android:text="Shif Shqip"
+                            android:textColor="@color/v2_text_primary"
+                            android:textSize="@dimen/text_hero_title_size"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/hero_subtitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="TV"
+                            android:textColor="@color/v2_text_secondary"
+                            android:textSize="@dimen/text_content_sub_title_size" />
+
+                        <TextView
+                            android:id="@+id/hero_epg"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/v2_accent"
+                            android:textSize="12sp"
                             android:visibility="gone" />
 
-                        <Button
-                            android:id="@+id/btn_watch"
-                            android:layout_width="wrap_content"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_v2_watch_button"
-                            android:minWidth="100dp"
-                            android:text="Watch"
-                            android:textAllCaps="false"
-                            android:textColor="@color/color_white"
-                            android:textStyle="bold" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="@dimen/spacing_middle"
+                            android:gravity="end|center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageButton
+                                android:id="@+id/btn_hero_mute"
+                                android:layout_width="@dimen/top_action_icon_size"
+                                android:layout_height="@dimen/top_action_icon_size"
+                                android:layout_marginEnd="@dimen/spacing_middle"
+                                android:background="@drawable/bg_v2_glass_nav_pill"
+                                android:contentDescription="@string/player_mute"
+                                android:padding="@dimen/spacing_small"
+                                android:src="@android:drawable/ic_lock_silent_mode"
+                                android:tint="@color/color_white"
+                                android:visibility="gone" />
+
+                            <Button
+                                android:id="@+id/btn_watch"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:minHeight="@dimen/top_action_icon_size"
+                                android:background="@drawable/bg_v2_watch_button"
+                                android:minWidth="100dp"
+                                android:text="Watch"
+                                android:textAllCaps="false"
+                                android:textColor="@color/color_white"
+                                android:textStyle="bold" />
+                        </LinearLayout>
                     </LinearLayout>
-                </LinearLayout>
-            </FrameLayout>
+                </FrameLayout>
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
             <LinearLayout
                 android:id="@+id/banner_all_channels"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_margin="16dp"
+                android:layout_margin="@dimen/screen_padding_horizontal"
                 android:background="@drawable/bg_v2_glass_panel"
                 android:orientation="vertical"
-                android:padding="18dp">
+                android:padding="@dimen/spacing_xlarge">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="ALL CHANNELS"
                     android:textColor="@color/v2_text_primary"
-                    android:textSize="18sp"
+                    android:textSize="@dimen/text_content_title_size"
                     android:textStyle="bold" />
 
                 <TextView
@@ -152,7 +163,7 @@
                     android:layout_marginTop="4dp"
                     android:text="Browse all available channels"
                     android:textColor="@color/v2_text_secondary"
-                    android:textSize="13sp" />
+                    android:textSize="@dimen/text_sub_title_size" />
             </LinearLayout>
 
             <LinearLayout
@@ -160,14 +171,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingBottom="16dp" />
+                android:paddingBottom="@dimen/screen_padding_horizontal" />
 
             <TextView
                 android:id="@+id/empty_message"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:padding="24dp"
+                android:padding="@dimen/spacing_xlarge"
                 android:text="@string/no_post_found"
                 android:textColor="@color/v2_text_secondary"
                 android:visibility="gone" />
@@ -195,43 +206,43 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
-        android:layout_marginEnd="12dp"
+        android:layout_marginEnd="@dimen/spacing_large"
         android:background="@drawable/bg_v2_glass_nav_pill"
         android:elevation="24dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingStart="6dp"
+        android:paddingStart="@dimen/spacing_small"
         android:paddingTop="4dp"
-        android:paddingEnd="6dp"
+        android:paddingEnd="@dimen/spacing_small"
         android:paddingBottom="4dp">
 
         <ImageButton
             android:id="@+id/btn_add_playlist"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="@dimen/nav_icon_size"
+            android:layout_height="@dimen/nav_icon_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/playlist_add"
-            android:padding="8dp"
+            android:padding="@dimen/spacing_small"
             android:src="@android:drawable/ic_input_add"
             android:tint="@color/color_white" />
 
         <ImageButton
             android:id="@+id/btn_search"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="@dimen/nav_icon_size"
+            android:layout_height="@dimen/nav_icon_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/search"
-            android:padding="8dp"
+            android:padding="@dimen/spacing_small"
             android:src="@android:drawable/ic_menu_search"
             android:tint="@color/color_white" />
 
         <ImageButton
             android:id="@+id/btn_settings"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="@dimen/nav_icon_size"
+            android:layout_height="@dimen/nav_icon_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/title_nav_settings"
-            android:padding="8dp"
+            android:padding="@dimen/spacing_small"
             android:src="@drawable/settings"
             android:tint="@color/color_white" />
     </LinearLayout>
@@ -249,20 +260,20 @@
         <LinearLayout
             android:id="@+id/bottom_nav_pill"
             android:layout_width="wrap_content"
-            android:layout_height="56dp"
-            android:layout_marginBottom="8dp"
+            android:layout_height="@dimen/nav_fab_size"
+            android:layout_marginBottom="@dimen/spacing_small"
             android:background="@drawable/bg_v2_glass_nav_pill"
             android:elevation="28dp"
             android:gravity="center"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp">
+            android:paddingStart="@dimen/spacing_large"
+            android:paddingEnd="@dimen/spacing_large">
 
             <ImageButton
                 android:id="@+id/nav_home"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="14dp"
+                android:layout_width="@dimen/logo_size_medium"
+                android:layout_height="@dimen/logo_size_medium"
+                android:layout_marginEnd="@dimen/spacing_large"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/title_nav_recent"
                 android:src="@drawable/ic_nav_home"
@@ -270,9 +281,9 @@
 
             <ImageButton
                 android:id="@+id/nav_categories"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="14dp"
+                android:layout_width="@dimen/logo_size_medium"
+                android:layout_height="@dimen/logo_size_medium"
+                android:layout_marginEnd="@dimen/spacing_large"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/title_nav_category"
                 android:src="@drawable/ic_nav_category"
@@ -280,8 +291,8 @@
 
             <ImageButton
                 android:id="@+id/nav_favorites"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="@dimen/logo_size_medium"
+                android:layout_height="@dimen/logo_size_medium"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@string/title_nav_favorite"
                 android:src="@drawable/ic_nav_favorite"

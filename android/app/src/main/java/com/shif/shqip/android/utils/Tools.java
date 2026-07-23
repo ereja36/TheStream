@@ -168,12 +168,14 @@ public class Tools {
             return;
         }
 
+        WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), false);
         ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0);
-            navigationBarView.setPadding(0, 0, 0, systemBars.bottom);
+            Insets safe = insets.getInsets(ResponsiveLayoutHelper.safeDrawingTypeMask());
+            v.setPadding(safe.left, safe.top, safe.right, 0);
+            navigationBarView.setPadding(0, 0, 0, safe.bottom);
             return insets;
         });
+        ViewCompat.requestApplyInsets(rootView);
         WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView()).setAppearanceLightStatusBars(false);
         SharedPref sharedPref = new SharedPref(activity);
         if (sharedPref.getIsDarkTheme()) {
@@ -199,12 +201,14 @@ public class Tools {
         if (rootView == null || backgroundView == null || navigationBarView == null) {
             return;
         }
+        WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), false);
         ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, insets) -> {
-            Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(0, 0, 0, 0);
-            navigationBarView.setPadding(0, 0, 0, systemBars.bottom);
+            Insets safe = insets.getInsets(ResponsiveLayoutHelper.safeDrawingTypeMask());
+            v.setPadding(safe.left, 0, safe.right, 0);
+            navigationBarView.setPadding(0, 0, 0, safe.bottom);
             return insets;
         });
+        ViewCompat.requestApplyInsets(rootView);
         WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView()).setAppearanceLightStatusBars(false);
         rootView.setBackgroundColor(ContextCompat.getColor(activity, R.color.color_black));
         backgroundView.setBackgroundColor(ContextCompat.getColor(activity, R.color.color_black));
@@ -214,12 +218,26 @@ public class Tools {
     }
 
     public static void setWindowInsetsLayout(Activity activity) {
-        ViewCompat.setOnApplyWindowInsetsListener(activity.findViewById(R.id.background_view), (v, insets) -> {
+        View background = activity.findViewById(R.id.background_view);
+        if (background == null) {
+            background = activity.findViewById(android.R.id.content);
+        }
+        if (background == null) {
+            return;
+        }
+        WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), false);
+        final int baseL = background.getPaddingLeft();
+        final int baseT = background.getPaddingTop();
+        final int baseR = background.getPaddingRight();
+        final int baseB = background.getPaddingBottom();
+        ViewCompat.setOnApplyWindowInsetsListener(background, (v, insets) -> {
             Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
-            Insets systemBarInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars());
-            v.setPadding(v.getPaddingLeft(), v.getPaddingTop(), v.getPaddingRight(), imeInsets.bottom);
-            return WindowInsetsCompat.CONSUMED;
+            Insets safe = insets.getInsets(ResponsiveLayoutHelper.safeDrawingTypeMask());
+            int bottom = Math.max(imeInsets.bottom, safe.bottom);
+            v.setPadding(baseL + safe.left, baseT + safe.top, baseR + safe.right, baseB + bottom);
+            return insets;
         });
+        ViewCompat.requestApplyInsets(background);
     }
 
     public static void setLayoutDirection(Activity activity) {

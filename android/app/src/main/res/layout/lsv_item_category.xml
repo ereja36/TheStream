@@ -14,8 +14,8 @@
     android:paddingBottom="8dp">
 
     <RelativeLayout
-        android:layout_width="72dp"
-        android:layout_height="72dp">
+        android:layout_width="@dimen/list_thumb_size"
+        android:layout_height="@dimen/list_thumb_size">
 
         <com.google.android.material.imageview.ShapeableImageView
             android:id="@+id/category_image"
