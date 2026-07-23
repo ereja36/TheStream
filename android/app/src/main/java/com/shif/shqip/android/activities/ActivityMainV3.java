@@ -34,6 +34,7 @@ import com.shif.shqip.android.utils.HomeAdsBootstrap;
 import com.shif.shqip.android.utils.InboxNotificationHelper;
 import com.shif.shqip.android.utils.NativeAdSlotHelper;
 import com.shif.shqip.android.utils.PlaylistRefreshHelper;
+import com.shif.shqip.android.utils.ResponsiveLayoutHelper;
 import com.shif.shqip.android.utils.Tools;
 
 import java.util.ArrayList;
@@ -82,7 +83,8 @@ public class ActivityMainV3 extends AppCompatActivity {
 
         featuredRecycler.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         featuredRecycler.setAdapter(featuredAdapter);
-        gridRecycler.setLayoutManager(new GridLayoutManager(this, 3));
+        int span = ResponsiveLayoutHelper.gridSpanCount(this, getResources().getInteger(R.integer.grid_span_default));
+        gridRecycler.setLayoutManager(new GridLayoutManager(this, span));
         gridRecycler.setAdapter(gridAdapter);
 
         findViewById(R.id.btn_add_playlist).setOnClickListener(v ->

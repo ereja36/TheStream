@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="hero_min_height">140dp</dimen>
+    <dimen name="scroll_bottom_chrome_inset">96dp</dimen>
+    <dimen name="scroll_bottom_chrome_inset_with_ads">128dp</dimen>
+    <dimen name="screen_padding_horizontal">20dp</dimen>
+    <dimen name="channel_card_width">128dp</dimen>
+    <dimen name="channel_card_media_min_height">84dp</dimen>
+    <dimen name="channel_card_logo_size">56dp</dimen>
+    <dimen name="text_hero_title_size">22sp</dimen>
+</resources>

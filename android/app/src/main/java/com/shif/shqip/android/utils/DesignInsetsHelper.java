@@ -13,6 +13,10 @@ import androidx.core.view.WindowInsetsCompat;
 import com.shif.shqip.android.R;
 import com.shif.shqip.android.databases.prefs.SharedPref;
 
+/**
+ * Applies Material-style safe drawing insets for design V2/V3 screens.
+ * Equivalent goals to Compose: WindowInsets.safeDrawing, statusBarsPadding, navigationBarsPadding.
+ */
 public final class DesignInsetsHelper {
 
     private DesignInsetsHelper() {
@@ -27,8 +31,14 @@ public final class DesignInsetsHelper {
         SharedPref sharedPref = new SharedPref(activity);
         boolean lightBars = !sharedPref.getIsDarkTheme();
 
-        WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), true);
-        Tools.applyDesignSystemBars(activity, lightBars);
+        // Edge-to-edge; we pad chrome ourselves (like Scaffold + safeDrawing).
+        WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), false);
+        activity.getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+        activity.getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+        WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView())
+                .setAppearanceLightStatusBars(lightBars);
+        WindowCompat.getInsetsController(activity.getWindow(), activity.getWindow().getDecorView())
+                .setAppearanceLightNavigationBars(lightBars);
 
         View root = activity.findViewById(rootId);
         if (root == null) {
@@ -43,10 +53,11 @@ public final class DesignInsetsHelper {
         final int extraBottomDp = dp(activity, 12);
 
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
-            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            Insets bars = insets.getInsets(ResponsiveLayoutHelper.safeDrawingTypeMask());
             applyTopMargin(topBar, bars.top + extraTopDp);
             applyBottomMargin(bottomBar, bars.bottom + extraBottomDp);
             applyBottomMargin(floatingNav, bars.bottom + extraBottomDp + dp(activity, 56));
+            v.setPadding(bars.left, 0, bars.right, 0);
             if (content != null) {
                 content.setPadding(
                         content.getPaddingLeft(),

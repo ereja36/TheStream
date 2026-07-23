@@ -35,6 +35,7 @@ import com.shif.shqip.android.rests.ApiInterface;
 import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.ResponsiveLayoutHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.facebook.shimmer.ShimmerFrameLayout;
 
@@ -81,11 +82,11 @@ public class FragmentCategory extends Fragment {
         if (sharedPref.getCategoryViewType() == CATEGORY_LIST_DEFAULT) {
             recyclerView.setLayoutManager(new StaggeredGridLayoutManager(1, LinearLayoutManager.VERTICAL));
         } else if (sharedPref.getCategoryViewType() == CATEGORY_GRID_2_COLUMN) {
-            recyclerView.setLayoutManager(new StaggeredGridLayoutManager(2, LinearLayoutManager.VERTICAL));
-            //recyclerView.addItemDecoration(itemDecoration);
+            int span = ResponsiveLayoutHelper.spanForPreferredColumns(activity, 2);
+            recyclerView.setLayoutManager(new StaggeredGridLayoutManager(span, LinearLayoutManager.VERTICAL));
         } else if (sharedPref.getCategoryViewType() == CATEGORY_GRID_3_COLUMN) {
-            recyclerView.setLayoutManager(new StaggeredGridLayoutManager(3, LinearLayoutManager.VERTICAL));
-            //recyclerView.addItemDecoration(itemDecoration);
+            int span = ResponsiveLayoutHelper.spanForPreferredColumns(activity, 3);
+            recyclerView.setLayoutManager(new StaggeredGridLayoutManager(span, LinearLayoutManager.VERTICAL));
         }
 
         int padding = getResources().getDimensionPixelOffset(R.dimen.grid_space_category);

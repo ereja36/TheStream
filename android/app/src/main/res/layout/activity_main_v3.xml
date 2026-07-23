@@ -12,15 +12,15 @@
         android:layout_height="match_parent"
         android:clipToPadding="false"
         android:paddingTop="72dp"
-        android:paddingBottom="140dp">
+        android:paddingBottom="@dimen/scroll_bottom_chrome_inset">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="16dp">
+            android:paddingStart="@dimen/screen_padding_horizontal"
+            android:paddingEnd="@dimen/screen_padding_horizontal"
+            android:paddingBottom="@dimen/screen_padding_horizontal">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -32,7 +32,7 @@
                     android:layout_height="wrap_content"
                     android:text="@string/app_name"
                     android:textColor="@color/v3_text_primary"
-                    android:textSize="26sp"
+                    android:textSize="@dimen/text_screen_title_size"
                     android:textStyle="bold" />
 
                 <TextView
@@ -41,37 +41,37 @@
                     android:layout_height="wrap_content"
                     android:text="Premium IPTV Experience"
                     android:textColor="@color/v3_accent"
-                    android:textSize="13sp" />
+                    android:textSize="@dimen/text_sub_title_size" />
             </LinearLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recycler_featured"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="@dimen/screen_padding_horizontal"
                 android:nestedScrollingEnabled="false" />
 
             <LinearLayout
                 android:id="@+id/native_ad_home"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="@dimen/spacing_small"
                 android:orientation="vertical" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="@dimen/spacing_small"
                 android:text="All Channels"
                 android:textColor="@color/v3_text_primary"
-                android:textSize="18sp"
+                android:textSize="@dimen/text_content_title_size"
                 android:textStyle="bold" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recycler_channels"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="@dimen/spacing_small"
                 android:nestedScrollingEnabled="false" />
 
             <TextView
@@ -79,7 +79,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:padding="24dp"
+                android:padding="@dimen/spacing_xlarge"
                 android:text="@string/no_post_found"
                 android:textColor="@color/v3_text_secondary"
                 android:visibility="gone" />
@@ -88,10 +88,10 @@
 
     <ImageView
         android:id="@+id/img_app_logo"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
+        android:layout_width="@dimen/logo_size_small"
+        android:layout_height="@dimen/logo_size_small"
         android:layout_gravity="top|start"
-        android:layout_marginStart="16dp"
+        android:layout_marginStart="@dimen/screen_padding_horizontal"
         android:contentDescription="@string/app_name"
         android:scaleType="centerInside"
         android:visibility="gone" />
@@ -101,7 +101,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|end"
-        android:layout_marginEnd="12dp"
+        android:layout_marginEnd="@dimen/spacing_large"
         android:background="@drawable/bg_v3_channel_card"
         android:clickable="true"
         android:elevation="16dp"
@@ -115,31 +115,31 @@
 
         <ImageButton
             android:id="@+id/btn_add_playlist"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="@dimen/nav_icon_size"
+            android:layout_height="@dimen/nav_icon_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/playlist_add"
-            android:padding="8dp"
+            android:padding="@dimen/spacing_small"
             android:src="@android:drawable/ic_input_add"
             android:tint="@color/v3_accent" />
 
         <ImageButton
             android:id="@+id/btn_search"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="@dimen/nav_icon_size"
+            android:layout_height="@dimen/nav_icon_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/search"
-            android:padding="8dp"
+            android:padding="@dimen/spacing_small"
             android:src="@android:drawable/ic_menu_search"
             android:tint="@color/v3_accent" />
 
         <ImageButton
             android:id="@+id/btn_settings"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="@dimen/nav_icon_size"
+            android:layout_height="@dimen/nav_icon_size"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/title_nav_settings"
-            android:padding="8dp"
+            android:padding="@dimen/spacing_small"
             android:src="@drawable/settings"
             android:tint="@color/v3_accent" />
     </LinearLayout>

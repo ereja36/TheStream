@@ -45,6 +45,7 @@ import com.shif.shqip.android.rests.RestAdapter;
 import com.shif.shqip.android.utils.AdsManager;
 import com.shif.shqip.android.utils.AdPlacementHelper;
 import com.shif.shqip.android.utils.Constant;
+import com.shif.shqip.android.utils.ResponsiveLayoutHelper;
 import com.shif.shqip.android.utils.Tools;
 import com.facebook.shimmer.ShimmerFrameLayout;
 import com.google.android.material.snackbar.Snackbar;
@@ -101,9 +102,11 @@ public class ActivitySearch extends AppCompatActivity {
         if (sharedPref.getChannelViewType() == CHANNEL_LIST_DEFAULT) {
             recyclerView.setLayoutManager(new StaggeredGridLayoutManager(1, StaggeredGridLayoutManager.VERTICAL));
         } else if (sharedPref.getChannelViewType() == CHANNEL_GRID_2_COLUMN) {
-            recyclerView.setLayoutManager(new StaggeredGridLayoutManager(2, StaggeredGridLayoutManager.VERTICAL));
+            int span = ResponsiveLayoutHelper.spanForPreferredColumns(this, 2);
+            recyclerView.setLayoutManager(new StaggeredGridLayoutManager(span, StaggeredGridLayoutManager.VERTICAL));
         } else if (sharedPref.getChannelViewType() == CHANNEL_GRID_3_COLUMN) {
-            recyclerView.setLayoutManager(new StaggeredGridLayoutManager(3, StaggeredGridLayoutManager.VERTICAL));
+            int span = ResponsiveLayoutHelper.spanForPreferredColumns(this, 3);
+            recyclerView.setLayoutManager(new StaggeredGridLayoutManager(span, StaggeredGridLayoutManager.VERTICAL));
         }
 
         int padding = getResources().getDimensionPixelOffset(R.dimen.grid_space_channel);
